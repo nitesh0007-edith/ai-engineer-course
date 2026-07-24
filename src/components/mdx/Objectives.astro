@@ -1,0 +1,12 @@
+---
+/** Auto-rendered from frontmatter: <Objectives data={frontmatter} />. */
+const { data } = Astro.props;
+const objectives: string[] = data?.objectives ?? [];
+---
+
+<aside class="slab objectives" aria-label="What you will be able to do">
+  <p class="slab-label">◆ By the end you can</p>
+  <ul>
+    {objectives.map((o) => <li>{o}</li>)}
+  </ul>
+</aside>

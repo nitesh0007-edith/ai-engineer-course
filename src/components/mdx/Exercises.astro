@@ -1,0 +1,23 @@
+---
+/** Auto-rendered from frontmatter: <Exercises data={frontmatter} />. */
+const { data } = Astro.props;
+type Exercise = { prompt: string; difficulty: 'warmup' | 'core' | 'stretch'; solution: string };
+const exercises: Exercise[] = data?.exercises ?? [];
+---
+
+<div class="block exercises">
+  {
+    exercises.map((ex, i) => (
+      <div class="exercise">
+        <span class={`tag ${ex.difficulty}`}>
+          {ex.difficulty} · {i + 1}
+        </span>
+        <p class="prompt">{ex.prompt}</p>
+        <details>
+          <summary>Reveal solution</summary>
+          <div class="solution">{ex.solution}</div>
+        </details>
+      </div>
+    ))
+  }
+</div>

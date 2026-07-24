@@ -1,0 +1,216 @@
+---
+layer: 0
+order: 0
+title: 'How to use this course'
+slug: 'how-to-use-this-course'
+subtitle: 'A map, three depth tiers, and the one habit that decides whether any of this sticks.'
+depth: know
+difficulty: beginner
+readingTime: 12
+prerequisites: []
+objectives:
+  - 'Navigate the course by its 11 layers and decide what to read at build, use, or know depth'
+  - 'Run, edit, and deliberately break the interactive cells — and say why breaking them is the point'
+  - 'Set a sustainable pace that favours depth over coverage and sidesteps the tutorial-hopping trap'
+concepts:
+  - depth-tiers
+  - pyodide
+  - fixtures
+  - deliberate-practice
+diagrams:
+  - CourseAssembly
+  - DepthTiers
+interactives:
+  - PyRunner
+codeExamples: 2
+exercises:
+  - prompt: 'Open any later chapter, find its "Production reality" section, and write one sentence on a cost or failure mode it names that you would not have guessed from the concept alone.'
+    difficulty: warmup
+    solution: 'Any honest answer works. The point is to notice that the production section carries information the tutorial-level explanation does not — for example, that a reranker adds latency, or that long context is often more expensive than retrieval. If you found nothing surprising, you read too fast.'
+  - prompt: 'Take the runnable cell in this chapter, change it so it deliberately raises an error, run it, and read the traceback. Then fix it. What did the traceback tell you about where Python stopped?'
+    difficulty: core
+    solution: 'For example, deleting a closing parenthesis produces a SyntaxError pointing at the line; referencing an undefined name produces a NameError naming the symbol. The traceback names the error type and the line — reading it is faster than guessing. Getting comfortable reading tracebacks now pays off in every later chapter.'
+  - prompt: 'Sketch a 12-week plan across the 11 layers for your own goal. Which layers do you take to build depth, which to use, and which to only know? Justify one "know" choice.'
+    difficulty: stretch
+    solution: 'There is no single right plan. A common shape for an application engineer: build depth on Layers 0, 3, 4 and 5; use depth on 6 and 7; know-level on 2, 8, 9 and 10. A defensible "know" choice: most application engineers never train a model from scratch, so Layer 2 at know depth (enough to talk to researchers and read a training curve) is a reasonable trade to spend that time on RAG and evals instead.'
+resources:
+  - title: 'Teach Yourself Programming in Ten Years — Peter Norvig'
+    url: 'https://norvig.com/21-days.html'
+    type: blog
+    note: 'The case for depth over speed, from someone who would know. Read it before your first shortcut.'
+  - title: 'Neural Networks: Zero to Hero — Andrej Karpathy'
+    url: 'https://karpathy.ai/zero-to-hero.html'
+    type: course
+    note: 'The build-it-from-scratch spirit this course shares, for the deep-learning layers specifically.'
+  - title: 'Pyodide documentation'
+    url: 'https://pyodide.org/en/stable/'
+    type: docs
+    note: 'The runtime that executes Python in your browser here — worth a skim so the magic feels less like magic.'
+status: published
+updated: 2026-07-24
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import CourseAssembly from '../../../components/diagrams/CourseAssembly.astro';
+import DepthTiers from '../../../components/diagrams/DepthTiers.astro';
+
+You watch a three-hour video on transformers. You nod along. It makes sense. A week later a colleague asks why attention divides by the square root of the key dimension, and you have nothing — not because you are slow, but because **watching is not the same as knowing**, and your brain quietly filed the video under "seen," not "learned."
+
+That gap — between recognising an idea when you see it and being able to reproduce it when you need it — is where most self-taught AI engineers get stuck. This chapter is about how this course is built to close that gap, and what you have to do for it to work.
+
+<Prerequisites data={frontmatter} />
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+The whole course rests on one unglamorous idea: **you learn engineering by doing engineering.** Not by reading about it. So every chapter contains at least one thing you cannot get from prose — something you can run, edit, break, and watch respond.
+
+The cells in this course are not screenshots. They are real Python, executed in your browser by <Term id="pyodide">Pyodide</Term>, with nothing sent to a server. When a demo genuinely needs a hosted model, it uses a committed <Term id="fixture">fixture</Term> so it still runs for free — and you can switch on <Term id="byok">BYOK</Term> mode to re-run it live against your own key.
+
+That changes what reading means here. When you hit a runnable cell, the instruction is never "look at this." It is **"change a number and see what moves."** A concept you have perturbed and watched react is one you can rebuild later. A concept you only read is one you will have to look up.
+
+<Callout type="note">
+This course is deliberately long — about 88 chapters across 11 layers, months of work at a sustainable pace. That is a feature. The goal is not to finish; it is to still understand chapter 3 by the time you reach chapter 30.
+</Callout>
+
+## How it's built
+
+The course is organised as eleven **layers**, from the maths and Python foundations up through classical ML, deep learning, transformers, the application-engineering core, evaluation, adaptation, serving, operations, safety, and finally specialisations. Each builds on the ones below it.
+
+<Figure id="00-00.1" label="THE COURSE, EXPLODED" caption="— the eleven layers as an exploded assembly. Lower layers are load-bearing for everything above; you can enter at any layer you already have the parts for, but skipping a foundation shows up later as a gap you cannot name.">
+  <CourseAssembly />
+</Figure>
+
+Every chapter carries a **depth tag** telling you how far it goes, because you neither can nor should go equally deep on everything.
+
+<Figure id="00-00.2" label="THE THREE DEPTH TIERS" caption="— build, use, and know. The tag on each chapter sets the contract: how much of the machinery you are expected to hold in your head afterwards.">
+  <DepthTiers />
+</Figure>
+
+- **Build** chapters take you all the way down: you implement the thing from scratch, so you understand every moving part.
+- **Use** chapters stop at correct, informed usage: you can apply the technique and argue its trade-offs without rebuilding it.
+- **Know** chapters are a map pin: you learn that something exists and what problem it solves, so you can reach for it later.
+
+Inside a chapter the shape is always the same — a hook, the intuition in plain words, diagrams, the mechanics, a worked example, something interactive, and then a **"Production reality"** section that most tutorials skip: what breaks, what it costs, and what the trade-offs are. That section is the difference between knowing a technique and being trusted to ship it.
+
+## A worked example: the run–break–tune loop
+
+Here is the loop this course wants to become a habit. Suppose you meet this code:
+
+```python
+def average(numbers):
+    total = 0
+    for n in numbers:
+        total += n
+    return total / len(numbers)
+
+print(average([]))   # what happens here?
+```
+
+Passive reading says "a function that averages a list — fine, next." The run–break–tune loop says: *run it.* You get a `ZeroDivisionError`, because an empty list has length zero. Now you have learned something the prose never told you — this function has an edge case — and you learned it in the strongest possible way, by watching it fail. **Break, observe, then fix.** That single habit, applied a few hundred times across this course, is most of what separates an engineer from a spectator.
+
+## Try it
+
+Below is a live cell — the same kind you will meet in every chapter. Edit it, press **Run** (or `⌘/Ctrl + Enter`), and watch it respond. The first run takes a few seconds while Python loads; after that it is instant.
+
+<PyRunner
+  client:visible
+  id="00-00.A"
+  label="RUN PYTHON, RIGHT HERE"
+  code={`# This is real Python, running in your browser. Edit it and press Run.
+hours_per_week = 6
+weeks = 26
+
+total = hours_per_week * weeks
+print(f"{hours_per_week} h/week for {weeks} weeks = {total} hours of practice.")
+
+if total < 200:
+    print("Enough to go deep on a few layers — not to rush all eleven.")
+else:
+    print("Plenty. Spend the surplus breaking things, not just reading.")
+
+# Try: change hours_per_week to 15 and run again. Watch the message flip.`}
+/>
+
+If you changed `hours_per_week` to `15` and the second message appeared, you just did the thing this whole course is built around. That is the loop.
+
+## Production reality
+
+No one hands a working AI engineer a tidy curriculum. The way people actually stay current on the job is a rougher version of this course: they **read the source** of the library they depend on, they **break things in a staging environment** to learn the failure modes before production finds them for them, and they keep a running note of trade-offs they have personally hit.
+
+The cost is real and worth naming: **depth is slow.** Genuinely understanding attention, or why a reranker earns its latency, takes hours you could have spent skimming ten blog posts. The blog posts feel more productive. They are not — a week later they are gone, and the person who built one small thing from scratch still has it.
+
+The trade-off you are managing throughout is **breadth versus depth**. You cannot build everything. The depth tags are your budget: spend "build" effort where you will work daily, take "know" depth on the rest, and revisit. Teams lose months to engineers who tutorial-hopped their way to a shallow familiarity with everything and a working command of nothing.
+
+<Callout type="watch-out">
+The most expensive mistake in learning this material is the feeling of progress without the substance of it. Finishing a chapter you did not run, or skipping the "Production reality" section because the chapter was already long, gives you the feeling and skips the substance.
+</Callout>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: 'Tutorial-hopping — starting a new course or video every time the current one gets hard.',
+      fix: 'The hard part is where the learning is. When a chapter gets uncomfortable, that is the signal to slow down and run the cell, not to switch tabs. Pick one path and finish a layer before you judge it.',
+    },
+    {
+      mistake: 'Reading the runnable cells instead of running them.',
+      fix: 'A cell you read teaches you almost nothing a paragraph could not. Change a value and run it. The two-second habit is the entire point of an interactive course.',
+    },
+    {
+      mistake: 'Skipping the "Production reality" section because you "get the concept".',
+      fix: 'Getting the concept is table stakes. The production section is where the cost, the failure modes, and the trade-offs live — the things that decide whether what you build survives contact with real traffic. Never skip it.',
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Checkpoint
+
+<Checkpoint
+  questions={[
+    {
+      q: 'What is the difference between a "build", "use", and "know" chapter, and how should each change how you read it?',
+      a: 'Build: implement it from scratch, hold every part in your head. Use: apply it correctly and explain the trade-offs, without rebuilding. Know: learn it exists and what problem it solves. Read build chapters slowly and hands-on; read know chapters for the map, not the mechanics.',
+    },
+    {
+      q: 'Why does this course insist you run and break the cells rather than read them?',
+      a: 'Because recognition is not recall. Perturbing a concept and watching it react builds a memory you can reconstruct later; reading builds one you will have to look up. Breaking things also teaches the failure modes, which is where the real engineering lives.',
+    },
+    {
+      q: 'What runs the Python in these cells, and where does your code (and any API key) go?',
+      a: 'Pyodide — CPython compiled to WebAssembly — runs it entirely in your browser tab. Nothing is sent to a server; there is no server. In optional BYOK mode a key you paste stays in your browser and goes only to the provider you chose.',
+    },
+    {
+      q: 'You have limited time. How do the depth tags help you spend it?',
+      a: 'They are a budget. Spend "build" effort on the layers you will work in daily; take "know" depth on the rest so you have the map without the months. Depth is slow, so choose where to be deep on purpose.',
+    },
+  ]}
+/>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    'Recognition is not recall — watching an explanation is not the same as being able to reproduce it.',
+    'Every chapter has something you can run, edit, and break; the run–break–tune loop is the core study habit.',
+    'The eleven layers build on each other; depth tags (build / use / know) are your budget for where to go deep.',
+    'The "Production reality" section carries the costs and trade-offs that tutorials omit — never skip it.',
+    'Depth is slow and feels less productive than skimming; do it anyway, because it is the part that lasts.',
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="python-for-ai-engineering"
+  title="Python for AI engineering"
+  why="Foundations first: the Python idioms — types, dataclasses, generators, context managers — that the rest of the course assumes you can read and write."
+/>

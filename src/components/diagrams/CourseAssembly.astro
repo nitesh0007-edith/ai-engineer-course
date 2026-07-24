@@ -1,0 +1,96 @@
+---
+/**
+ * CourseAssembly — the course map drawn as an exploded assembly (DESIGN §6.2).
+ * A vertical centerline (dash-dot, a real drafting convention) is the explode
+ * axis; each of the 11 layers is a subassembly offset off the axis, alternating
+ * sides, joined to the axis by a leader with a terminal dot. Consumes only
+ * tokens; decorative strokes are aria-hidden and meaning is carried by the
+ * substantive aria-label plus the visible text labels.
+ */
+const layers = [
+  '00 · Foundations',
+  '01 · Classical ML',
+  '02 · Deep Learning',
+  '03 · Transformers & LLM internals',
+  '04 · LLM application engineering',
+  '05 · Evaluation & observability',
+  '06 · Model adaptation',
+  '07 · Inference, serving & cost',
+  '08 · LLMOps & production',
+  '09 · Safety, security & governance',
+  '10 · Specialisations',
+];
+
+const W = 720;
+const rowH = 40;
+const padTop = 24;
+const padBottom = 24;
+const H = padTop + layers.length * rowH + padBottom;
+const axis = W / 2;
+const boxW = 250;
+const boxH = 26;
+const gap = 22; // axis-to-box gap
+
+const rows = layers.map((name, i) => {
+  const cy = padTop + i * rowH + rowH / 2;
+  const left = i % 2 === 0;
+  const boxX = left ? axis - gap - boxW : axis + gap;
+  const leaderX2 = left ? axis - gap : axis + gap;
+  const textX = boxX + 12;
+  return { name, cy, boxX, leaderX2, textX };
+});
+---
+
+<svg
+  class="diagram-svg"
+  viewBox={`0 0 ${W} ${H}`}
+  role="img"
+  aria-label="The course as an exploded assembly of 11 layers along a central axis, from Layer 00 Foundations through Layer 10 Specialisations, each layer a labelled subassembly offset alternately left and right of the axis."
+>
+  <!-- explode axis: dash-dot centerline -->
+  <line
+    x1={axis}
+    y1={12}
+    x2={axis}
+    y2={H - 12}
+    stroke="var(--frame)"
+    stroke-width="1"
+    stroke-dasharray="10 3 2 3"
+    aria-hidden="true"></line>
+
+  {
+    rows.map((r) => (
+      <g aria-hidden="true">
+        <line
+          x1={axis}
+          y1={r.cy}
+          x2={r.leaderX2}
+          y2={r.cy}
+          stroke="var(--annotate)"
+          stroke-width="1"
+        />
+        <circle cx={axis} cy={r.cy} r="2.4" fill="var(--annotate)" />
+        <rect
+          x={r.boxX}
+          y={r.cy - boxH / 2}
+          width={boxW}
+          height={boxH}
+          rx="3"
+          fill="var(--paper)"
+          stroke="var(--frame)"
+          stroke-width="1"
+        />
+        <text
+          x={r.textX}
+          y={r.cy}
+          dominant-baseline="central"
+          font-family="var(--font-mono)"
+          font-size="11.5"
+          fill="var(--ink)"
+        >
+          {r.name}
+        </text>
+      </g>
+    ))
+  }
+</svg>

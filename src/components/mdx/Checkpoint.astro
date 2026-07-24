@@ -1,0 +1,26 @@
+---
+/**
+ * Checkpoint — 3–5 retrieval questions with answers behind a disclosure.
+ * <Checkpoint questions={[{ q, a }, …]} />
+ */
+interface Props {
+  questions: { q: string; a: string }[];
+}
+const { questions } = Astro.props;
+---
+
+<div class="block checkpoint">
+  <ol>
+    {
+      questions.map((item) => (
+        <li>
+          {item.q}
+          <details>
+            <summary>Answer</summary>
+            <p style="margin:6px 0 0;color:var(--ink-muted);font-size:14.5px">{item.a}</p>
+          </details>
+        </li>
+      ))
+    }
+  </ol>
+</div>

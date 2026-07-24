@@ -1,0 +1,71 @@
+---
+import { render } from 'astro:content';
+import Base from './Base.astro';
+import TopBar from '../components/ui/TopBar.astro';
+import SiteNav from '../components/ui/SiteNav.astro';
+import TableOfContents from '../components/ui/TableOfContents.astro';
+
+// Auto-provided MDX components (§6). Interactive islands and chapter-specific
+// diagrams are imported directly in each chapter's MDX instead, so they hydrate.
+import Prerequisites from '../components/mdx/Prerequisites.astro';
+import Objectives from '../components/mdx/Objectives.astro';
+import Figure from '../components/mdx/Figure.astro';
+import Callout from '../components/mdx/Callout.astro';
+import Caveat from '../components/mdx/Caveat.astro';
+import Exercises from '../components/mdx/Exercises.astro';
+import Checkpoint from '../components/mdx/Checkpoint.astro';
+import KeyTakeaways from '../components/mdx/KeyTakeaways.astro';
+import CommonMistakes from '../components/mdx/CommonMistakes.astro';
+import Resources from '../components/mdx/Resources.astro';
+import NextUp from '../components/mdx/NextUp.astro';
+import Term from '../components/mdx/Term.astro';
+
+const { entry } = Astro.props;
+const d = entry.data;
+const { Content, headings } = await render(entry);
+
+const LAYER_NAMES = [
+  'Foundations', 'Classical ML', 'Deep Learning', 'Transformers',
+  'LLM App Engineering', 'Evaluation', 'Model Adaptation', 'Inference & Cost',
+  'LLMOps', 'Safety & Governance', 'Specialisations',
+];
+const id = `${String(d.layer).padStart(2, '0')}-${String(d.order).padStart(2, '0')}`;
+const kicker = `Layer ${String(d.layer).padStart(2, '0')} · ${LAYER_NAMES[d.layer]} · Ch ${String(d.order).padStart(2, '0')}`;
+
+const components = {
+  Prerequisites, Objectives, Figure, Callout, Caveat, Exercises,
+  Checkpoint, KeyTakeaways, CommonMistakes, Resources, NextUp, Term,
+};
+---
+
+<Base title={`${d.title} — AI Engineer`} description={d.subtitle}>
+  <div class="app">
+    <TopBar breadcrumb={`${id} · ${d.title}`} />
+    <div class="layout">
+      <div class="nav-col">
+        <SiteNav currentSlug={d.slug} />
+      </div>
+
+      <main class="canvas dot-canvas">
+        <header class="masthead">
+          <p class="kicker">{kicker}</p>
+          <h1>{d.title}</h1>
+          <p class="subtitle">{d.subtitle}</p>
+          <div class="meta">
+            <span><b>{d.readingTime} min</b> read</span>
+            <span>difficulty <b>{d.difficulty}</b></span>
+            <span>depth <b>{d.depth}</b></span>
+          </div>
+        </header>
+
+        <article class="prose" data-pagefind-body>
+          <Content components={components} />
+        </article>
+      </main>
+
+      <aside class="rail-col">
+        <TableOfContents headings={headings} />
+      </aside>
+    </div>
+  </div>
+</Base>

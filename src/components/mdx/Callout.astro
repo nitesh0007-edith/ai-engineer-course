@@ -1,0 +1,23 @@
+---
+/**
+ * Callout — required-reading aside in the flow (DESIGN §2.3, §5). Three
+ * variants only: note (blueprint), watch-out (annotate), danger (alert).
+ * <Caveat> is a note-styled alias for honest limitations (CLAUDE.md §2.8).
+ */
+interface Props {
+  type?: 'note' | 'watch-out' | 'danger';
+  title?: string;
+}
+const { type = 'note', title } = Astro.props;
+const labels = {
+  note: '◆ Note',
+  'watch-out': '▲ Watch out',
+  danger: '✕ Danger',
+};
+const label = title ?? labels[type];
+---
+
+<aside class={`callout ${type}`} role="note">
+  <span class="callout-label">{label}</span>
+  <slot />
+</aside>

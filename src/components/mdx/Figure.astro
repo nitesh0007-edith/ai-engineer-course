@@ -1,0 +1,34 @@
+---
+/**
+ * Figure — the §6.1 figure-label signature. Wraps a diagram in a schematic
+ * frame carrying a machine-set label tab (FIG {id} · {LABEL}) with corner
+ * registration dots, and an italic caption below stating what to look at.
+ *
+ * Usage (in MDX):
+ *   <Figure id="00-00.1" label="THE COURSE, EXPLODED" caption="…">
+ *     <CourseAssembly />
+ *   </Figure>
+ */
+interface Props {
+  id: string;
+  label: string;
+  caption?: string;
+  prefix?: 'FIG' | 'LST' | 'LAB';
+}
+const { id, label, caption, prefix = 'FIG' } = Astro.props;
+---
+
+<figure class="figure">
+  <div class="frame">
+    <span class="frame-label"><span class="ref">{prefix} {id}</span> · {label}</span>
+    <slot />
+  </div>
+  {
+    caption && (
+      <figcaption>
+        <span class="ref">{prefix} {id}</span>
+        {caption}
+      </figcaption>
+    )
+  }
+</figure>

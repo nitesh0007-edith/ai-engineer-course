@@ -1,0 +1,22 @@
+---
+/** Auto-rendered from frontmatter: <Resources data={frontmatter} />. */
+const { data } = Astro.props;
+type Resource = { title: string; url: string; type: string; note?: string };
+const resources: Resource[] = data?.resources ?? [];
+---
+
+<div class="block resources">
+  <ul>
+    {
+      resources.map((r) => (
+        <li>
+          <span class="rtype">{r.type}</span>
+          <a href={r.url} target="_blank" rel="noopener noreferrer">
+            {r.title}
+          </a>
+          {r.note && <span class="note">{r.note}</span>}
+        </li>
+      ))
+    }
+  </ul>
+</div>

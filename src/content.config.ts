@@ -42,6 +42,7 @@ const chapters = defineCollection({
           title: z.string(),
           url: z.string().url(),
           type: z.enum(['paper', 'docs', 'video', 'course', 'blog', 'repo']),
+          note: z.string().optional(), // one line on why it's worth reading (§6)
         }),
       )
       .min(3),
@@ -50,4 +51,16 @@ const chapters = defineCollection({
   }),
 });
 
-export const collections = { chapters };
+/**
+ * Glossary — one file per term, powering the site-wide <Term> hover-cards
+ * (DESIGN §5 / CLAUDE.md §14). The term id is the file's stem.
+ */
+const glossary = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/glossary' }),
+  schema: z.object({
+    term: z.string(),
+    definition: z.string(),
+  }),
+});
+
+export const collections = { chapters, glossary };

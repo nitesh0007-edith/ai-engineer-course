@@ -1,0 +1,28 @@
+---
+import { getCollection } from 'astro:content';
+
+/**
+ * <Term id="pyodide">Pyodide</Term> — glossary hover-card (DESIGN §5).
+ * The dotted underline + card is decorative sugar; the phrase in the slot is
+ * always readable on its own and the definition is available on hover/focus.
+ */
+interface Props {
+  id: string;
+}
+const { id } = Astro.props;
+
+const glossary = await getCollection('glossary');
+const entry = glossary.find((g) => g.id === id);
+---
+
+<span class="term" tabindex="0">
+  <slot />
+  {
+    entry && (
+      <span class="term-card" role="tooltip">
+        <span class="t-name">{entry.data.term}</span>
+        {entry.data.definition}
+      </span>
+    )
+  }
+</span>

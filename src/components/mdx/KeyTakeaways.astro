@@ -1,0 +1,14 @@
+---
+/** <KeyTakeaways points={[…]} /> — no more than five bullets (§6). */
+interface Props {
+  points: string[];
+}
+const { points } = Astro.props;
+const shown = points.slice(0, 5);
+---
+
+<div class="block takeaways">
+  <ul>
+    {shown.map((p) => <li>{p}</li>)}
+  </ul>
+</div>

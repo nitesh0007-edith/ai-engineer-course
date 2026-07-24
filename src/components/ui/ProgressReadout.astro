@@ -1,0 +1,51 @@
+---
+import { getCollection } from 'astro:content';
+
+/**
+ * Compact course-progress readout for the top bar (DESIGN §6.2): "n/90" plus a
+ * micro exploded-assembly glyph — a few part-ticks stacked along a short axis,
+ * filled up to the number published.
+ */
+const chapters = await getCollection('chapters');
+const published = chapters.filter((c) => c.data.status === 'published').length;
+const TOTAL = 90;
+
+// Micro glyph: 11 ticks (one per layer), filled proportionally.
+const ticks = 11;
+const filled = Math.round((published / TOTAL) * ticks);
+---
+
+<div
+  class="progress-readout"
+  title={`${published} of ${TOTAL} chapters published`}
+  aria-label={`Course progress: ${published} of ${TOTAL} chapters published`}
+>
+  <svg width="26" height="16" viewBox="0 0 26 16" aria-hidden="true">
+    <line x1="1" y1="8" x2="25" y2="8" stroke="var(--frame)" stroke-width="1" stroke-dasharray="3 2" />
+    {
+      Array.from({ length: ticks }, (_, i) => (
+        <rect
+          x={1 + i * 2.2}
+          y={i < filled ? 3 : 5}
+          width="1.6"
+          height={i < filled ? 10 : 6}
+          fill={i < filled ? 'var(--blueprint)' : 'var(--frame)'}
+        />
+      ))
+    }
+  </svg>
+  <span class="pr-count">{published}/{TOTAL}</span>
+</div>
+
+<style>
+  .progress-readout {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+</style>

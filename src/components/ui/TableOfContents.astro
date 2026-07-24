@@ -1,0 +1,26 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+interface Props {
+  headings: Heading[];
+}
+const { headings } = Astro.props;
+// Rail TOC lists sections and subsections only.
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{
+  toc.length > 0 && (
+    <nav class="toc" aria-label="On this page">
+      <p class="toc-head">On this page</p>
+      {toc.map((h) => (
+        <a class={h.depth === 3 ? 'h3' : ''} href={`#${h.slug}`}>
+          {h.text}
+        </a>
+      ))}
+    </nav>
+  )
+}

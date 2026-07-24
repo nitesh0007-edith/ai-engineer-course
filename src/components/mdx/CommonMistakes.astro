@@ -1,0 +1,24 @@
+---
+/**
+ * <CommonMistakes items={[{ mistake, fix }, …]} /> — at least three real
+ * failure modes, each with its fix (§6).
+ */
+interface Props {
+  items: { mistake: string; fix: string }[];
+}
+const { items } = Astro.props;
+---
+
+<div class="block mistakes">
+  {
+    items.map((it) => (
+      <div class="mistake">
+        <p class="m">{it.mistake}</p>
+        <p class="fix">
+          <b style="color:var(--ink)">Fix — </b>
+          {it.fix}
+        </p>
+      </div>
+    ))
+  }
+</div>

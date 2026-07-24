@@ -1,0 +1,33 @@
+---
+import { getCollection } from 'astro:content';
+
+/** Auto-rendered from frontmatter: <Prerequisites data={frontmatter} />. */
+const { data } = Astro.props;
+const slugs: string[] = data?.prerequisites ?? [];
+
+const chapters = await getCollection('chapters');
+const bySlug = new Map(chapters.map((c) => [c.data.slug, c.data]));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const items = slugs.map((s) => ({
+  slug: s,
+  title: bySlug.get(s)?.title ?? s,
+  href: bySlug.has(s) ? `${base}/chapters/${s}/` : null,
+}));
+---
+
+<aside class="slab prerequisites" aria-label="Prerequisites">
+  <p class="slab-label">◆ Prerequisites</p>
+  {
+    items.length === 0 ? (
+      <p style="margin:0;font-size:15.5px;color:var(--ink-muted)">
+        None — this is a starting point.
+      </p>
+    ) : (
+      <ul>
+        {items.map((it) => (
+          <li>{it.href ? <a href={it.href}>{it.title}</a> : it.title}</li>
+        ))}
+      </ul>
+    )
+  }
+</aside>

@@ -1,0 +1,102 @@
+---
+/**
+ * DepthTiers — the three roadmap depth tiers (build / use / know) drawn as
+ * three parts with a depth gauge. The fill length encodes how deep the course
+ * goes on a topic at each tier; the tier is also named in text and the gauge is
+ * labelled, so meaning never rests on length or colour alone.
+ */
+const tiers = [
+  {
+    key: 'BUILD',
+    fill: 1,
+    color: 'var(--blueprint)',
+    desc: 'implement it from scratch — you understand every moving part',
+  },
+  {
+    key: 'USE',
+    fill: 0.66,
+    color: 'var(--ch1)',
+    desc: 'use it correctly and explain the trade-offs, without rebuilding it',
+  },
+  {
+    key: 'KNOW',
+    fill: 0.33,
+    color: 'var(--ink-muted)',
+    desc: 'know it exists and what problem it solves — enough to reach for it',
+  },
+];
+
+const W = 720;
+const rowH = 66;
+const padY = 18;
+const H = padY * 2 + tiers.length * rowH;
+const gaugeX = 150;
+const gaugeW = 540;
+const gaugeH = 12;
+---
+
+<svg
+  class="diagram-svg"
+  viewBox={`0 0 ${W} ${H}`}
+  role="img"
+  aria-label="The three depth tiers. BUILD is deepest: implement from scratch. USE is medium depth: use correctly and explain trade-offs. KNOW is shallowest: know it exists and what problem it solves."
+>
+  {
+    tiers.map((t, i) => {
+      const cy = padY + i * rowH + rowH / 2;
+      return (
+        <g>
+          <text
+            x="14"
+            y={cy - 8}
+            font-family="var(--font-display)"
+            font-weight="600"
+            font-size="17"
+            fill="var(--ink)"
+          >
+            {t.key}
+          </text>
+          <text
+            x="14"
+            y={cy + 12}
+            font-family="var(--font-mono)"
+            font-size="9.5"
+            letter-spacing="0.06em"
+            fill="var(--ink-muted)"
+          >
+            TIER {i + 1}
+          </text>
+          <rect
+            x={gaugeX}
+            y={cy - gaugeH / 2}
+            width={gaugeW}
+            height={gaugeH}
+            rx="2"
+            fill="var(--paper-sink)"
+            stroke="var(--hairline)"
+            stroke-width="1"
+            aria-hidden="true"
+          />
+          <rect
+            x={gaugeX}
+            y={cy - gaugeH / 2}
+            width={gaugeW * t.fill}
+            height={gaugeH}
+            rx="2"
+            fill={t.color}
+            aria-hidden="true"
+          />
+          <text
+            x={gaugeX}
+            y={cy + 26}
+            font-family="var(--font-body)"
+            font-size="12.5"
+            fill="var(--ink-muted)"
+          >
+            {t.desc}
+          </text>
+        </g>
+      );
+    })
+  }
+</svg>

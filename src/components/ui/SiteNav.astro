@@ -1,0 +1,61 @@
+---
+import { getCollection } from 'astro:content';
+
+interface Props {
+  currentSlug?: string;
+}
+const { currentSlug } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const LAYER_NAMES = [
+  'Foundations',
+  'Classical ML',
+  'Deep Learning',
+  'Transformers',
+  'LLM App Engineering',
+  'Evaluation',
+  'Model Adaptation',
+  'Inference & Cost',
+  'LLMOps',
+  'Safety & Governance',
+  'Specialisations',
+];
+
+// Only published chapters appear in the nav (CLAUDE.md §2.5 — nothing stubbed).
+const chapters = (await getCollection('chapters'))
+  .filter((c) => c.data.status === 'published')
+  .sort((a, b) => a.data.layer - b.data.layer || a.data.order - b.data.order);
+
+const byLayer = new Map<number, typeof chapters>();
+for (const c of chapters) {
+  const arr = byLayer.get(c.data.layer) ?? [];
+  arr.push(c);
+  byLayer.set(c.data.layer, arr);
+}
+const activeLayers = [...byLayer.keys()].sort((a, b) => a - b);
+---
+
+<nav aria-label="Course chapters">
+  {
+    activeLayers.map((layer) => (
+      <div class="nav-layer">
+        <div class="nav-layer-head">
+          {String(layer).padStart(2, '0')} · {LAYER_NAMES[layer]}
+        </div>
+        {byLayer.get(layer)!.map((c) => {
+          const id = `${String(c.data.layer).padStart(2, '0')}-${String(c.data.order).padStart(2, '0')}`;
+          return (
+            <a
+              class="nav-chapter"
+              href={`${base}/chapters/${c.data.slug}/`}
+              aria-current={c.data.slug === currentSlug ? 'page' : undefined}
+            >
+              <span class="num">{id}</span>
+              {c.data.title}
+            </a>
+          );
+        })}
+      </div>
+    ))
+  }
+</nav>

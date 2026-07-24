@@ -4,10 +4,10 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 0 / 90 |
+| Chapters published | 1 / 90 |
 | Layers complete | 0 / 11 |
-| Total diagrams | 0 |
-| Total interactive widgets | 0 |
+| Total diagrams | 2 |
+| Total interactive widgets | 1 (PyRunner) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
 ## Phase 0 — Foundation (CLAUDE.md §11)
@@ -17,17 +17,22 @@
 | 1 | `DESIGN.md` — design system | ✅ done (approved) |
 | 2 | Scaffold Astro + React + Tailwind v4 + MDX + TS; deploy to Pages | ✅ done (live, green) |
 | 3 | Content schema + chapter template + `pnpm new:chapter` | ✅ done |
-| 4 | Shell: layout, nav, sidebar, TOC, progress, search, theme toggle, glossary | ⬜ next |
-| 5 | `<PyRunner />` end to end | ⬜ pending |
-| 6 | Diagram primitive library | ⬜ pending |
-| 7 | Write chapter `00-00` to definition-of-done and deploy | ⬜ pending |
+| 4 | Shell: layout, nav, TOC rail, top bar + progress readout, search, theme toggle, glossary, MDX components | ✅ done |
+| 5 | `<PyRunner />` end to end (Pyodide in a worker) | ✅ done |
+| 6 | Diagram primitives (`Figure`/schematic frame + `CourseAssembly`, `DepthTiers`) | ✅ done (core; library grows per chapter, §9) |
+| 7 | Chapter `00-00` written to definition-of-done and deployed | ✅ done |
+
+**Phase 0 complete.** The reference chapter is live; later chapters are judged against it.
 
 Notes:
 - Content config lives at `src/content.config.ts` (Astro 7 requires this path; §4 predates the move).
-- CI: `deploy.yml` (build + Pages on push to main), `quality.yml` (typecheck, build, manifest, grep gate on PRs). Lint/vitest/playwright/axe/lighthouse/link-check gates land with the tooling they need.
+- CI: `deploy.yml` (build + Pages on push to main), `quality.yml` (typecheck, build, manifest, grep gate on PRs).
+- Search: Pagefind indexes at build (`postbuild`), UI island loads it lazily; degrades gracefully in dev.
+- Diagram primitive library is intentionally minimal — built per §9 ("the first time a chapter needs it, then reuse") rather than all of §7 up front.
+- Remaining §13 gates (lint, vitest, playwright/visual, axe, lighthouse, link-check) land with the tooling they need.
 
 ## Chapters
 
 | id | title | layer | status | diagrams | interactives | published |
 |---|---|---|---|---|---|---|
-| — | _none yet_ | — | — | — | — | — |
+| 00-00 | How to use this course | 0 | published | 2 | 1 | 2026-07-24 |

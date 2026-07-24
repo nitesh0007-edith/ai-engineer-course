@@ -1,0 +1,27 @@
+---
+import { getCollection } from 'astro:content';
+
+/**
+ * <NextUp slug="…" title="…" why="…" /> — what comes next and why it follows.
+ * Links to the next chapter only once it is built; otherwise renders as a
+ * static forward pointer (no dead links, no "coming soon").
+ */
+interface Props {
+  slug: string;
+  title: string;
+  why: string;
+}
+const { slug, title, why } = Astro.props;
+
+const chapters = await getCollection('chapters');
+const exists = chapters.some((c) => c.data.slug === slug);
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = exists ? `${base}/chapters/${slug}/` : null;
+const Tag = href ? 'a' : 'div';
+---
+
+<Tag class="nextup" {...href ? { href } : {}}>
+  <span class="nu-label">Next up</span>
+  <div class="nu-title">{title}</div>
+  <div class="nu-why">{why}</div>
+</Tag>

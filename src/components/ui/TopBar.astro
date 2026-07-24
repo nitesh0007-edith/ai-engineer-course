@@ -1,0 +1,52 @@
+---
+import ThemeToggle from '../ThemeToggle.tsx';
+import ProgressReadout from './ProgressReadout.astro';
+import Search from './Search.tsx';
+
+interface Props {
+  breadcrumb?: string;
+}
+const { breadcrumb } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<header class="topbar">
+  <button
+    class="nav-toggle icon-btn"
+    type="button"
+    aria-label="Toggle chapter navigation"
+    data-nav-toggle
+  >
+    ☰
+  </button>
+  <a class="wordmark" href={`${base}/`}>AI&nbsp;ENGINEER</a>
+  {breadcrumb && <span class="breadcrumb">{breadcrumb}</span>}
+  <span class="spacer"></span>
+  <ProgressReadout />
+  <Search client:idle />
+  <ThemeToggle client:load />
+</header>
+
+<script>
+  // Toggle the left-nav drawer at narrow widths.
+  const btn = document.querySelector('[data-nav-toggle]');
+  const nav = document.querySelector('.nav-col');
+  btn?.addEventListener('click', () => {
+    const open = nav?.getAttribute('data-open') === 'true';
+    nav?.setAttribute('data-open', String(!open));
+  });
+</script>
+
+<style>
+  .icon-btn {
+    background: none;
+    border: 1px solid var(--frame);
+    border-radius: 3px;
+    color: var(--ink);
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+</style>
