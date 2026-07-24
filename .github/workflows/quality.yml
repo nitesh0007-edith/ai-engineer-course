@@ -1,11 +1,12 @@
 name: Quality
 
-# Gates that run on every PR (CLAUDE.md §13). More gates — lint, vitest,
-# playwright/visual, axe, lighthouse, link check — are added as those tools
-# land; this wires the ones that exist today so the contract is enforced from
-# the start rather than retrofitted.
+# Gates enforcing the chapter Definition of Done (CLAUDE.md §6, §13). Runs on
+# PRs and on every push to main, so chapter pushes are gated too.
+# Still to add as their tooling lands: eslint/prettier, vitest, link check.
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -17,15 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       # pnpm version comes from the `packageManager` field in package.json.
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
 
       - name: Typecheck (astro check + tsc)
@@ -44,3 +42,45 @@ jobs:
             exit 1
           fi
           echo "No placeholder tokens found."
+
+  # Playwright e2e + axe-core accessibility scan (zero violations, both themes),
+  # plus keyboard / mobile-fold / reduced-motion / no-overflow checks.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build
+        run: pnpm build
+      - name: e2e + axe
+        run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # Lighthouse CI: performance ≥95, accessibility 100, best-practices ≥95
+  # on the landing page and every published chapter (median of 3 runs).
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Lighthouse assertions
+        run: pnpm test:lh

@@ -229,6 +229,28 @@
   }
 }
 
+/* Narrow top bar: drop non-essential items and shrink search to an icon so the
+   bar never overflows the viewport. The search button keeps its aria-label. */
+@media (max-width: 640px) {
+  .topbar {
+    gap: 10px;
+    padding: 0 12px;
+  }
+  .topbar .breadcrumb,
+  .topbar .progress-readout {
+    display: none;
+  }
+  .search-trigger span,
+  .search-trigger kbd {
+    display: none;
+  }
+  .search-trigger::before {
+    content: '⌕';
+    font-size: 15px;
+    line-height: 1;
+  }
+}
+
 /* ═══ Left nav ════════════════════════════════════════════════════════════ */
 .nav-layer {
   margin-bottom: 18px;
@@ -263,8 +285,11 @@
   background: color-mix(in oklch, var(--blueprint) 10%, transparent);
 }
 .nav-chapter .num {
-  color: color-mix(in oklch, var(--ink-muted) 75%, transparent);
+  color: var(--ink-muted); /* full strength — the 75% mix failed AA at 11.5px */
   margin-right: 6px;
+}
+.nav-chapter[aria-current='page'] .num {
+  color: inherit; /* rides the active blueprint text colour */
 }
 
 /* ═══ TOC rail ════════════════════════════════════════════════════════════ */
@@ -404,7 +429,6 @@
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.62;
-  background: var(--paper-sink);
   border: 1px solid var(--hairline);
   border-radius: 4px;
   padding: 14px 16px;
@@ -416,6 +440,24 @@
   border: 0;
   padding: 0;
   font-size: inherit;
+}
+
+/* Shiki dual-theme code colours — DESIGN §2.3, §3. defaultColor:false emits
+   --shiki-light / --shiki-dark per token; we pick by site theme. Backgrounds
+   come from the high-contrast themes so every token clears WCAG AA. */
+.astro-code,
+.astro-code span {
+  color: var(--shiki-light);
+}
+.astro-code {
+  background-color: var(--shiki-light-bg);
+}
+:root[data-theme='dark'] .astro-code,
+:root[data-theme='dark'] .astro-code span {
+  color: var(--shiki-dark);
+}
+:root[data-theme='dark'] .astro-code {
+  background-color: var(--shiki-dark-bg);
 }
 .prose blockquote {
   border-left: 2px solid var(--frame);

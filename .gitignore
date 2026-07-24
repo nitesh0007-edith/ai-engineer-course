@@ -33,3 +33,5 @@ test-results/
 
 # Misc
 *.local
+
+.lighthouseci/

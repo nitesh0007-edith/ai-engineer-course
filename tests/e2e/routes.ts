@@ -1,0 +1,6 @@
+/** Published routes under test. Relative to the configured baseURL. */
+export const ROUTES = [
+  '', // landing
+  'chapters/how-to-use-this-course/',
+  'chapters/python-for-ai-engineering/',
+];
