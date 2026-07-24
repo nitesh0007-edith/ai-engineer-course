@@ -1,0 +1,139 @@
+---
+layer: __LAYER__
+order: __ORDER__
+title: '__TITLE__'
+slug: '__SLUG__'
+subtitle: '‹ONE-LINE SUBTITLE — what this chapter gives the reader›'
+depth: build # build | use | know
+difficulty: beginner # beginner | intermediate | advanced
+readingTime: 20 # minutes — honest estimate
+prerequisites: [] # chapter slugs
+objectives:
+  - '‹By the end you can …›'
+  - '‹By the end you can …›'
+  - '‹By the end you can …›'
+concepts:
+  - '‹glossary-term-id›'
+  - '‹glossary-term-id›'
+  - '‹glossary-term-id›'
+diagrams:
+  - '‹DiagramComponentName›'
+  - '‹DiagramComponentName›'
+interactives:
+  - '‹WidgetComponentName›'
+codeExamples: 2
+exercises:
+  - prompt: '‹warmup prompt›'
+    difficulty: warmup
+    solution: '‹worked solution›'
+  - prompt: '‹core prompt›'
+    difficulty: core
+    solution: '‹worked solution›'
+  - prompt: '‹stretch prompt›'
+    difficulty: stretch
+    solution: '‹worked solution›'
+resources:
+  - title: '‹resource title›'
+    url: 'https://example.com'
+    type: docs # paper | docs | video | course | blog | repo
+  - title: '‹resource title›'
+    url: 'https://example.com'
+    type: paper
+  - title: '‹resource title›'
+    url: 'https://example.com'
+    type: blog
+status: draft # draft | review | published — never `published` until the §6 DoD holds
+updated: __DATE__
+---
+
+{/*
+  CHAPTER __ID__ — scaffold. Structure is CLAUDE.md §6; do not reorder sections.
+  Replace every ‹…› marker. A chapter is `published` only when the §6 definition
+  of done holds. The MDX components below (Prerequisites, PyRunner, …) are auto-
+  provided to chapter files by the shell — build will resolve them once that
+  infra (Phase 0 steps 4–5) is in place.
+*/}
+
+{/* 1 · THE HOOK — a concrete problem, a surprising result, or a broken thing.
+      Never open with a definition or "In this chapter, we will…". */}
+
+‹Open with the hook.›
+
+{/* 2 · PREREQUISITES — auto-rendered from frontmatter. */}
+<Prerequisites />
+
+{/* 3 · OBJECTIVES — what the reader will be able to *do*. */}
+<Objectives />
+
+## The intuition
+
+{/* 4 · Plain English + an honest real-world analogy, BEFORE notation or code.
+      The reader must be able to explain this to a friend after this section. */}
+
+‹Explain the idea in plain language.›
+
+## How it works
+
+{/* 5 · THE DIAGRAM — a visual of the concept (min two per chapter). */}
+<Figure id="__ID__.1" label="‹WHAT THE FIGURE SHOWS›">
+  {/* <YourDiagram /> */}
+</Figure>
+
+{/* 6 · THE MECHANICS — maths only after intuition; define every symbol on first
+      use. Use $inline$ and display equations as needed. */}
+
+‹How it actually works.›
+
+## A worked example
+
+{/* 7 · A small concrete case computed step by step, with real numbers. */}
+
+‹Compute a tiny case by hand.›
+
+## Try it
+
+{/* 8 · The reader runs, tunes, and breaks it (min one interactive). */}
+{/* <PyRunner> … </PyRunner> */}
+
+## Production reality
+
+{/* 9 · How this is actually used in real systems: what breaks, what it costs,
+      the trade-offs. This section is what separates the course from a tutorial.
+      Never skip it. */}
+
+‹How this is used in production, and what it costs.›
+
+## Common mistakes
+
+{/* 10 · At least three real failure modes, each with its fix. */}
+<CommonMistakes>
+  {/* three entries minimum */}
+</CommonMistakes>
+
+## Exercises
+
+{/* 11 · Warmup, core, stretch — auto-rendered from frontmatter, each with a
+      solution behind a disclosure. */}
+<Exercises />
+
+## Checkpoint
+
+{/* 12 · 3–5 retrieval questions. */}
+<Checkpoint>
+  {/* questions */}
+</Checkpoint>
+
+## Key takeaways
+
+{/* 13 · No more than five bullets. */}
+<KeyTakeaways>
+  {/* ≤5 bullets */}
+</KeyTakeaways>
+
+## Resources
+
+{/* 14 · Curated, auto-rendered from frontmatter with a one-line why-read note. */}
+<Resources />
+
+{/* 15 · NEXT UP — what comes next and why it follows. */}
+<NextUp />

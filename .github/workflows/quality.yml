@@ -1,0 +1,46 @@
+name: Quality
+
+# Gates that run on every PR (CLAUDE.md §13). More gates — lint, vitest,
+# playwright/visual, axe, lighthouse, link check — are added as those tools
+# land; this wires the ones that exist today so the contract is enforced from
+# the start rather than retrofitted.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from the `packageManager` field in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (astro check + tsc)
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Manifest coverage
+        run: pnpm check:manifest
+
+      - name: Grep gate — no placeholder tokens in content
+        run: |
+          if grep -rInE 'TODO|FIXME|Lorem ipsum|coming soon|XXX' src/content; then
+            echo "::error::Placeholder tokens found in src/content — see matches above."
+            exit 1
+          fi
+          echo "No placeholder tokens found."

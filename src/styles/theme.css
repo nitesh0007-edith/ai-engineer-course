@@ -1,14 +1,15 @@
 @import 'tailwindcss';
 
-/* Fontsource self-hosted faces (woff2, latin). DESIGN §3.1:
-   Barlow Semi Condensed (display) + IBM Plex Serif (body) + IBM Plex Mono. */
-@import '@fontsource/barlow-semi-condensed/500.css';
-@import '@fontsource/barlow-semi-condensed/600.css';
-@import '@fontsource/ibm-plex-serif/400.css';
-@import '@fontsource/ibm-plex-serif/400-italic.css';
-@import '@fontsource/ibm-plex-serif/600.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
+/* Fontsource self-hosted faces (woff2, latin subset only — DESIGN §3.1 caps
+   font transfer at ≤120KB/page). Barlow Semi Condensed (display) + IBM Plex
+   Serif (body) + IBM Plex Mono (code/labels/numerics). */
+@import '@fontsource/barlow-semi-condensed/latin-500.css';
+@import '@fontsource/barlow-semi-condensed/latin-600.css';
+@import '@fontsource/ibm-plex-serif/latin-400.css';
+@import '@fontsource/ibm-plex-serif/latin-400-italic.css';
+@import '@fontsource/ibm-plex-serif/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
 
 /* ── Design tokens — DESIGN §2.1 core table. OKLCH, no hardcoded hex. ──────── */
 :root {

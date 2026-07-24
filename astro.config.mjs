@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
+import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 
 // Project page on GitHub Pages: served from https://<owner>.github.io/<repo>/
@@ -10,7 +11,8 @@ export default defineConfig({
   base: '/ai-engineer-course',
   output: 'static',
   trailingSlash: 'ignore',
-  integrations: [react()],
+  // MDX before React so chapter .mdx files can embed React island widgets.
+  integrations: [mdx(), react()],
   vite: {
     plugins: [tailwindcss()],
   },
