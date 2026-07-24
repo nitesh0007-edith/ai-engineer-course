@@ -1,0 +1,62 @@
+---
+/**
+ * GeneratorStream — a list builds every value up front and holds them all in
+ * memory (eager); a generator produces one value at a time, on demand, keeping
+ * only the current one live (lazy). The contrast is the whole reason generators
+ * matter for streaming tokens and large datasets.
+ */
+const tokens = ['the', 'quick', 'brown', 'fox', 'jumps'];
+const chipW = 74;
+const gap = 6;
+const startX = 150;
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 720 260"
+  role="img"
+  aria-label="Top row: a list holds all five tokens in memory at once, eagerly. Bottom row: a generator produces one token at a time on demand, keeping only the current token live while the rest are not yet produced — lazy evaluation."
+>
+  <!-- ── LIST (eager) ─────────────────────────────────────────── -->
+  <text x="16" y="42" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--ch1)">LIST · EAGER</text>
+  <text x="16" y="58" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">all in memory</text>
+  {
+    tokens.map((t, i) => (
+      <g aria-hidden="true">
+        <rect x={startX + i * (chipW + gap)} y="30" width={chipW} height="34" rx="3" fill="var(--paper)" stroke="var(--ch1)" stroke-width="1.2" />
+        <text x={startX + i * (chipW + gap) + chipW / 2} y="47" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">{t}</text>
+      </g>
+    ))
+  }
+
+  <!-- divider -->
+  <line x1="16" y1="112" x2="704" y2="112" stroke="var(--hairline)" stroke-width="1" aria-hidden="true" />
+
+  <!-- ── GENERATOR (lazy) ─────────────────────────────────────── -->
+  <text x="16" y="158" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--ch2)">GENERATOR · LAZY</text>
+  <text x="16" y="174" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">one at a time</text>
+
+  <!-- generator source -->
+  <rect x="150" y="150" width="96" height="52" rx="3" fill="var(--paper-raise)" stroke="var(--frame)" aria-hidden="true" />
+  <text x="198" y="176" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">stream()</text>
+
+  <!-- current token, live -->
+  <rect x="330" y="159" width={chipW} height="34" rx="3" fill="var(--paper)" stroke="var(--ch2)" stroke-width="1.4" aria-hidden="true" />
+  <text x={330 + chipW / 2} y="176" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">the</text>
+
+  <!-- pull arrow -->
+  <line x1="246" y1="176" x2="328" y2="176" stroke="var(--ch2)" stroke-width="1.4" aria-hidden="true" />
+  <polygon points="328,176 320,172 320,180" fill="var(--ch2)" aria-hidden="true" />
+  <text x="287" y="150" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">next()</text>
+
+  <!-- phantom future tokens -->
+  {
+    ['quick', 'brown', 'fox'].map((t, i) => (
+      <g aria-hidden="true">
+        <rect x={440 + i * (chipW + gap)} y="159" width={chipW} height="34" rx="3" fill="none" stroke="var(--frame)" stroke-width="1" stroke-dasharray="3 3" />
+        <text x={440 + i * (chipW + gap) + chipW / 2} y="176" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)" opacity="0.7">{t}</text>
+      </g>
+    ))
+  }
+  <text x="558" y="216" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">not yet produced</text>
+</svg>

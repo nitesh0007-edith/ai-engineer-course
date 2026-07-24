@@ -1,0 +1,49 @@
+---
+/**
+ * DecoratorOnion — how a decorator wraps a function. A call passes through the
+ * @retry wrapper, which calls the real function; on error it loops back and
+ * tries again; on success the result passes back out. Token-driven SVG; the
+ * dashed retry path is also labelled in text so meaning never rests on style.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 720 300"
+  role="img"
+  aria-label="A call from the caller enters the @retry wrapper, which invokes the real call_api function. On error the wrapper waits and retries the same call; on success the result passes back out to the caller. The wrapper adds retry behaviour around call_api without changing it."
+>
+  <!-- caller -->
+  <rect x="16" y="120" width="96" height="56" rx="3" fill="var(--paper)" stroke="var(--frame)" />
+  <text x="64" y="152" text-anchor="middle" dominant-baseline="central" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">caller</text>
+
+  <!-- call in -->
+  <line x1="112" y1="140" x2="196" y2="140" stroke="var(--blueprint)" stroke-width="1.4" aria-hidden="true" />
+  <polygon points="196,140 188,136 188,144" fill="var(--blueprint)" aria-hidden="true" />
+  <text x="154" y="132" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink-muted)">call</text>
+
+  <!-- result out -->
+  <line x1="196" y1="164" x2="112" y2="164" stroke="var(--ch1)" stroke-width="1.4" aria-hidden="true" />
+  <polygon points="112,164 120,160 120,168" fill="var(--ch1)" aria-hidden="true" />
+  <text x="154" y="180" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink-muted)">result</text>
+
+  <!-- wrapper (outer) -->
+  <rect x="200" y="56" width="420" height="188" rx="4" fill="var(--paper-raise)" stroke="var(--frame)" />
+  <rect x="212" y="46" width="150" height="20" rx="2" fill="var(--paper-raise)" aria-hidden="true" />
+  <text x="220" y="60" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--blueprint)">@retry · WRAPPER</text>
+
+  <!-- inner: the real function -->
+  <rect x="430" y="112" width="150" height="72" rx="3" fill="var(--paper)" stroke="var(--blueprint)" stroke-width="1.2" />
+  <text x="505" y="142" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">call_api()</text>
+  <text x="505" y="160" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">the real work</text>
+
+  <!-- attempt arrow into inner -->
+  <line x1="250" y1="148" x2="428" y2="148" stroke="var(--frame)" stroke-width="1.2" aria-hidden="true" />
+  <polygon points="428,148 420,144 420,152" fill="var(--frame)" aria-hidden="true" />
+  <text x="330" y="140" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink-muted)">attempt</text>
+
+  <!-- retry loop: dashed, ch2 -->
+  <path d="M 430 122 C 360 78, 300 78, 250 118" fill="none" stroke="var(--ch2)" stroke-width="1.2" stroke-dasharray="4 3" aria-hidden="true" />
+  <polygon points="250,118 258,116 253,124" fill="var(--ch2)" aria-hidden="true" />
+  <text x="335" y="78" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--ch2)">on error → wait, retry</text>
+</svg>

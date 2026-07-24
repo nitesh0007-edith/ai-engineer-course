@@ -1,0 +1,446 @@
+---
+layer: 0
+order: 1
+title: 'Python for AI engineering'
+slug: 'python-for-ai-engineering'
+subtitle: 'The handful of Python idioms that keep AI code correct, streamable, and debuggable at 3am.'
+depth: build
+difficulty: beginner
+readingTime: 24
+prerequisites:
+  - how-to-use-this-course
+objectives:
+  - 'Read and write type-hinted Python and explain why hints matter more for AI code than most'
+  - 'Use dataclasses, comprehensions, generators, decorators, and context managers idiomatically'
+  - 'Handle failure and add logging so a pipeline is debuggable when — not if — a call fails'
+  - 'Lay out a small Python project the way production AI codebases do'
+concepts:
+  - type-hints
+  - dataclass
+  - generator
+  - decorator
+  - context-manager
+diagrams:
+  - DecoratorOnion
+  - GeneratorStream
+interactives:
+  - PyRunner
+codeExamples: 6
+exercises:
+  - prompt: 'Take this dict-based config and rewrite it as a dataclass with type hints and sensible defaults: `cfg = {"model": "small", "temperature": 0.7, "max_tokens": 512}`. Then create one with only the model overridden.'
+    difficulty: warmup
+    solution: "```python\nfrom dataclasses import dataclass\n\n@dataclass\nclass GenConfig:\n    model: str = 'small'\n    temperature: float = 0.7\n    max_tokens: int = 512\n\ncfg = GenConfig(model='large')\nprint(cfg)  # GenConfig(model='large', temperature=0.7, max_tokens=512)\n```\nThe dataclass gives you a typed constructor, a readable repr, and equality for free — and your editor now autocompletes `cfg.temperature`."
+  - prompt: 'Write a `@timed` decorator that prints how long the wrapped function took in milliseconds, and preserves the wrapped function''s `__name__`. Apply it to a function that sums the first million integers.'
+    difficulty: core
+    solution: "```python\nimport functools, time\n\ndef timed(fn):\n    @functools.wraps(fn)              # keeps fn.__name__, docstring, etc.\n    def wrapper(*args, **kwargs):\n        start = time.perf_counter()\n        result = fn(*args, **kwargs)\n        ms = (time.perf_counter() - start) * 1000\n        print(f'{fn.__name__} took {ms:.2f} ms')\n        return result\n    return wrapper\n\n@timed\ndef work(n):\n    return sum(range(n))\n\nprint(work(1_000_000))  # work took ~X ms, then 499999500000\n```\nWithout `functools.wraps`, `work.__name__` would wrongly be `'wrapper'` — which quietly breaks logging and debuggers that print function names."
+  - prompt: 'Write a generator `batched(iterable, n)` that yields lists of up to `n` items, then use it to split `range(7)` into batches of 3. Why is a generator the right tool here rather than returning a list of lists?'
+    difficulty: stretch
+    solution: "```python\ndef batched(iterable, n):\n    batch = []\n    for item in iterable:\n        batch.append(item)\n        if len(batch) == n:\n            yield batch\n            batch = []\n    if batch:            # the final, smaller batch\n        yield batch\n\nfor b in batched(range(7), 3):\n    print(b)\n# [0, 1, 2]\n# [3, 4, 5]\n# [6]\n```\nA generator lets you start processing (say, sending) the first batch before the whole input has been read — essential when the input is a stream of documents or an API paginating results, where materialising everything first would waste memory and delay the first useful work. (Python 3.12+ ships this as `itertools.batched`.)"
+resources:
+  - title: 'Python docs — typing'
+    url: 'https://docs.python.org/3/library/typing.html'
+    type: docs
+    note: 'The reference for type hints. Skim it once; return to it when you meet a type you cannot name.'
+  - title: 'Real Python — Primer on Python Decorators'
+    url: 'https://realpython.com/primer-on-python-decorators/'
+    type: blog
+    note: 'The clearest walk-through of decorators from the inside out, if this chapter''s treatment moves too fast.'
+  - title: 'Python docs — dataclasses'
+    url: 'https://docs.python.org/3/library/dataclasses.html'
+    type: docs
+    note: 'Everything dataclasses can do, including field defaults, frozen instances, and ordering.'
+status: published
+updated: 2026-07-24
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import DecoratorOnion from '../../../components/diagrams/DecoratorOnion.astro';
+import GeneratorStream from '../../../components/diagrams/GeneratorStream.astro';
+
+Read this function. It collects chunks of a document into a batch. It has a bug that has shipped to production in more codebases than anyone will admit:
+
+```python
+def add_chunk(chunk, batch=[]):     # looks harmless
+    batch.append(chunk)
+    return batch
+
+print(add_chunk("doc1"))            # ['doc1']
+print(add_chunk("doc2"))            # ['doc1', 'doc2']  ← wait, what?
+```
+
+The second call was supposed to start a fresh batch. Instead it remembered `"doc1"`. The default `[]` is created **once**, when the function is defined — not once per call — so every call that relies on the default shares the *same* list. In an AI pipeline this is the kind of bug that quietly mixes one user's documents into another's, and it never raises an error.
+
+Python is a wonderful language with a few sharp edges exactly like this one. This chapter is the small set of idioms that keep those edges away from your data — the ones you will use in almost every file you write for the rest of this course.
+
+<Prerequisites data={frontmatter} />
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+Here is the thing to hold onto: **an AI system is mostly thin Python glue around unreliable services, moving messy data.** You call a model that sometimes times out. You parse a response that is sometimes malformed. You process a batch of documents that sometimes contains a 400-page PDF. The model is not your code; your code is everything around it.
+
+That shapes which parts of Python matter most. Not clever metaclasses — the boring, load-bearing idioms that make glue code trustworthy. They fall into five jobs:
+
+- **Describe your data** precisely, so bugs surface early — <Term id="type-hints">type hints</Term> and <Term id="dataclass">dataclasses</Term>.
+- **Transform and stream** it without wasting memory — comprehensions and <Term id="generator">generators</Term>.
+- **Wrap cross-cutting behaviour** — retries, timing, resource cleanup — with <Term id="decorator">decorators</Term> and <Term id="context-manager">context managers</Term>.
+- **Survive and reveal failure** — error handling and logging.
+- **Organise it** so the project is navigable — project layout.
+
+None of this is exotic. All of it is the difference between code that works in a notebook and code that survives contact with real traffic.
+
+## Describe your data: type hints and dataclasses
+
+A **type hint** annotates what a value is meant to be:
+
+```python
+def embed(text: str, model: str = "small") -> list[float]:
+    ...
+```
+
+Python does not check these at runtime — `embed(42)` still runs. So why bother? Because everything *else* checks them: your editor autocompletes and catches typos, the type-checker `mypy` finds mismatches before you ship, and — critically for later — libraries like Pydantic read these exact annotations to validate LLM outputs and define tool schemas. Hints are the foundation the whole application layer is built on.
+
+<Callout type="watch-out">
+Type hints are not enforced at runtime by Python itself. They are documentation that tools can act on. If you need a value *guaranteed* to be the right type at runtime — and for anything coming back from a model, you do — you validate it explicitly (Pydantic, Layer 4). Hints catch the bugs you can see statically; validation catches the ones that arrive over the wire.
+</Callout>
+
+A **dataclass** is the idiomatic way to bundle related, typed values — a config, a record, a result — without writing a constructor by hand:
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass
+class ChunkConfig:
+    size: int = 200
+    overlap: int = 20
+    sources: list[str] = field(default_factory=list)   # note: NOT sources=[]
+
+cfg = ChunkConfig(size=100, sources=["a.pdf", "b.pdf"])
+print(cfg)
+# ChunkConfig(size=100, overlap=20, sources=['a.pdf', 'b.pdf'])
+```
+
+You get a typed constructor, a readable `repr`, and equality — for free. Notice `field(default_factory=list)`: it is the dataclass-safe cure for the exact mutable-default bug from the hook. A fresh list is built per instance, not shared.
+
+## Transform and stream: comprehensions and generators
+
+A **comprehension** builds a collection in one readable expression — the common "filter then map" in a single line:
+
+```python
+docs = ["  hello  ", "", "  world ", "   "]
+cleaned = [d.strip() for d in docs if d.strip()]   # keep non-empty, strip each
+print(cleaned)                                     # ['hello', 'world']
+```
+
+Read it aloud: *"strip each `d`, for every `d` in `docs`, where `d` stripped is non-empty."* That is more direct than the four-line loop it replaces, and once your eye is trained it is easier to read, not harder.
+
+A **generator** looks like a function but uses `yield` to produce values one at a time, pausing in between, instead of building a whole list. That difference is not academic — it is how you stream.
+
+<Figure id="00-01.1" label="LAZY VS EAGER" caption="— a list computes and holds all values at once; a generator yields one on demand and keeps only the current one live. For a stream of LLM tokens or a dataset too big for memory, only the generator is viable.">
+  <GeneratorStream />
+</Figure>
+
+```python
+def stream_tokens(text):
+    for word in text.split():
+        yield word              # produce one, then pause until asked for the next
+
+for i, tok in enumerate(stream_tokens("streaming feels faster than waiting")):
+    print(f"token {i}: {tok}")
+# token 0: streaming
+# token 1: feels
+# ...
+```
+
+This is exactly the shape of reading an LLM response as it arrives — token by token — instead of waiting for the whole thing. It is also how you process a million-row file without loading a million rows into memory. The cost: a generator is **single-use**. Iterate it twice and the second pass is empty, because there is nothing stored to replay.
+
+## Wrap behaviour: decorators and context managers
+
+Many things in an AI system need the *same* wrapper: every provider call wants a retry, a timeout, and a latency measurement. Copy-pasting that around every call is how bugs breed. A **decorator** factors it out — it wraps a function to add behaviour around it, without touching the function's own code.
+
+<Figure id="00-01.2" label="A DECORATOR WRAPS A CALL" caption="— @retry receives the call, invokes the real call_api, and on error loops back to try again; on success the result passes out. The wrapped function knows nothing about retries.">
+  <DecoratorOnion />
+</Figure>
+
+```python
+import functools
+
+def retry(times):
+    def decorator(fn):
+        @functools.wraps(fn)                 # preserve fn's name, docstring
+        def wrapper(*args, **kwargs):
+            for attempt in range(1, times + 1):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    print(f"attempt {attempt} failed: {e}")
+            raise RuntimeError(f"{fn.__name__} failed after {times} attempts")
+        return wrapper
+    return decorator
+
+@retry(times=3)
+def call_api():
+    ...
+```
+
+The `@functools.wraps` line is not optional decoration — without it, `call_api.__name__` becomes `"wrapper"`, and every log line and stack trace that prints the function name suddenly lies to you. You run the whole thing yourself in the next section.
+
+A **context manager** guarantees teardown. Anything you open — a file, a network client, a timer — must be closed *even if the code inside raises*. The `with` block makes that automatic:
+
+```python
+from contextlib import contextmanager
+import time
+
+@contextmanager
+def timer(label):
+    start = time.perf_counter()
+    try:
+        yield                                    # the body of the `with` runs here
+    finally:
+        print(f"{label}: {(time.perf_counter() - start) * 1000:.1f} ms")
+
+with timer("retrieval"):
+    results = search(query)      # even if this raises, the timer still prints
+```
+
+The `finally` is the point: cleanup runs on the way out no matter what. In production that is what closes your database connections and HTTP clients instead of leaking them until the process falls over.
+
+## Survive and reveal failure: errors and logging
+
+Model and network calls fail routinely. The rule is: **catch what you can handle, name it specifically, and never swallow everything.**
+
+```python
+try:
+    response = call_model(prompt)
+except TimeoutError:
+    response = call_model(prompt, model="backup")   # a failure you can handle
+except ValidationError as e:
+    logger.warning("bad model output: %s", e)
+    raise                                           # can't handle — re-raise
+```
+
+The anti-pattern is the bare `except:` (or `except Exception:` that does nothing), which hides the bug you most need to see — and even swallows `Ctrl-C`. Catch the specific exceptions you have a plan for; let the rest surface.
+
+**Logging** is how a running system tells you what it did. Use the `logging` module, not `print` — it gives you levels, timestamps, and the ability to route or silence output without editing code:
+
+```python
+import logging
+logger = logging.getLogger("pipeline")
+
+logger.info("processed %d documents from %s", count, source)   # lazy %-formatting
+```
+
+Two habits that matter from day one. First, pass values as arguments (`"... %d ...", count`) rather than pre-building the string with an f-string — the message is only formatted if that level is actually emitted. Second, **never log secrets or user PII** — not API keys, not full prompts that may contain personal data. Logs get shipped to places you do not control. This becomes the tracing backbone in Layer 5; getting the hygiene right now costs nothing.
+
+## Organise it: project layout
+
+A script grows into a service. A predictable layout keeps it navigable:
+
+```text
+myservice/
+├── pyproject.toml          # dependencies, tool config (next chapter)
+├── README.md
+├── src/
+│   └── myservice/
+│       ├── __init__.py
+│       ├── config.py       # dataclasses / settings
+│       ├── clients.py      # model & API clients (context managers)
+│       ├── pipeline.py     # core logic (generators, comprehensions)
+│       └── logging.py      # logging setup
+└── tests/
+    └── test_pipeline.py
+```
+
+The `src/` layout — code under `src/myservice/` rather than at the repo root — is deliberate: it forces you to import your package the same way your users will, so "works on my machine" bugs from accidental local imports disappear. One responsibility per module. It looks like overkill for a 200-line project and pays for itself the moment the project is not 200 lines.
+
+## A worked example
+
+Here is the shape of real pipeline code — several idioms doing their jobs together. Read it as a trace of what happens to one bad input.
+
+```python
+from dataclasses import dataclass
+import logging
+
+logger = logging.getLogger("ingest")
+
+@dataclass
+class Doc:
+    id: str
+    text: str
+
+def clean(docs):
+    """Yield cleaned docs one at a time; skip and log the broken ones."""
+    for d in docs:
+        try:
+            text = d.text.strip()
+            if not text:
+                raise ValueError("empty after strip")
+            yield Doc(id=d.id, text=text)
+        except (AttributeError, ValueError) as e:
+            logger.warning("skipping doc %s: %s", getattr(d, "id", "?"), e)
+```
+
+Trace a batch where the second doc has `text=None`. The generator yields the first cleaned `Doc` immediately — the consumer can start embedding it now. On the second, `None.strip()` raises `AttributeError`; the `except` catches it, logs `skipping doc ...`, and the loop continues to the third. One malformed record does not crash the run, does not silently vanish, and does not block the good records behind it. That is the whole game: **precise data, lazy streaming, contained failure, an honest log line.**
+
+## Try it
+
+Three live cells. Run them, then break them. The first run loads Python; after that it is instant.
+
+First, the hook's bug — watch it happen, then fix it yourself:
+
+<PyRunner
+  client:idle
+  id="00-01.A"
+  label="THE MUTABLE-DEFAULT TRAP"
+  code={`def add_chunk(chunk, batch=[]):     # the trap is the default []
+    batch.append(chunk)
+    return batch
+
+print(add_chunk("doc1"))
+print(add_chunk("doc2"))   # shares the SAME list — surprise
+
+# Fix it: default to None, build a fresh list inside.
+# def add_chunk(chunk, batch=None):
+#     if batch is None:
+#         batch = []
+#     ...
+# Uncomment the fix, comment out the buggy version, and run again.`}
+/>
+
+Next, a generator streaming tokens one at a time — and proving it is single-use:
+
+<PyRunner
+  client:idle
+  id="00-01.B"
+  label="STREAMING WITH A GENERATOR"
+  code={`def stream_tokens(text):
+    for word in text.split():
+        yield word
+
+for i, tok in enumerate(stream_tokens("streaming feels faster than waiting")):
+    print(f"token {i}: {tok}")
+
+# A generator is single-use. Iterate the same one twice:
+g = stream_tokens("one two")
+print("first pass: ", list(g))
+print("second pass:", list(g))   # empty — nothing is stored to replay`}
+/>
+
+Finally, the `@retry` decorator, wrapping a call that fails twice before it succeeds:
+
+<PyRunner
+  client:idle
+  id="00-01.C"
+  label="A RETRY DECORATOR"
+  code={`import functools
+
+def retry(times):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            for attempt in range(1, times + 1):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    print(f"attempt {attempt} failed: {e}")
+            raise RuntimeError(f"{fn.__name__} failed after {times} attempts")
+        return wrapper
+    return decorator
+
+attempts = {"n": 0}
+
+@retry(times=3)
+def flaky_call():
+    attempts["n"] += 1
+    if attempts["n"] < 3:
+        raise ConnectionError("timeout")
+    return "ok"
+
+print("result:", flaky_call())
+print("name preserved:", flaky_call.__name__)   # 'flaky_call', thanks to wraps
+# Try: change times=3 to times=2 and watch it exhaust and raise.`}
+/>
+
+## Production reality
+
+Open any serious AI codebase and these idioms are load-bearing, not stylistic:
+
+- **Type hints are everywhere**, because Pydantic turns them into runtime validation for every model input and output. The hint on a function argument becomes the JSON Schema a model must fill. This is not optional in production — it is the boundary that stops malformed model output from propagating.
+- **Every provider call is decorated** — retry, timeout, and often a circuit breaker — because a bare `client.generate(...)` with no wrapper will take your service down the first time the provider has a bad minute. You will build exactly these in Layer 4.
+- **Responses stream through generators.** Users perceive a response that starts in 200ms as fast even if it finishes in 8 seconds; one that appears all at once after 8 seconds feels broken. The generator is what makes the first feel possible.
+- **Structured logs are the eyes of the system.** When an agent misbehaves in production, the log of what it retrieved, called, and returned is often the only way to reconstruct why. Teams that skipped logging debug blind.
+
+The costs are real and worth stating. Type hints add friction and can get baroque for complex generics. Over-decorating a function — five stacked decorators — makes control flow genuinely hard to follow; reach for a decorator when behaviour is *cross-cutting and repeated*, not for one-off logic. Generators trade replayability for memory: single-use is a feature until you forget it and iterate twice. The trade-offs are mild, but pretending they do not exist produces cargo-cult code.
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: 'Mutable default arguments — `def f(x, acc=[])` or `={}`.',
+      fix: 'The default is created once at definition time and shared across all calls. Default to None and build the container inside the function, or use `field(default_factory=list)` in a dataclass.',
+    },
+    {
+      mistake: 'Bare `except:` (or `except Exception:` that does nothing) swallowing every error.',
+      fix: 'It hides the bug you most need to see, and a bare except even catches Ctrl-C. Catch the specific exceptions you have a plan for; log and re-raise the rest.',
+    },
+    {
+      mistake: 'Building the log message with an f-string: `logger.info(f"got {expensive()}")`.',
+      fix: 'The f-string runs `expensive()` even when that log level is disabled. Use lazy formatting — `logger.info("got %s", value)` — so the work only happens if the line is emitted. And never put secrets or PII in a log line.',
+    },
+    {
+      mistake: 'Iterating a generator twice and getting nothing the second time.',
+      fix: 'Generators are single-use — they hold no stored values to replay. If you genuinely need the data twice, materialise it once with `list(gen)`, accepting the memory cost on purpose.',
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Checkpoint
+
+<Checkpoint
+  questions={[
+    {
+      q: 'Python does not enforce type hints at runtime, so what are they actually for in an AI codebase?',
+      a: 'Tooling reads them: editors autocomplete and catch typos, mypy finds mismatches before you ship, and Pydantic turns them into runtime validation and tool schemas at the model boundary. They catch static bugs; you still validate anything coming over the wire.',
+    },
+    {
+      q: 'Why does the mutable-default bug happen, and what are the two idiomatic fixes?',
+      a: 'A default argument is evaluated once, when the function is defined, so a default list or dict is shared across all calls. Fix it by defaulting to None and creating the container inside the function, or — in a dataclass — with field(default_factory=list).',
+    },
+    {
+      q: 'When is a generator the right choice over a list, and what do you give up?',
+      a: 'When values arrive or are consumed one at a time — streaming tokens, paging an API, processing data too large for memory — a generator lets you start work before everything is ready and keeps only the current value live. You give up replayability: a generator is single-use.',
+    },
+    {
+      q: 'What does @functools.wraps do, and why does omitting it cause subtle bugs?',
+      a: 'It copies the wrapped function identity — its name and docstring — onto the wrapper. Omit it and the function reports its name as "wrapper", which quietly breaks logs, stack traces, and any tool that dispatches on function names.',
+    },
+  ]}
+/>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    'AI code is thin, I/O-bound glue around unreliable services processing messy data — the idioms that matter are the ones that make glue trustworthy.',
+    'Type hints power tooling and Pydantic validation; dataclasses model config and records without boilerplate (and default_factory avoids the mutable-default trap).',
+    'Comprehensions transform data readably; generators stream it one value at a time — the basis of token streaming and large-data processing — at the cost of being single-use.',
+    'Decorators factor out cross-cutting behaviour (retry, timing) and context managers guarantee teardown even on error — both are everywhere in production.',
+    'Catch specific exceptions, log with lazy formatting and never log secrets, and keep a predictable project layout — this is what makes a system debuggable at 3am.',
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="async-python"
+  title="Async Python"
+  why="Agents are I/O-bound — mostly waiting on API calls. Next you give these idioms an async twin, running many calls concurrently instead of one at a time."
+/>

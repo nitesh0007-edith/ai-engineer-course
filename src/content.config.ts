@@ -40,7 +40,7 @@ const chapters = defineCollection({
       .array(
         z.object({
           title: z.string(),
-          url: z.string().url(),
+          url: z.url(),
           type: z.enum(['paper', 'docs', 'video', 'course', 'blog', 'repo']),
           note: z.string().optional(), // one line on why it's worth reading (§6)
         }),

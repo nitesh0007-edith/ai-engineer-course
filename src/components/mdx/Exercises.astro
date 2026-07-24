@@ -1,8 +1,14 @@
 ---
+import { marked } from 'marked';
+
 /** Auto-rendered from frontmatter: <Exercises data={frontmatter} />. */
 const { data } = Astro.props;
 type Exercise = { prompt: string; difficulty: 'warmup' | 'core' | 'stretch'; solution: string };
 const exercises: Exercise[] = data?.exercises ?? [];
+
+// Solutions are authored Markdown (they often contain code blocks). Rendered
+// here to HTML — the source is trusted chapter frontmatter, not user input.
+const rendered = exercises.map((ex) => marked.parse(ex.solution) as string);
 ---
 
 <div class="block exercises">
@@ -15,7 +21,7 @@ const exercises: Exercise[] = data?.exercises ?? [];
         <p class="prompt">{ex.prompt}</p>
         <details>
           <summary>Reveal solution</summary>
-          <div class="solution">{ex.solution}</div>
+          <div class="solution" set:html={rendered[i]} />
         </details>
       </div>
     ))

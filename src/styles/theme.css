@@ -626,6 +626,35 @@
   line-height: 1.6;
   color: var(--ink-muted);
 }
+.exercise .solution > :first-child {
+  margin-top: 0;
+}
+.exercise .solution > :last-child {
+  margin-bottom: 0;
+}
+.exercise .solution pre {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: var(--paper-sink);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+.exercise .solution :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--paper-sink);
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  padding: 0.06em 0.32em;
+}
+.exercise .solution pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
 
 .checkpoint ol {
   padding-left: 1.3em;
