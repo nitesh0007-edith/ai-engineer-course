@@ -3,17 +3,17 @@ layer: 0
 order: 1
 title: 'Python for AI engineering'
 slug: 'python-for-ai-engineering'
-subtitle: 'The handful of Python idioms that keep AI code correct, streamable, and debuggable at 3am.'
+subtitle: 'The few Python habits that keep AI code correct, easy to stream, and easy to fix when something breaks.'
 depth: build
 difficulty: beginner
 readingTime: 24
 prerequisites:
   - how-to-use-this-course
 objectives:
-  - 'Read and write type-hinted Python and explain why hints matter more for AI code than most'
-  - 'Use dataclasses, comprehensions, generators, decorators, and context managers idiomatically'
-  - 'Handle failure and add logging so a pipeline is debuggable when — not if — a call fails'
-  - 'Lay out a small Python project the way production AI codebases do'
+  - 'Read and write Python with type hints, and explain why hints matter so much for AI code'
+  - 'Use dataclasses, comprehensions, generators, decorators, and context managers the clean, normal way'
+  - 'Handle errors and add logging so you can fix a pipeline when a call fails — and calls do fail'
+  - 'Lay out a small Python project the way real AI projects do'
 concepts:
   - type-hints
   - dataclass
@@ -57,7 +57,7 @@ import PyRunner from '../../../components/interactive/PyRunner.tsx';
 import DecoratorOnion from '../../../components/diagrams/DecoratorOnion.astro';
 import GeneratorStream from '../../../components/diagrams/GeneratorStream.astro';
 
-Read this function. It collects chunks of a document into a batch. It has a bug that has shipped to production in more codebases than anyone will admit:
+Look at this small function. It adds a piece of a document (a "chunk") to a list (a "batch"). It has a bug that has slipped into real, working software many times:
 
 ```python
 def add_chunk(chunk, batch=[]):     # looks harmless
@@ -68,9 +68,9 @@ print(add_chunk("doc1"))            # ['doc1']
 print(add_chunk("doc2"))            # ['doc1', 'doc2']  ← wait, what?
 ```
 
-The second call was supposed to start a fresh batch. Instead it remembered `"doc1"`. The default `[]` is created **once**, when the function is defined — not once per call — so every call that relies on the default shares the *same* list. In an AI pipeline this is the kind of bug that quietly mixes one user's documents into another's, and it never raises an error.
+The second call should have started a new, empty batch. Instead it still had `"doc1"` inside. Here is why. Python builds that `[]` only **one time** — when it first reads the function, not each time you call it. So every call that uses the default shares the *same* list. In an AI pipeline, this bug can quietly mix one user's documents with another user's. And it never shows an error, so it is easy to miss.
 
-Python is a wonderful language with a few sharp edges exactly like this one. This chapter is the small set of idioms that keep those edges away from your data — the ones you will use in almost every file you write for the rest of this course.
+Python is a great language, but it has a few traps like this one. This chapter teaches the small set of Python habits that keep these traps away from your data. You will use these habits in almost every file you write for the rest of the course.
 
 <Prerequisites data={frontmatter} />
 
@@ -78,17 +78,17 @@ Python is a wonderful language with a few sharp edges exactly like this one. Thi
 
 ## The intuition
 
-Here is the thing to hold onto: **an AI system is mostly thin Python glue around unreliable services, moving messy data.** You call a model that sometimes times out. You parse a response that is sometimes malformed. You process a batch of documents that sometimes contains a 400-page PDF. The model is not your code; your code is everything around it.
+Here is the main idea to remember: **most of an AI system is a small amount of Python that connects to outside services and moves messy data around.** You call a model, and sometimes it is too slow and times out. You read its answer, and sometimes the answer is broken. You process a group of documents, and sometimes one of them is a 400-page PDF. The model itself is not your code. Your code is everything *around* the model.
 
-That shapes which parts of Python matter most. Not clever metaclasses — the boring, load-bearing idioms that make glue code trustworthy. They fall into five jobs:
+This tells us which parts of Python matter most. Not fancy, advanced features — the plain, important habits that make this connecting code safe to trust. They do five jobs:
 
-- **Describe your data** precisely, so bugs surface early — <Term id="type-hints">type hints</Term> and <Term id="dataclass">dataclasses</Term>.
-- **Transform and stream** it without wasting memory — comprehensions and <Term id="generator">generators</Term>.
-- **Wrap cross-cutting behaviour** — retries, timing, resource cleanup — with <Term id="decorator">decorators</Term> and <Term id="context-manager">context managers</Term>.
-- **Survive and reveal failure** — error handling and logging.
-- **Organise it** so the project is navigable — project layout.
+- **Describe your data** clearly, so you catch bugs early — <Term id="type-hints">type hints</Term> and <Term id="dataclass">dataclasses</Term>.
+- **Change and stream your data** without using too much memory — comprehensions and <Term id="generator">generators</Term>.
+- **Add the same extra behaviour to many functions** — like retrying, timing, and cleanup — with <Term id="decorator">decorators</Term> and <Term id="context-manager">context managers</Term>.
+- **Survive errors and show what happened** — error handling and logging.
+- **Organise it** so the project is easy to find your way around — project layout.
 
-None of this is exotic. All of it is the difference between code that works in a notebook and code that survives contact with real traffic.
+None of this is advanced. But it is the difference between code that works once in a notebook and code that keeps working when real users use it.
 
 ## Describe your data: type hints and dataclasses
 
@@ -99,13 +99,13 @@ def embed(text: str, model: str = "small") -> list[float]:
     ...
 ```
 
-Python does not check these at runtime — `embed(42)` still runs. So why bother? Because everything *else* checks them: your editor autocompletes and catches typos, the type-checker `mypy` finds mismatches before you ship, and — critically for later — libraries like Pydantic read these exact annotations to validate LLM outputs and define tool schemas. Hints are the foundation the whole application layer is built on.
+Python does not check these hints while it runs. If you call `embed(42)` with a number instead of text, Python still runs it. So why write them? Because other tools read them for you. Your code editor uses them to autocomplete and to warn you about typos. A checker called `mypy` reads them to find type mistakes before you share your code. And later, a library called Pydantic reads these same hints to check what a model gives back and to describe the tools a model can use. So hints are a base that much of the later work stands on.
 
 <Callout type="watch-out">
-Type hints are not enforced at runtime by Python itself. They are documentation that tools can act on. If you need a value *guaranteed* to be the right type at runtime — and for anything coming back from a model, you do — you validate it explicitly (Pydantic, Layer 4). Hints catch the bugs you can see statically; validation catches the ones that arrive over the wire.
+Python does not force type hints while the program runs. They are more like notes that other tools can read and use. When you truly need to be sure a value has the right type at run time — and you always do for anything coming back from a model — you must check it yourself with a tool like Pydantic (Layer 4). Hints catch mistakes you can see in the code. Checking at run time catches the bad values that arrive from outside.
 </Callout>
 
-A **dataclass** is the idiomatic way to bundle related, typed values — a config, a record, a result — without writing a constructor by hand:
+A **dataclass** is the normal way to group related values together — like settings, a record, or a result — without writing all the setup code by hand:
 
 ```python
 from dataclasses import dataclass, field
@@ -121,7 +121,7 @@ print(cfg)
 # ChunkConfig(size=100, overlap=20, sources=['a.pdf', 'b.pdf'])
 ```
 
-You get a typed constructor, a readable `repr`, and equality — for free. Notice `field(default_factory=list)`: it is the dataclass-safe cure for the exact mutable-default bug from the hook. A fresh list is built per instance, not shared.
+You get a lot for free: a setup step (`__init__`) that knows the types, a clear printout (the `repr`), and a way to compare two of them. Now look at `field(default_factory=list)`. This is the safe way to give a dataclass an empty-list default. It builds a *new* list for each object instead of sharing one — so it avoids the shared-list bug from the start of the chapter.
 
 ## Transform and stream: comprehensions and generators
 
@@ -133,9 +133,9 @@ cleaned = [d.strip() for d in docs if d.strip()]   # keep non-empty, strip each
 print(cleaned)                                     # ['hello', 'world']
 ```
 
-Read it aloud: *"strip each `d`, for every `d` in `docs`, where `d` stripped is non-empty."* That is more direct than the four-line loop it replaces, and once your eye is trained it is easier to read, not harder.
+Read it out loud: *"take each `d` in `docs`, remove the spaces, and keep it only if something is left."* It does the same job as a longer four-line loop. It looks strange at first, but after a little practice it is easier to read, not harder.
 
-A **generator** looks like a function but uses `yield` to produce values one at a time, pausing in between, instead of building a whole list. That difference is not academic — it is how you stream.
+A **generator** looks like a function, but it uses `yield` to give back one value at a time and then pause, instead of building the whole list at once. This is not just a small detail. It is how you *stream* data — handle it piece by piece as it arrives.
 
 <Figure id="00-01.1" label="LAZY VS EAGER" caption="— a list computes and holds all values at once; a generator yields one on demand and keeps only the current one live. For a stream of LLM tokens or a dataset too big for memory, only the generator is viable.">
   <GeneratorStream />
@@ -153,11 +153,11 @@ for i, tok in enumerate(stream_tokens("streaming feels faster than waiting")):
 # ...
 ```
 
-This is exactly the shape of reading an LLM response as it arrives — token by token — instead of waiting for the whole thing. It is also how you process a million-row file without loading a million rows into memory. The cost: a generator is **single-use**. Iterate it twice and the second pass is empty, because there is nothing stored to replay.
+This is the same idea as reading a model's answer as it comes in, word by word, instead of waiting for the full answer. It is also how you read a file with a million rows without loading all million rows into memory at once. There is one catch: a generator can only be used **once**. If you loop over it a second time, you get nothing, because it does not keep the old values to give them again.
 
 ## Wrap behaviour: decorators and context managers
 
-Many things in an AI system need the *same* wrapper: every provider call wants a retry, a timeout, and a latency measurement. Copy-pasting that around every call is how bugs breed. A **decorator** factors it out — it wraps a function to add behaviour around it, without touching the function's own code.
+In an AI system, many functions need the *same* extra behaviour. For example, every call to a model provider should retry if it fails, stop after a timeout, and measure how long it took. Copying that code around every call leads to bugs. A **decorator** fixes this. It wraps a function and adds behaviour around it, without changing the function's own code.
 
 <Figure id="00-01.2" label="A DECORATOR WRAPS A CALL" caption="— @retry receives the call, invokes the real call_api, and on error loops back to try again; on success the result passes out. The wrapped function knows nothing about retries.">
   <DecoratorOnion />
@@ -184,9 +184,9 @@ def call_api():
     ...
 ```
 
-The `@functools.wraps` line is not optional decoration — without it, `call_api.__name__` becomes `"wrapper"`, and every log line and stack trace that prints the function name suddenly lies to you. You run the whole thing yourself in the next section.
+The `@functools.wraps` line matters. Without it, the name of your function (`call_api.__name__`) becomes `"wrapper"` instead of `"call_api"`. Then every log message and error trace that prints the function name shows the wrong name. You will run this whole example yourself in the next section.
 
-A **context manager** guarantees teardown. Anything you open — a file, a network client, a timer — must be closed *even if the code inside raises*. The `with` block makes that automatic:
+A **context manager** makes sure cleanup always happens. Anything you open — a file, a network connection, a timer — must be closed again *even if the code in the middle fails*. The `with` block does this for you:
 
 ```python
 from contextlib import contextmanager
@@ -204,11 +204,11 @@ with timer("retrieval"):
     results = search(query)      # even if this raises, the timer still prints
 ```
 
-The `finally` is the point: cleanup runs on the way out no matter what. In production that is what closes your database connections and HTTP clients instead of leaking them until the process falls over.
+The key part is `finally`. The cleanup runs on the way out, no matter what happens. In a real app, this is what closes your database connections and network clients. Without it, these stay open and pile up until the program runs out of resources and crashes.
 
 ## Survive and reveal failure: errors and logging
 
-Model and network calls fail routinely. The rule is: **catch what you can handle, name it specifically, and never swallow everything.**
+Calls to models and networks fail often. The rule is simple: **only catch the errors you know how to handle, name each one, and never hide all errors at once.**
 
 ```python
 try:
@@ -220,9 +220,9 @@ except ValidationError as e:
     raise                                           # can't handle — re-raise
 ```
 
-The anti-pattern is the bare `except:` (or `except Exception:` that does nothing), which hides the bug you most need to see — and even swallows `Ctrl-C`. Catch the specific exceptions you have a plan for; let the rest surface.
+The common mistake is a bare `except:` (or an `except Exception:` that does nothing). It hides the very bug you need to see. It even blocks `Ctrl-C`, so you cannot stop the program by hand. Catch only the errors you have a plan for, and let the others show themselves.
 
-**Logging** is how a running system tells you what it did. Use the `logging` module, not `print` — it gives you levels, timestamps, and the ability to route or silence output without editing code:
+**Logging** is how a running program tells you what it did. Use the `logging` module instead of `print`. It gives you message levels (like info or warning), timestamps, and a way to turn messages on or off without changing your code:
 
 ```python
 import logging
@@ -231,7 +231,7 @@ logger = logging.getLogger("pipeline")
 logger.info("processed %d documents from %s", count, source)   # lazy %-formatting
 ```
 
-Two habits that matter from day one. First, pass values as arguments (`"... %d ...", count`) rather than pre-building the string with an f-string — the message is only formatted if that level is actually emitted. Second, **never log secrets or user PII** — not API keys, not full prompts that may contain personal data. Logs get shipped to places you do not control. This becomes the tracing backbone in Layer 5; getting the hygiene right now costs nothing.
+Two habits to build from day one. First, pass the values as extra arguments (`"... %d ...", count`) instead of building the full string with an f-string. This way, Python only builds the message if it will really be shown. Second, **never log secrets or personal user data** — no API keys, and no full prompts that might hold personal information (this is often called PII, "personally identifiable information"). Logs often get sent to systems you do not control. Logging becomes very important later (Layer 5), and building the habit now is free.
 
 ## Organise it: project layout
 
@@ -252,11 +252,11 @@ myservice/
     └── test_pipeline.py
 ```
 
-The `src/` layout — code under `src/myservice/` rather than at the repo root — is deliberate: it forces you to import your package the same way your users will, so "works on my machine" bugs from accidental local imports disappear. One responsibility per module. It looks like overkill for a 200-line project and pays for itself the moment the project is not 200 lines.
+Putting your code under `src/myservice/` instead of at the top of the project is on purpose. It makes you import your package the same way other people will, so you avoid the "it works on my computer" bugs that come from importing local files by accident. Each file has one clear job. This may feel like too much for a small 200-line project, but it helps a lot as soon as the project grows past that.
 
 ## A worked example
 
-Here is the shape of real pipeline code — several idioms doing their jobs together. Read it as a trace of what happens to one bad input.
+Here is what real pipeline code looks like, with several of these habits working together. Read it by following what happens to one bad input.
 
 ```python
 from dataclasses import dataclass
@@ -281,7 +281,7 @@ def clean(docs):
             logger.warning("skipping doc %s: %s", getattr(d, "id", "?"), e)
 ```
 
-Trace a batch where the second doc has `text=None`. The generator yields the first cleaned `Doc` immediately — the consumer can start embedding it now. On the second, `None.strip()` raises `AttributeError`; the `except` catches it, logs `skipping doc ...`, and the loop continues to the third. One malformed record does not crash the run, does not silently vanish, and does not block the good records behind it. That is the whole game: **precise data, lazy streaming, contained failure, an honest log line.**
+Follow a group where the second document has `text=None`. The generator gives back the first clean `Doc` right away, so the next step can start using it now. On the second document, `None.strip()` fails with an `AttributeError`. The `except` catches it, writes `skipping doc ...` to the log, and the loop moves on to the third. One broken record does not crash the whole run, does not disappear without a trace, and does not block the good records behind it. That is the goal: **clear data, one-at-a-time streaming, errors kept under control, and an honest log line.**
 
 ## Try it
 
@@ -364,14 +364,14 @@ print("name preserved:", flaky_call.__name__)   # 'flaky_call', thanks to wraps
 
 ## Production reality
 
-Open any serious AI codebase and these idioms are load-bearing, not stylistic:
+Open any real AI codebase and you will see these habits everywhere. They are not just style — the system depends on them:
 
-- **Type hints are everywhere**, because Pydantic turns them into runtime validation for every model input and output. The hint on a function argument becomes the JSON Schema a model must fill. This is not optional in production — it is the boundary that stops malformed model output from propagating.
-- **Every provider call is decorated** — retry, timeout, and often a circuit breaker — because a bare `client.generate(...)` with no wrapper will take your service down the first time the provider has a bad minute. You will build exactly these in Layer 4.
-- **Responses stream through generators.** Users perceive a response that starts in 200ms as fast even if it finishes in 8 seconds; one that appears all at once after 8 seconds feels broken. The generator is what makes the first feel possible.
-- **Structured logs are the eyes of the system.** When an agent misbehaves in production, the log of what it retrieved, called, and returned is often the only way to reconstruct why. Teams that skipped logging debug blind.
+- **Type hints are everywhere.** Pydantic uses them to check every input and output of a model while the code runs. A type hint on a function becomes the exact shape (a JSON Schema) that the model must fill in. In production this is not optional — it is the wall that stops broken model output from spreading through the rest of the system.
+- **Every call to a provider is wrapped with a decorator** — retry, timeout, and often a "circuit breaker" (it stops calling a service that keeps failing). A plain `client.generate(...)` with no wrapper will bring your app down the first time the provider has a bad minute. You will build these in Layer 4.
+- **Answers are streamed with generators.** If words start appearing after 200 milliseconds, users feel it is fast, even if the full answer takes 8 seconds. If nothing appears for 8 seconds and then it all shows at once, it feels broken. Generators are what let you show the answer as it arrives.
+- **Good logs are the eyes of the system.** When an agent does the wrong thing in production, the log of what it read, what it called, and what it returned is often the only way to work out why. Teams that skip logging have to debug blind.
 
-The costs are real and worth stating. Type hints add friction and can get baroque for complex generics. Over-decorating a function — five stacked decorators — makes control flow genuinely hard to follow; reach for a decorator when behaviour is *cross-cutting and repeated*, not for one-off logic. Generators trade replayability for memory: single-use is a feature until you forget it and iterate twice. The trade-offs are mild, but pretending they do not exist produces cargo-cult code.
+These habits also have costs, and it is fair to name them. Type hints take extra effort, and they can get hard to read for very complex types. Putting too many decorators on one function — say, five stacked on top of each other — makes the flow hard to follow. Use a decorator when the behaviour is *shared and repeated*, not for a one-off case. Generators save memory but can only run once, which is fine until you forget and loop over one twice. These trade-offs are small, but it is better to know they exist than to copy patterns blindly.
 
 ## Common mistakes
 
@@ -379,19 +379,19 @@ The costs are real and worth stating. Type hints add friction and can get baroqu
   items={[
     {
       mistake: 'Mutable default arguments — `def f(x, acc=[])` or `={}`.',
-      fix: 'The default is created once at definition time and shared across all calls. Default to None and build the container inside the function, or use `field(default_factory=list)` in a dataclass.',
+      fix: 'Python builds that default value only once, when it first reads the function, and then shares it across every call. Instead, default to None and build the list or dict inside the function. In a dataclass, use `field(default_factory=list)`.',
     },
     {
       mistake: 'Bare `except:` (or `except Exception:` that does nothing) swallowing every error.',
-      fix: 'It hides the bug you most need to see, and a bare except even catches Ctrl-C. Catch the specific exceptions you have a plan for; log and re-raise the rest.',
+      fix: 'It hides the bug you most need to see, and a bare except even blocks Ctrl-C. Catch only the specific errors you have a plan for. Log the others and re-raise them.',
     },
     {
       mistake: 'Building the log message with an f-string: `logger.info(f"got {expensive()}")`.',
-      fix: 'The f-string runs `expensive()` even when that log level is disabled. Use lazy formatting — `logger.info("got %s", value)` — so the work only happens if the line is emitted. And never put secrets or PII in a log line.',
+      fix: 'The f-string runs `expensive()` even when this log message is turned off. Pass the value as an argument instead — `logger.info("got %s", value)` — so the work only happens if the message is really shown. And never put secrets or personal data in a log line.',
     },
     {
       mistake: 'Iterating a generator twice and getting nothing the second time.',
-      fix: 'Generators are single-use — they hold no stored values to replay. If you genuinely need the data twice, materialise it once with `list(gen)`, accepting the memory cost on purpose.',
+      fix: 'A generator can only be used once — it does not keep its old values. If you really need the data twice, turn it into a list once with `list(gen)`, and accept that this uses more memory.',
     },
   ]}
 />
@@ -406,19 +406,19 @@ The costs are real and worth stating. Type hints add friction and can get baroqu
   questions={[
     {
       q: 'Python does not enforce type hints at runtime, so what are they actually for in an AI codebase?',
-      a: 'Tooling reads them: editors autocomplete and catch typos, mypy finds mismatches before you ship, and Pydantic turns them into runtime validation and tool schemas at the model boundary. They catch static bugs; you still validate anything coming over the wire.',
+      a: 'Other tools read them. Editors autocomplete and catch typos, mypy finds type mistakes before you share your code, and Pydantic uses them to check what a model returns and to describe tools for it. Hints catch mistakes you can see in the code; you still need to check any value that comes from outside.',
     },
     {
-      q: 'Why does the mutable-default bug happen, and what are the two idiomatic fixes?',
-      a: 'A default argument is evaluated once, when the function is defined, so a default list or dict is shared across all calls. Fix it by defaulting to None and creating the container inside the function, or — in a dataclass — with field(default_factory=list).',
+      q: 'Why does the shared-list (mutable default) bug happen, and what are the two normal fixes?',
+      a: 'Python builds a default value only once, when it first reads the function, so a default list or dict is shared by every call. Fix it by defaulting to None and building the list or dict inside the function, or — in a dataclass — with field(default_factory=list).',
     },
     {
       q: 'When is a generator the right choice over a list, and what do you give up?',
-      a: 'When values arrive or are consumed one at a time — streaming tokens, paging an API, processing data too large for memory — a generator lets you start work before everything is ready and keeps only the current value live. You give up replayability: a generator is single-use.',
+      a: 'When values come in or are used one at a time — streaming words from a model, reading an API page by page, or handling data too big for memory — a generator lets you start work before everything is ready and keeps only the current value in memory. The trade-off: a generator can only be used once.',
     },
     {
       q: 'What does @functools.wraps do, and why does omitting it cause subtle bugs?',
-      a: 'It copies the wrapped function identity — its name and docstring — onto the wrapper. Omit it and the function reports its name as "wrapper", which quietly breaks logs, stack traces, and any tool that dispatches on function names.',
+      a: 'It copies the wrapped function’s name and docstring onto the wrapper. If you leave it out, the function reports its name as "wrapper", which quietly breaks logs, error traces, and any tool that uses function names.',
     },
   ]}
 />
@@ -427,11 +427,11 @@ The costs are real and worth stating. Type hints add friction and can get baroqu
 
 <KeyTakeaways
   points={[
-    'AI code is thin, I/O-bound glue around unreliable services processing messy data — the idioms that matter are the ones that make glue trustworthy.',
-    'Type hints power tooling and Pydantic validation; dataclasses model config and records without boilerplate (and default_factory avoids the mutable-default trap).',
-    'Comprehensions transform data readably; generators stream it one value at a time — the basis of token streaming and large-data processing — at the cost of being single-use.',
-    'Decorators factor out cross-cutting behaviour (retry, timing) and context managers guarantee teardown even on error — both are everywhere in production.',
-    'Catch specific exceptions, log with lazy formatting and never log secrets, and keep a predictable project layout — this is what makes a system debuggable at 3am.',
+    'Most AI code is a small amount of Python that connects to outside services and moves messy data; the habits that matter are the ones that make this code safe to trust.',
+    'Type hints power your tools and Pydantic checks; dataclasses group settings and records without extra setup code (and default_factory avoids the shared-list bug).',
+    'Comprehensions change data in one clear line; generators hand it back one value at a time — the basis of streaming words and handling large data — but can only be used once.',
+    'Decorators pull shared behaviour (like retry and timing) out of your functions, and context managers make sure cleanup runs even after an error — both are everywhere in real systems.',
+    'Catch specific errors, log by passing values as arguments and never log secrets, and keep a clear project layout — this is what makes a system easy to fix when it breaks.',
   ]}
 />
 
@@ -442,5 +442,5 @@ The costs are real and worth stating. Type hints add friction and can get baroqu
 <NextUp
   slug="async-python"
   title="Async Python"
-  why="Agents are I/O-bound — mostly waiting on API calls. Next you give these idioms an async twin, running many calls concurrently instead of one at a time."
+  why="Agents spend most of their time waiting on API calls. Next you learn the async versions of these habits, so you can run many calls at the same time instead of one after another."
 />
