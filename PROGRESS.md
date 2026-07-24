@@ -26,10 +26,10 @@
 
 Notes:
 - Content config lives at `src/content.config.ts` (Astro 7 requires this path; §4 predates the move).
-- CI: `deploy.yml` (build + Pages on push to main), `quality.yml` (typecheck, build, manifest, grep gate on PRs).
+- CI: `deploy.yml` (build + Pages on push to main); `quality.yml` (on PRs and push to main) — typecheck, build, manifest, grep gate, **Playwright e2e + axe-core (zero violations, both themes), and Lighthouse CI (perf ≥95 / a11y 100 / best-practices ≥95, median of 3)**. Every published page currently scores 100/100/100.
 - Search: Pagefind indexes at build (`postbuild`), UI island loads it lazily; degrades gracefully in dev.
 - Diagram primitive library is intentionally minimal — built per §9 ("the first time a chapter needs it, then reuse") rather than all of §7 up front.
-- Remaining §13 gates (lint, vitest, playwright/visual, axe, lighthouse, link-check) land with the tooling they need.
+- Remaining §13 gates still to add: eslint/prettier, vitest, external link-check.
 
 ## Chapters
 
