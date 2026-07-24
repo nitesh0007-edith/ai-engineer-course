@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+/* Fontsource self-hosted faces (woff2, latin). DESIGN §3.1:
+   Barlow Semi Condensed (display) + IBM Plex Serif (body) + IBM Plex Mono. */
+@import '@fontsource/barlow-semi-condensed/500.css';
+@import '@fontsource/barlow-semi-condensed/600.css';
+@import '@fontsource/ibm-plex-serif/400.css';
+@import '@fontsource/ibm-plex-serif/400-italic.css';
+@import '@fontsource/ibm-plex-serif/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* ── Design tokens — DESIGN §2.1 core table. OKLCH, no hardcoded hex. ──────── */
+:root {
+  --paper: oklch(0.975 0.005 250);
+  --paper-raise: oklch(0.99 0.003 250);
+  --paper-sink: oklch(0.945 0.008 250);
+  --ink: oklch(0.27 0.02 255);
+  --ink-muted: oklch(0.46 0.02 255);
+  --blueprint: oklch(0.48 0.15 245);
+  --annotate: oklch(0.58 0.13 70);
+  --annotate-text: oklch(0.47 0.12 70);
+  --alert: oklch(0.53 0.18 25);
+  /* ink @ alpha for the drafting layer */
+  --grid-dot: oklch(0.27 0.02 255 / 0.1);
+  --frame: oklch(0.27 0.02 255 / 0.28);
+  --hairline: oklch(0.27 0.02 255 / 0.14);
+
+  --font-display: 'Barlow Semi Condensed', system-ui, sans-serif;
+  --font-body: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --paper: oklch(0.21 0.015 255);
+  --paper-raise: oklch(0.245 0.015 255);
+  --paper-sink: oklch(0.175 0.015 255);
+  --ink: oklch(0.9 0.01 250);
+  --ink-muted: oklch(0.67 0.015 252);
+  --blueprint: oklch(0.74 0.12 235);
+  --annotate: oklch(0.79 0.13 78);
+  --annotate-text: oklch(0.79 0.13 78);
+  --alert: oklch(0.72 0.16 25);
+  --grid-dot: oklch(0.9 0.01 250 / 0.09);
+  --frame: oklch(0.9 0.01 250 / 0.3);
+  --hairline: oklch(0.9 0.01 250 / 0.15);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+  }
+}
+
+/* The dot canvas — DESIGN §4.1: radial-gradient dots, 26px pitch, --grid-dot.
+   Decorative; carried by a container the content mounts on. */
+.dot-canvas {
+  background-image: radial-gradient(var(--grid-dot) 1.4px, transparent 1.4px);
+  background-size: 26px 26px;
+  background-position: -13px -13px;
+}

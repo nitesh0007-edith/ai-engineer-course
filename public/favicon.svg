@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="4" fill="oklch(0.48 0.15 245)" />
+  <g fill="oklch(0.99 0.003 250)">
+    <circle cx="10" cy="10" r="2" />
+    <circle cx="22" cy="10" r="2" />
+    <circle cx="10" cy="22" r="2" />
+    <circle cx="22" cy="22" r="2" />
+  </g>
+  <path d="M10 10 H22 M10 10 V22 M22 10 V22 M10 22 H22" stroke="oklch(0.99 0.003 250)" stroke-width="1.4" fill="none" opacity="0.5" />
+</svg>

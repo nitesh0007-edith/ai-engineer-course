@@ -1,0 +1,153 @@
+---
+import Base from '../layouts/Base.astro';
+import ThemeToggle from '../components/ThemeToggle.tsx';
+---
+
+<Base title="AI Engineer: Zero to Hero — build check">
+  <main class="dot-canvas proof">
+    <div class="stack">
+      <header class="topbar">
+        <span class="wordmark">AI&nbsp;ENGINEER</span>
+        <ThemeToggle client:load />
+      </header>
+
+      <p class="kicker">PHASE 0 · STEP 2 · BUILD CHECK</p>
+
+      <h1>Schematic renders on the grid.</h1>
+
+      <p class="body">
+        This page exists to prove the design tokens are wired end to end. The
+        background is <span class="mono">--paper</span>; the faint dots behind
+        this text are the 26px drafting grid from
+        <span class="mono">--grid-dot</span>. The heading above is set in
+        Barlow Semi Condensed, the display face; this paragraph is IBM Plex
+        Serif, the body face. The toggle in the corner flips
+        <span class="mono">data-theme</span> and persists your choice — light
+        and dark are both first-class themes, not an inversion. If every one of
+        those reads correctly here and in production, the foundation holds and
+        chapter work can begin.
+      </p>
+
+      <dl class="swatches" aria-label="Core colour tokens">
+        <div><dt style="background: var(--paper)"></dt><dd>--paper</dd></div>
+        <div><dt style="background: var(--paper-sink)"></dt><dd>--paper-sink</dd></div>
+        <div><dt style="background: var(--ink)"></dt><dd>--ink</dd></div>
+        <div><dt style="background: var(--blueprint)"></dt><dd>--blueprint</dd></div>
+        <div><dt style="background: var(--annotate)"></dt><dd>--annotate</dd></div>
+        <div><dt style="background: var(--alert)"></dt><dd>--alert</dd></div>
+      </dl>
+    </div>
+  </main>
+</Base>
+
+<style>
+  .proof {
+    min-height: 100dvh;
+    padding: clamp(24px, 6vw, 72px);
+    box-sizing: border-box;
+  }
+
+  .stack {
+    max-width: 66ch;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+  }
+
+  .kicker {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--blueprint);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(31px, 6vw, 44px);
+    line-height: 1.08;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .body {
+    font-family: var(--font-body);
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.68;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    color: var(--annotate-text);
+  }
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    margin: 4px 0 0;
+  }
+
+  .swatches > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .swatches dt {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    border: 1px solid var(--frame);
+    flex: none;
+  }
+
+  .swatches dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--ink-muted);
+  }
+
+  :global(.theme-toggle) {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--blueprint);
+    background: var(--paper-raise);
+    border: 1px solid var(--frame);
+    border-radius: 3px;
+    padding: 7px 12px;
+    min-height: 40px;
+    cursor: pointer;
+  }
+
+  :global(.theme-toggle:focus-visible) {
+    outline: 2px solid var(--blueprint);
+    outline-offset: 2px;
+  }
+</style>
