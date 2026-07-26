@@ -91,12 +91,11 @@ between panels — see `GeneratorStream.astro`, `ConcurrencyTimeline.astro`.
    server first (`lsof -i :4321`) before re-running the test repeatedly. `pkill -f "astro dev"`
    does **not** match the real process name (`astro.mjs dev`) — kill by PID from `lsof`/`ps` instead.
 
-## CI gating — important, don't assume otherwise
+## CI gating
 
-`deploy.yml` and `quality.yml` are **independent** workflows, both triggered on `push: [main]`, with
-no `needs:` or `workflow_run:` link between them (confirmed by reading both files, 2026-07-26).
-**A Quality failure (e2e, axe, Lighthouse) does not stop Deploy from shipping to production.**
-Local `pnpm test:e2e` + `pnpm test:lh` before pushing are therefore the *only* real gate — do not
-skip them to save tokens/time. (Wiring `deploy` to actually wait on `quality` via `workflow_run`
-would fix this properly; that's a CI/CD pipeline change and needs sign-off before touching it —
-raise it, don't just do it.)
+`deploy.yml` triggers on `workflow_run` of `Quality` completing, and only proceeds if it concluded
+`success` on a push to `main` (fixed 2026-07-26 — previously the two workflows were independent and
+a Quality failure did not block Deploy). `workflow_dispatch` still bypasses the gate deliberately,
+for manual/emergency re-deploys. Local `pnpm test:e2e` + `pnpm test:lh` before pushing are still
+worth running for fast feedback, but CI now genuinely blocks a bad deploy too — use judgment on how
+much local verification a given change warrants rather than treating it as mandatory in all cases.

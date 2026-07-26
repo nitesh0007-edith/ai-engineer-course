@@ -26,7 +26,7 @@
 
 Notes:
 - Content config lives at `src/content.config.ts` (Astro 7 requires this path; §4 predates the move).
-- CI: `deploy.yml` (build + Pages on push to main); `quality.yml` (on PRs and push to main) — typecheck, build, manifest, grep gate, **Playwright e2e + axe-core (zero violations, both themes), and Lighthouse CI (perf ≥95 / a11y 100 / best-practices ≥95, median of 3)**. Every published page currently scores 100/100/100.
+- CI: `quality.yml` (on PRs and push to main) — typecheck, build, manifest, grep gate, **Playwright e2e + axe-core (zero violations, both themes), and Lighthouse CI (perf ≥95 / a11y 100 / best-practices ≥95, median of 3)**. Every published page currently scores 100/100/100. `deploy.yml` now triggers on Quality's `workflow_run` completing and only proceeds if it concluded `success` (2026-07-26) — a red Quality run no longer ships to production. `workflow_dispatch` still bypasses the gate for manual/emergency re-deploys.
 - Search: Pagefind indexes at build (`postbuild`), UI island loads it lazily; degrades gracefully in dev.
 - Diagram primitive library is intentionally minimal — built per §9 ("the first time a chapter needs it, then reuse") rather than all of §7 up front.
 - Remaining §13 gates still to add: eslint/prettier, vitest, external link-check.

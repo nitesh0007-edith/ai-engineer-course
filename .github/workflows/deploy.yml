@@ -1,8 +1,14 @@
 name: Deploy to GitHub Pages
 
+# Gated on Quality passing (CLAUDE.md §2.6 — main is always deployable, and a
+# red build must never ship). Runs after the Quality workflow *completes* on
+# main; the guard below on the `build` job only lets it proceed if Quality's
+# conclusion was "success". workflow_dispatch bypasses the gate deliberately,
+# for a manual/emergency re-deploy.
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ['Quality']
+    types: [completed]
   workflow_dispatch:
 
 # Least privilege needed for the artifact-based Pages deploy.
@@ -18,9 +24,19 @@ concurrency:
 
 jobs:
   build:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
+      # workflow_run checks out the default branch by default, not the commit
+      # that triggered Quality — pin it explicitly so we build/deploy exactly
+      # what Quality tested.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       # pnpm version comes from the `packageManager` field in package.json.
       - uses: pnpm/action-setup@v4
