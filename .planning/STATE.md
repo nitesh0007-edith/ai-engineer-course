@@ -3,6 +3,7 @@
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-07-26)
+See also: .planning/AUTHORING-NOTES.md — read this instead of re-reading source files for component APIs, diagram tokens, Pyodide/PyRunner quirks, and the verification workflow. Saves ~15-20% of a chapter's token cost.
 
 **Core value:** Every chapter must contain something a reader cannot get from static prose — something they can run, break, tune, or watch move.
 **Current focus:** Phase 1 — Layer 0: Foundations
