@@ -1,0 +1,65 @@
+---
+/**
+ * EventLoopDiagram — the mental model async/await runs on. One thread, one
+ * loop. The loop hands the CPU to a ready coroutine; when that coroutine hits
+ * an `await` on I/O, it yields control (parks) instead of blocking, and the
+ * loop dispatches the next ready coroutine. When the parked coroutine's I/O
+ * finishes, it rejoins the ready queue. Nothing here runs in parallel — the
+ * speed-up comes entirely from never sitting idle while waiting on I/O.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 720 320"
+  role="img"
+  aria-label="A single event loop dispatches Task C from the ready queue to become the running task. The running task, Task A, hits an await and yields control, moving to a parked state waiting on I/O (asyncio.sleep). When that I/O completes, the parked task rejoins the ready queue. Only one task ever runs at a time; the loop switches between them at await points instead of blocking on any one of them."
+>
+  <text x="16" y="20" font-family="var(--font-mono)" font-size="10.5" letter-spacing="0.04em" fill="var(--ink-muted)">ONE THREAD · ONE TASK RUNS AT A TIME</text>
+
+  <!-- ready queue -->
+  <rect x="30" y="40" width="176" height="64" rx="3" fill="var(--paper-raise)" stroke="var(--frame)" />
+  <text x="118" y="60" text-anchor="middle" font-family="var(--font-mono)" font-size="11" letter-spacing="0.03em" fill="var(--blueprint)">READY QUEUE</text>
+  <rect x="48" y="70" width="70" height="24" rx="2" fill="var(--paper)" stroke="var(--frame)" aria-hidden="true" />
+  <text x="83" y="86" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink)">Task C</text>
+
+  <!-- event loop -->
+  <circle cx="360" cy="150" r="58" fill="var(--paper)" stroke="var(--blueprint)" stroke-width="1.4" />
+  <path d="M 328 118 A 46 46 0 1 1 322 178" fill="none" stroke="var(--blueprint)" stroke-width="1.4" aria-hidden="true" />
+  <polygon points="322,178 316,166 330,168" fill="var(--blueprint)" aria-hidden="true" />
+  <text x="360" y="146" text-anchor="middle" font-family="var(--font-mono)" font-size="11" letter-spacing="0.03em" fill="var(--blueprint)">EVENT</text>
+  <text x="360" y="162" text-anchor="middle" font-family="var(--font-mono)" font-size="11" letter-spacing="0.03em" fill="var(--blueprint)">LOOP</text>
+
+  <!-- running task -->
+  <rect x="520" y="30" width="168" height="72" rx="3" fill="var(--paper)" stroke="var(--ch1)" stroke-width="1.4" />
+  <text x="604" y="52" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" letter-spacing="0.03em" fill="var(--ch1)">RUNNING</text>
+  <text x="604" y="72" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">Task A</text>
+  <text x="604" y="88" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">has the CPU now</text>
+
+  <!-- parked task -->
+  <rect x="520" y="200" width="168" height="86" rx="3" fill="none" stroke="var(--ch2)" stroke-width="1.2" stroke-dasharray="4 3" />
+  <text x="604" y="222" text-anchor="middle" font-family="var(--font-mono)" font-size="10.5" letter-spacing="0.03em" fill="var(--ch2)">PARKED</text>
+  <text x="604" y="242" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">Task B</text>
+  <text x="604" y="258" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">await asyncio.sleep(2)</text>
+  <text x="604" y="274" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">not blocking anything else</text>
+
+  <!-- queue -> loop -->
+  <line x1="206" y1="80" x2="306" y2="128" stroke="var(--frame)" stroke-width="1.2" aria-hidden="true" />
+  <polygon points="306,128 296,126 300,136" fill="var(--frame)" aria-hidden="true" />
+  <text x="248" y="102" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">dispatch next ready task</text>
+
+  <!-- loop -> running -->
+  <line x1="414" y1="128" x2="518" y2="80" stroke="var(--ch1)" stroke-width="1.2" aria-hidden="true" />
+  <polygon points="518,80 508,80 512,90" fill="var(--ch1)" aria-hidden="true" />
+
+  <!-- running -> parked -->
+  <line x1="604" y1="102" x2="604" y2="198" stroke="var(--ch2)" stroke-width="1.2" aria-hidden="true" />
+  <polygon points="604,198 598,188 610,188" fill="var(--ch2)" aria-hidden="true" />
+  <text x="616" y="150" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">hits `await`,</text>
+  <text x="616" y="163" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">yields control</text>
+
+  <!-- parked -> ready queue (I/O completes) -->
+  <path d="M 520 240 C 320 300, 150 260, 100 106" fill="none" stroke="var(--ch2)" stroke-width="1.2" stroke-dasharray="4 3" aria-hidden="true" />
+  <polygon points="100,106 96,118 108,114" fill="var(--ch2)" aria-hidden="true" />
+  <text x="300" y="292" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ch2)">I/O completes → rejoins the ready queue</text>
+</svg>

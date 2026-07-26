@@ -1,0 +1,71 @@
+---
+/**
+ * ConcurrencyTimeline — the whole reason async exists, as a timeline. Three
+ * I/O-bound calls (each waiting ~1s on a network reply) run one after another
+ * when awaited sequentially (3s wall-clock); the same three calls run
+ * overlapped when started together with asyncio.gather (~1s wall-clock). The
+ * CPU does the same tiny amount of work either way — only the *waiting* is
+ * reorganised.
+ */
+const rows = ['Task A', 'Task B', 'Task C'];
+const barW = 170;
+const rowH = 30;
+const originX = 150;
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 720 300"
+  role="img"
+  aria-label="Top: three tasks awaited one after another, each waiting about one second, finishing at three seconds total. Bottom: the same three tasks started together with asyncio.gather, all waiting at the same time, finishing at about one second total — three times faster wall-clock time for the same amount of waiting."
+>
+  <!-- ── SEQUENTIAL (awaited one at a time) ──────────────────────── -->
+  <text x="16" y="26" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--ch1)">SEQUENTIAL · await, await, await</text>
+
+  {
+    rows.map((label, i) => (
+      <g aria-hidden="true">
+        <text x="16" y={50 + i * rowH + 14} font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">{label}</text>
+        <rect
+          x={originX + i * barW}
+          y={50 + i * rowH}
+          width={barW - 6}
+          height="20"
+          rx="2"
+          fill="var(--paper)"
+          stroke="var(--ch1)"
+          stroke-width="1.2"
+        />
+      </g>
+    ))
+  }
+  <line x1={originX} y1="42" x2={originX + 3 * barW - 6} y2="42" stroke="var(--hairline)" stroke-width="1" aria-hidden="true" />
+  <text x={originX + 3 * barW - 6} y="36" text-anchor="end" font-family="var(--font-mono)" font-size="10" fill="var(--ch1)">total: 3.0s</text>
+
+  <!-- divider -->
+  <line x1="16" y1="164" x2="704" y2="164" stroke="var(--hairline)" stroke-width="1" aria-hidden="true" />
+
+  <!-- ── CONCURRENT (asyncio.gather) ──────────────────────────────── -->
+  <text x="16" y="192" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--ch2)">CONCURRENT · asyncio.gather(...)</text>
+
+  {
+    rows.map((label, i) => (
+      <g aria-hidden="true">
+        <text x="16" y={216 + i * rowH + 14} font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">{label}</text>
+        <rect
+          x={originX}
+          y={216 + i * rowH}
+          width={barW - 6}
+          height="20"
+          rx="2"
+          fill="var(--paper)"
+          stroke="var(--ch2)"
+          stroke-width="1.2"
+        />
+      </g>
+    ))
+  }
+  <line x1={originX + barW - 6} y1="208" x2={originX + barW - 6} y2="290" stroke="var(--ch2)" stroke-width="1" stroke-dasharray="3 3" aria-hidden="true" />
+  <text x={originX + barW - 6} y="200" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ch2)">total: ~1.0s</text>
+  <text x={originX + barW + 30} y="256" font-family="var(--font-mono)" font-size="10.5" fill="var(--ink-muted)">same 3 calls, same waiting — 3× faster wall-clock</text>
+</svg>

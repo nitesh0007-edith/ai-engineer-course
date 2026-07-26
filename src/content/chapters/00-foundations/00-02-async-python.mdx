@@ -1,0 +1,357 @@
+---
+layer: 0
+order: 2
+title: 'Async Python'
+slug: 'async-python'
+subtitle: 'How to run many slow calls at once instead of one after another — the pattern almost every agent depends on.'
+depth: build
+difficulty: beginner
+readingTime: 22
+prerequisites:
+  - python-for-ai-engineering
+objectives:
+  - 'Explain why most AI code is I/O-bound, and why that makes waiting — not raw CPU speed — the thing worth optimising'
+  - 'Write coroutines with async/await and run several of them concurrently with asyncio.gather instead of one after another'
+  - 'Bound concurrency with a semaphore and stop a hung call with a timeout, so one slow dependency cannot hang your whole program'
+  - 'Cancel a running task cleanly, including releasing resources in a finally block'
+concepts:
+  - coroutine
+  - event-loop
+  - semaphore
+  - cancellation
+diagrams:
+  - ConcurrencyTimeline
+  - EventLoopDiagram
+interactives:
+  - PyRunner
+codeExamples: 9
+exercises:
+  - prompt: 'You have three async functions, `fetch_a()`, `fetch_b()`, `fetch_c()`, each of which awaits `asyncio.sleep(1)` and returns a string. Write the code to run all three concurrently and print the total time taken.'
+    difficulty: warmup
+    solution: "```python\nimport asyncio, time\n\nasync def fetch_a():\n    await asyncio.sleep(1)\n    return 'a'\n\nasync def fetch_b():\n    await asyncio.sleep(1)\n    return 'b'\n\nasync def fetch_c():\n    await asyncio.sleep(1)\n    return 'c'\n\nstart = time.perf_counter()\nresults = await asyncio.gather(fetch_a(), fetch_b(), fetch_c())\nprint(results)                                        # ['a', 'b', 'c']\nprint(f'{time.perf_counter() - start:.1f}s')          # ~1.0s, not 3.0s\n```\nAll three `sleep(1)` calls happen during the same one second, because each one yields control back to the event loop instead of blocking it."
+  - prompt: 'You must call `await call_api(url)` for 10 URLs, but the provider allows at most 3 requests in flight at once. Rewrite the loop so at most 3 calls ever run concurrently, using a semaphore.'
+    difficulty: core
+    solution: "```python\nimport asyncio\n\nsem = asyncio.Semaphore(3)\n\nasync def call_api(url):\n    async with sem:                 # blocks here if 3 are already inside\n        return await do_request(url)\n\nasync def main(urls):\n    return await asyncio.gather(*(call_api(u) for u in urls))\n\nresults = await main(urls)\n```\n`asyncio.gather` schedules all 10 coroutines at once, but each one blocks on `async with sem:` until fewer than 3 are currently inside — so exactly 3 are ever running the request body at a time, and the other 7 wait their turn without you writing any manual queueing."
+  - prompt: 'Write `fetch_with_timeout(coro, seconds)` that awaits `coro`, but returns `None` instead of raising if it has not finished within `seconds`. Explain what happens to `coro` itself when the timeout fires.'
+    difficulty: stretch
+    solution: "```python\nimport asyncio\n\nasync def fetch_with_timeout(coro, seconds):\n    try:\n        return await asyncio.wait_for(coro, timeout=seconds)\n    except asyncio.TimeoutError:\n        return None\n```\nWhen `seconds` elapses, `asyncio.wait_for` cancels the task wrapping `coro` — this raises `asyncio.CancelledError` inside `coro` at its next `await` point, unwinding it (running any `finally` blocks on the way), and then `wait_for` itself raises `TimeoutError` to the caller, which this function catches and turns into `None`. The coroutine does not keep running in the background after the timeout; it is actually stopped."
+resources:
+  - title: 'Python docs — asyncio'
+    url: 'https://docs.python.org/3/library/asyncio.html'
+    type: docs
+    note: 'The top-level index for the whole asyncio library — useful once you know roughly what you are looking for.'
+  - title: 'Python docs — Coroutines and Tasks'
+    url: 'https://docs.python.org/3/library/asyncio-task.html'
+    type: docs
+    note: 'The precise, authoritative reference for async/await, gather, tasks, timeouts, and cancellation used in this chapter.'
+  - title: 'Real Python — Async IO in Python: A Complete Walkthrough'
+    url: 'https://realpython.com/async-io-python/'
+    type: blog
+    note: 'A slower, example-heavy walkthrough if this chapter''s pace feels too fast, including the history of why Python''s async model looks the way it does.'
+status: published
+updated: 2026-07-26
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import ConcurrencyTimeline from '../../../components/diagrams/ConcurrencyTimeline.astro';
+import EventLoopDiagram from '../../../components/diagrams/EventLoopDiagram.astro';
+
+Your support-ticket bot needs three answers before it can reply: the user's plan tier, their last five tickets, and a classification of the new one. You write the obvious code:
+
+```python
+import time
+
+def call_api(name, seconds):
+    time.sleep(seconds)          # standing in for a real network call
+    return f"{name}: done"
+
+start = time.perf_counter()
+for name, secs in [("plan", 1), ("history", 1), ("classify", 1)]:
+    print(call_api(name, secs))
+print(f"total: {time.perf_counter() - start:.1f}s")
+```
+```text
+plan: done
+history: done
+classify: done
+total: 3.0s
+```
+
+Three seconds — and your CPU did almost nothing in any of them. Each call is a network round trip: your code sends a request, then sits there, doing nothing, until a reply arrives. Sitting and doing nothing is **waiting**, and it is, by a wide margin, the most common thing an AI application spends its time doing — waiting on a model, a vector database, a tool call. This chapter is about not wasting the wait.
+
+<Prerequisites data={frontmatter} />
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+Picture one chef, one kitchen, one oven — a single pair of hands. She has three dishes to cook, each of which needs ten minutes in the oven. A bad chef puts dish A in, then stands and stares at the oven door for ten minutes before even starting dish B. A good chef puts dish A in, and while it bakes, starts prepping dish B; when there's oven space, B goes in too; she starts C while both bake. She still only ever does one physical thing at any single instant — she never chops two vegetables at the same time — but she is never standing idle while an oven does the waiting for her.
+
+That is the whole idea of <Term id="coroutine">async</Term> Python: one thread that never sits idle while something else — a network reply, a timer, a disk read — is "in the oven." Say plainly where the analogy stops: this is not three chefs working at once. Real parallelism (multiple CPU cores actually computing simultaneously, covered with multiprocessing and distributed training in later layers) is a different tool for a different problem. One chef gains nothing from this trick if none of her dishes ever go in an oven — if everything is chopping, all the time, with nothing to wait on, there is no idle time to reclaim. That is precisely why async is such a good fit for AI applications: an agent spends most of its life waiting for an LLM API, a vector store, or a tool to respond, and comparatively little time actually computing anything itself.
+
+<Figure id="00-02.1" label="SEQUENTIAL VS CONCURRENT WAITING" caption="— three calls, each waiting about one second for a reply. Awaited one after another, the wait time stacks up: 3.0s. Started together with asyncio.gather, the same three waits overlap: ~1.0s. Nothing here got computed faster — the waiting itself got reorganised.">
+  <ConcurrencyTimeline />
+</Figure>
+
+## How it works
+
+An `async def` function is a <Term id="coroutine">coroutine</Term> function. Calling it does **not** run its body:
+
+```python
+async def call_api(name, seconds):
+    await asyncio.sleep(seconds)
+    return f"{name}: done"
+
+call_api("plan", 1)   # this alone does nothing — it just builds a coroutine object
+```
+
+You get back a coroutine object — a paused, not-yet-started computation — and nothing has happened yet. To actually run it, you `await` it, or hand it to the scheduler as a task. `await` is the key word in this whole chapter: it means *"pause me here until this is ready, and let something else run in the meantime."* That "something else" is scheduled by the <Term id="event-loop">event loop</Term> — the single-threaded loop that keeps a list of coroutines that are ready to make progress, runs one until it hits an `await` on something not yet finished, parks it, and moves on to the next ready one.
+
+<Figure id="00-02.2" label="THE EVENT LOOP DISPATCHES ONE TASK AT A TIME" caption="— the loop gives the CPU to a ready task; when that task hits an await on I/O, it parks instead of blocking, and the loop moves to the next ready task. When the parked task's I/O finishes, it rejoins the queue. Exactly one task ever runs at once — the loop only ever switches between them at await points.">
+  <EventLoopDiagram />
+</Figure>
+
+In a normal Python script, you start that loop yourself:
+
+```python
+import asyncio
+
+async def main():
+    result = await call_api("plan", 1)
+    print(result)
+
+asyncio.run(main())     # creates the loop, runs main() until it finishes, closes the loop
+```
+
+<Callout type="watch-out">
+The live code cells in this chapter (and most notebook-style environments) already have a loop running for you, so you write `await ...` directly at the top level instead of calling `asyncio.run(...)`. If you try `asyncio.run(main())` inside one of these cells, Python raises `RuntimeError: asyncio.run() cannot be called from a running event loop` — because one already is. In a plain `.py` script you run from the terminal, there is no loop yet, and `asyncio.run(main())` is exactly what you need.
+</Callout>
+
+To run several coroutines concurrently instead of one after another, hand them to `asyncio.gather`:
+
+```python
+results = await asyncio.gather(
+    call_api("plan", 1),
+    call_api("history", 1),
+    call_api("classify", 1),
+)
+```
+
+`gather` schedules all three as tasks right away, then waits for all of them to finish. Because each one spends its second *waiting*, not computing, the loop interleaves them — all three waits overlap — so the wall-clock total is close to the slowest one (about 1s), not the sum of all three (3s). Results come back in the order you passed the coroutines in, regardless of which one actually finished first.
+
+Real APIs come with limits, so unlimited concurrency is not always safe. A <Term id="semaphore">semaphore</Term> caps how many coroutines may be past a certain point at once:
+
+```python
+sem = asyncio.Semaphore(3)          # at most 3 "inside" at a time
+
+async def call_api(name, seconds):
+    async with sem:                 # waits here if 3 are already inside
+        await asyncio.sleep(seconds)
+        return f"{name}: done"
+```
+
+Ten calls can still all be *scheduled* together with `gather`; the semaphore just makes the 4th, 5th, ... wait their turn until one of the first 3 finishes and frees a slot. You get bounded, not unlimited, concurrency.
+
+Waiting also needs an upper bound in time, not just in count. `asyncio.wait_for(coro, timeout=...)` raises `asyncio.TimeoutError` if `coro` has not finished in time — and it also **cancels** `coro` for you:
+
+```python
+try:
+    result = await asyncio.wait_for(slow_call(), timeout=2)
+except asyncio.TimeoutError:
+    result = None
+```
+
+<Term id="cancellation">Cancellation</Term> is cooperative, not immediate: calling `.cancel()` on a task (or timing it out) raises `asyncio.CancelledError` inside it at its *next* `await` point — the task does not stop mid-instruction, it stops the next time it would have paused anyway. Anything that must run no matter what — closing a connection, releasing a lock — belongs in a `finally` block, because `finally` still runs as that `CancelledError` propagates out.
+
+## A worked example
+
+Three calls need durations of 1s, 1s, and 2s. You bound concurrency to 2 with a semaphore, and give each call a 1.5s timeout. Trace it by hand:
+
+| Task | Needs | Acquires semaphore at | Its timeout deadline | What happens |
+|---|---|---|---|---|
+| A | 1.0s | t = 0.0 (slot free) | 1.5 | finishes at t = 1.0 ✓ |
+| B | 1.0s | t = 0.0 (slot free) | 1.5 | finishes at t = 1.0 ✓ |
+| C | 2.0s | t = 1.0 (waits for A or B to free a slot) | 1.0 + 1.5 = 2.5 | needs until t = 3.0, but its own timeout fires at t = 2.5 — cancelled ✗ |
+
+Two things happen at once and it is worth separating them. First, C cannot even *start* its network call until t = 1.0, because both semaphore slots are held by A and B until then — that is the semaphore doing its job, not a bug. Second, once C does start, its own 2.0s of work is longer than its 1.5s timeout budget, so it is cancelled at t = 2.5 regardless of the semaphore. Total wall-clock time for the whole batch: 2.5s — worse than the 2.0s you'd get with no semaphore at all, but with the guarantee that never more than 2 calls are in flight, which is often the actual constraint a real API forces on you.
+
+## Try it
+
+Three live cells. The first two use `asyncio.sleep` to stand in for real network waits — long enough to see the effect, short enough not to be annoying.
+
+First, the hook's sequential loop next to the concurrent version, so you can see both totals from the same run:
+
+<PyRunner
+  client:idle
+  id="00-02.A"
+  label="SEQUENTIAL VS CONCURRENT"
+  code={`import asyncio, time
+
+async def call_api(name, seconds=1):
+    await asyncio.sleep(seconds)
+    return f"{name}: done"
+
+async def sequential():
+    start = time.perf_counter()
+    for name in ["plan", "history", "classify"]:
+        print(await call_api(name))
+    print(f"sequential total: {time.perf_counter() - start:.1f}s")
+
+async def concurrent():
+    start = time.perf_counter()
+    results = await asyncio.gather(
+        call_api("plan"), call_api("history"), call_api("classify")
+    )
+    for r in results:
+        print(r)
+    print(f"concurrent total: {time.perf_counter() - start:.1f}s")
+
+await sequential()
+print()
+await concurrent()
+
+# Try: change one call's seconds= to 3 and see which total it changes.`}
+/>
+
+Next, a semaphore capping concurrency at 2, with start/finish timestamps so you can see task C wait its turn:
+
+<PyRunner
+  client:idle
+  id="00-02.B"
+  label="A SEMAPHORE BOUNDS CONCURRENCY"
+  code={`import asyncio, time
+
+sem = asyncio.Semaphore(2)   # at most 2 in flight at once
+start = time.perf_counter()
+
+async def call_api(name, seconds):
+    async with sem:
+        print(f"{name}: started  at t={time.perf_counter() - start:.1f}s")
+        await asyncio.sleep(seconds)
+        print(f"{name}: finished at t={time.perf_counter() - start:.1f}s")
+
+await asyncio.gather(
+    call_api("A", 1), call_api("B", 1), call_api("C", 1)
+)
+
+# Try: change asyncio.Semaphore(2) to Semaphore(1) or Semaphore(3)
+# and watch which tasks start together.`}
+/>
+
+Finally, a timeout that cancels a slow call — watch the `finally` block still run:
+
+<PyRunner
+  client:idle
+  id="00-02.C"
+  label="TIMEOUT AND CANCELLATION"
+  code={`import asyncio
+
+async def slow_call():
+    try:
+        print("slow_call: started")
+        await asyncio.sleep(5)
+        print("slow_call: finished normally")   # never reached at timeout=1
+        return "ok"
+    finally:
+        print("slow_call: cleanup ran")          # runs even when cancelled
+
+async def main():
+    try:
+        result = await asyncio.wait_for(slow_call(), timeout=1)
+        print("result:", result)
+    except asyncio.TimeoutError:
+        print("gave up after 1s — slow_call was cancelled")
+
+await main()
+
+# Try: change timeout=1 to timeout=6 and watch it succeed instead.`}
+/>
+
+## Production reality
+
+Nearly every LLM client and web framework you will use is built on this. FastAPI request handlers, `AsyncOpenAI`-style SDK clients, and agent frameworks are all async underneath, for the same reason: a server handling many users at once needs exactly this pattern — lots of I/O-bound waiting, happening concurrently, without spinning up a thread per request.
+
+A few things this chapter's toy examples hide, which matter the moment you ship:
+
+- **Unbounded concurrency gets you rate-limited.** `asyncio.gather` on ten thousand coroutines will fire ten thousand requests at once. Real providers respond with `429 Too Many Requests` long before that, and you have gained nothing over a much smaller, well-chosen concurrency limit. A semaphore (or a small pool of workers pulling from a queue) is not an optimisation here — it is what keeps you under the provider's actual limits.
+- **Timeouts are not optional.** A dependency that hangs without a timeout can hold a connection open indefinitely. Enough hung requests exhaust your server's connection pool, and one slow dependency takes the whole service down with it — not just the request that triggered it.
+- **A silently-failing background task is a real failure mode.** If you `asyncio.create_task(...)` something and never await or check on it, an exception inside it can vanish with only a `"Task exception was never retrieved"` warning in the logs — easy to miss until the behaviour it was supposed to produce just never happens. If you want several calls to run concurrently but let some fail without cancelling the rest, use `asyncio.gather(..., return_exceptions=True)` and check each result explicitly, rather than firing tasks you never look at again.
+- **Async does not help CPU-bound work.** Tokenising a huge corpus or running a local model's forward pass does not get faster inside an `async def` — there is still only one thread, and no amount of waiting-reorganisation helps code that is actually computing the whole time. That needs multiprocessing, or moving the work to a service designed for it (Layer 7 covers serving-level concurrency properly).
+
+That last point has a sharper, more dangerous version: mixing a genuinely blocking call into async code.
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: 'Calling a coroutine function without awaiting it — `call_api("x")` on its own.',
+      fix: 'This only builds a coroutine object; nothing runs, and Python prints a "coroutine was never awaited" warning. Await it directly, or wrap it with asyncio.create_task(...) if you want it to start running without blocking here.',
+    },
+    {
+      mistake: 'Putting a real blocking call — time.sleep, a synchronous requests.get, heavy CPU work — inside an async function.',
+      fix: 'There is still only one thread. A genuine blocking call occupies that one thread completely, freezing every other concurrent coroutine, not just this one — unlike asyncio.sleep, which yields control back. Use the async version of the client (an async HTTP library, or the SDK\'s Async* client), or push blocking work off-thread with await asyncio.to_thread(fn, ...).',
+    },
+    {
+      mistake: 'Catching asyncio.CancelledError with a broad `except Exception` (or a bare `except:`) and swallowing it.',
+      fix: 'This eats the cancellation signal, so the task can keep running when the rest of the program has already moved on and given up on it — and it breaks the caller\'s ability to actually stop it. Only use CancelledError for cleanup (a finally block, or a narrow except that re-raises); never catch it to silently continue.',
+    },
+    {
+      mistake: 'Firing unbounded concurrency at a real API: asyncio.gather(*(call_api(u) for u in ten_thousand_urls)).',
+      fix: 'This is what actually happens with no cap in place, and it trips rate limits or exhausts local sockets instead of finishing faster. Bound it with a semaphore, or a small fixed-size pool of workers pulling from a queue.',
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Checkpoint
+
+<Checkpoint
+  questions={[
+    {
+      q: 'Three calls each do time.sleep(1) sequentially and take 3 seconds total. Three calls each do await asyncio.sleep(1) concurrently via gather and take about 1 second. What is actually different?',
+      a: 'time.sleep really blocks the one thread you have — nothing else can happen during it. await asyncio.sleep(1) yields control back to the event loop for that second, so the loop runs the other two coroutines\' sleeps during the same second. Wall-clock time ends up close to the longest single wait, not the sum of all of them.',
+    },
+    {
+      q: 'What determines whether async will actually make a piece of code faster?',
+      a: 'How much of its time is spent waiting on something outside the CPU — network, disk, a timer — versus how much is spent computing. Async helps I/O-bound work a great deal; it does nothing for CPU-bound work, since one thread still only executes one instruction at a time. CPU-bound speedups need multiprocessing or a different service entirely.',
+    },
+    {
+      q: 'Why add a semaphore around concurrent API calls instead of just calling asyncio.gather on all of them?',
+      a: 'Unlimited concurrency can trip a provider\'s rate limit or exhaust local resources like sockets. A semaphore caps how many calls are ever in flight at the same instant while still letting up to that many run concurrently — bounded concurrency, not none.',
+    },
+    {
+      q: 'What actually happens when a task is cancelled (directly, or via a timeout), and why does a finally block matter?',
+      a: 'Cancellation is cooperative, not immediate: it raises asyncio.CancelledError inside the task at its next await point, so the task keeps running until it reaches one. Any cleanup that must happen regardless — closing a connection, releasing a lock — belongs in a finally block, since that still runs as the CancelledError propagates through.',
+    },
+    {
+      q: 'Why does one genuinely blocking call inside an async function freeze every other concurrent coroutine, not just that one?',
+      a: 'There is still only one thread. A real blocking call does not yield control back to the event loop the way await does — it occupies the only thread the loop has, so no other coroutine can run until it returns, no matter how many were scheduled.',
+    },
+  ]}
+/>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    'Most AI code is I/O-bound — waiting on models, databases, and tools — so what async saves is idle waiting, not CPU time.',
+    'async def and await give you coroutines that pause at await points and hand control back to a single-threaded event loop; asyncio.gather runs several concurrently, so wall-clock time approaches the slowest one, not the sum.',
+    'A semaphore bounds how many calls are in flight at once — essential the moment you call a real, rate-limited API instead of a toy example.',
+    'Timeouts (asyncio.wait_for) and cancellation (cleaned up in finally) stop one hung call from hanging your whole program — never ship an unbounded-wait network call.',
+    'A single blocking call inside an async function freezes every other concurrent coroutine, because there is still only one thread — this is the most common way async code breaks in production.',
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="modern-python-tooling"
+  title="Modern Python tooling"
+  why="You now have the async patterns real AI code runs on. Next, the tools — uv, ruff, mypy, pytest, pre-commit — that keep a growing async codebase fast to work in and safe to change."
+/>

@@ -4,9 +4,9 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 2 / 90 |
+| Chapters published | 3 / 90 |
 | Layers complete | 0 / 11 |
-| Total diagrams | 4 |
+| Total diagrams | 6 |
 | Total interactive widgets | 1 (PyRunner) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
@@ -37,3 +37,4 @@ Notes:
 |---|---|---|---|---|---|---|
 | 00-00 | How to use this course | 0 | published | 2 | 1 | 2026-07-24 |
 | 00-01 | Python for AI engineering | 0 | published | 2 | 3 | 2026-07-24 |
+| 00-02 | Async Python | 0 | published | 2 | 3 | 2026-07-26 |
