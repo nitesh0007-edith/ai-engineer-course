@@ -1,0 +1,41 @@
+---
+/**
+ * BayesianUpdate — base rate, evidence likelihood, and posterior shown with a
+ * concrete alert example and counts rather than unexplained notation.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 360"
+  role="img"
+  aria-label="Out of one thousand support messages, one hundred are truly urgent and nine hundred are not. An alert catches eighty urgent messages and incorrectly flags ninety non-urgent messages. Therefore one hundred and seventy alerts occur, but only eighty are truly urgent. Given an alert, the probability of urgency is eighty divided by one hundred and seventy, about forty-seven percent. The low ten-percent prior base rate matters even though the alert catches eighty percent of urgent messages."
+>
+  <defs>
+    <marker id="bayes-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <text x="390" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">1,000 incoming messages</text>
+
+  <rect x="42" y="65" width="300" height="95" rx="10" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="192" y="96" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ch2)">100 truly urgent</text>
+  <text x="192" y="123" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">80 alert · 20 no alert</text>
+  <text x="192" y="145" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ink-muted)">prior base rate = 10%</text>
+
+  <rect x="438" y="65" width="300" height="95" rx="10" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="588" y="96" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ch1)">900 not urgent</text>
+  <text x="588" y="123" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">90 false alert · 810 no alert</text>
+  <text x="588" y="145" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ink-muted)">false-alert rate = 10%</text>
+
+  <path d="M192 160 C192 204 306 213 352 229" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#bayes-arrow)" />
+  <path d="M588 160 C588 204 474 213 428 229" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#bayes-arrow)" />
+
+  <rect x="265" y="236" width="250" height="94" rx="13" fill="var(--highlight)" stroke="var(--ink)" stroke-width="3" />
+  <text x="390" y="267" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">given that it alerted…</text>
+  <text x="390" y="295" text-anchor="middle" font-family="var(--font-mono)" font-size="13" fill="var(--ink)">P(urgent | alert) = 80 / (80 + 90)</text>
+  <text x="390" y="319" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--blueprint)">≈ 47% posterior</text>
+
+  <text x="74" y="339" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">sensitivity alone is not the answer</text>
+</svg>

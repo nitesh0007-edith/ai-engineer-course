@@ -1,0 +1,1186 @@
+---
+layer: 0
+order: 8
+title: 'Maths II: probability, statistics & optimisation'
+slug: 'maths-ii-probability-statistics-optimisation'
+subtitle: 'Reason about uncertainty, test product evidence, understand learning algorithms, and keep probability calculations numerically safe.'
+depth: build
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - maths-i-linear-algebra-calculus
+skillsGained:
+  - 'Read and combine probabilities without reversing conditions'
+  - 'Calculate expectation and variance for small distributions'
+  - 'Interpret confidence intervals and hypothesis tests carefully'
+  - 'Design a basic A/B test and recognise multiple-comparison risk'
+  - 'Compare gradient descent, SGD, momentum, Adam, and AdamW'
+  - 'Explain entropy, cross-entropy, KL divergence, and perplexity'
+  - 'Use stable log-space calculations'
+objectives:
+  - 'Explain distributions, conditional probability, Bayes rule, expectation, variance, and maximum likelihood'
+  - 'Compare a population, sample, estimate, confidence interval, and hypothesis test'
+  - 'Identify common A/B-test failures including peeking and multiple comparisons'
+  - 'Trace updates for gradient descent, stochastic gradient descent, momentum, and Adam-style methods'
+  - 'Explain learning-rate schedules, weight decay, and convexity at beginner level'
+  - 'Calculate small entropy, cross-entropy, KL-divergence, and perplexity examples'
+  - 'Rewrite unsafe exponential calculations using log-sum-exp'
+concepts:
+  - probability-distribution
+  - conditional-probability
+  - bayes-rule
+  - confidence-interval
+  - hypothesis-test
+  - cross-entropy
+  - perplexity
+  - numerical-stability
+diagrams:
+  - BayesianUpdate
+  - OptimiserMemory
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 9
+exercises:
+  - prompt: 'An urgency detector catches 90 of 100 urgent messages and falsely alerts on 90 of 900 non-urgent messages. Among messages that triggered an alert, what fraction are truly urgent?'
+    difficulty: warmup
+    solution: 'There are `90 + 90 = 180` alerts and 90 are truly urgent, so `P(urgent | alert) = 90/180 = 0.5`, or 50%. The detector has 90% sensitivity, but the posterior probability after an alert is only 50% because non-urgent messages are much more common.'
+  - prompt: 'Variant A resolves 500 of 1,000 tickets and variant B resolves 540 of 1,000. Calculate the observed absolute and relative improvements. Explain why neither number alone proves B is better in the population.'
+    difficulty: core
+    solution: 'A is 50% and B is 54%. Absolute improvement is `54% - 50% = 4 percentage points`. Relative improvement is `4/50 = 8%`. Sampling variation, assignment problems, changing traffic, or other bias could produce an observed difference; an uncertainty interval and valid experiment design are still needed.'
+  - prompt: 'For logits `[1000, 1001, 1002]`, explain why calculating `log(exp(1000)+exp(1001)+exp(1002))` directly is unsafe, then write the stable log-sum-exp expression.'
+    difficulty: stretch
+    solution: 'The exponentials overflow finite floating-point range. Let `m = 1002`. Compute `m + log(exp(1000-m) + exp(1001-m) + exp(1002-m))`, or `1002 + log(exp(-2)+exp(-1)+exp(0))`. Subtracting the maximum preserves the mathematical result while keeping every exponential at most 1.'
+resources:
+  - title: 'Seeing Theory'
+    url: 'https://seeing-theory.brown.edu/'
+    type: course
+    note: 'Interactive visual introductions to probability distributions, Bayesian inference, and regression.'
+  - title: 'OpenIntro Statistics'
+    url: 'https://www.openintro.org/book/os/'
+    type: course
+    note: 'A freely available statistics text with careful sampling, inference, and experiment-design explanations.'
+  - title: 'Google — Rules of ML: Testing infrastructure'
+    url: 'https://developers.google.com/machine-learning/testing-debugging'
+    type: docs
+    note: 'Practical production guidance connecting statistical ideas with testing and monitoring.'
+  - title: 'Adam: A Method for Stochastic Optimization'
+    url: 'https://arxiv.org/abs/1412.6980'
+    type: paper
+    note: 'The original Adam paper; read after the first- and second-moment intuition in this chapter.'
+  - title: 'Decoupled Weight Decay Regularization'
+    url: 'https://arxiv.org/abs/1711.05101'
+    type: paper
+    note: 'Explains why AdamW separates weight decay from the adaptive gradient update.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import BayesianUpdate from '../../../components/diagrams/BayesianUpdate.astro';
+import OptimiserMemory from '../../../components/diagrams/OptimiserMemory.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+AI systems make uncertain predictions from limited evidence.
+
+Probability describes uncertainty. Statistics asks what we can learn from a sample. Optimisation changes model parameters. Information theory measures surprise and prediction quality. Numerical methods keep those calculations valid inside a computer.
+
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="8 · Maths II: probability, statistics & optimisation"
+  difficulty="Beginner"
+  duration="65 minutes"
+  prerequisites={[
+    "Vectors, derivatives, gradients, and logarithms",
+    "Python functions and loops",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+An AI engineer must answer questions such as:
+
+- How confident is this prediction?
+- Did the new assistant actually improve resolution rate?
+- Is an alert meaningful when the underlying event is rare?
+- Why does training become unstable?
+- Why does cross-entropy punish confident mistakes?
+
+These are engineering questions with mathematical tools, not isolated textbook exercises.
+
+<MainIdea>
+  Probability models uncertain outcomes. Statistics turns samples into
+  qualified evidence about a population. Optimisers use noisy gradients to
+  update parameters. Information losses reward useful probability estimates,
+  and stable computation prevents mathematically correct formulas from failing
+  in finite-precision software.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+<AnalogyCard
+  title="Forecast, survey, and mountain guide"
+  limitation="Model probabilities may be badly calibrated, samples may be biased, and neural-network loss surfaces have many dimensions. The analogy explains each job but does not guarantee the assumptions are satisfied."
+>
+  Probability is the weather forecast: a structured statement about uncertain
+  outcomes. Statistics is a survey: use a limited sample to estimate a larger
+  population, while reporting uncertainty. Optimisation is a mountain guide:
+  use local slope measurements to choose the next step.
+
+  Information theory scores how surprised the forecast should be when reality
+  arrives.
+</AnalogyCard>
+
+## Part 1 — Probability distributions describe uncertainty
+
+A <Term id="probability-distribution">probability distribution</Term> assigns probability to possible outcomes.
+
+For a support-ticket label:
+
+| Outcome | Probability |
+|---|---:|
+| billing | 0.50 |
+| delivery | 0.30 |
+| account | 0.20 |
+
+Probabilities are non-negative and total 1.
+
+A **random variable** maps an uncertain outcome to a value. Let `X=1` when a ticket is resolved and `X=0` otherwise. `X` follows a **Bernoulli distribution** with parameter `p`, the resolution probability.
+
+Common distributions and their jobs:
+
+- **Bernoulli:** one yes/no outcome.
+- **Binomial:** count successes across a fixed number of independent Bernoulli trials with constant success probability.
+- **Categorical:** one outcome from several categories.
+- **Normal:** continuous values clustered symmetrically around a mean.
+- **Poisson:** counts of events under a constant-rate model.
+- **Uniform:** equal density across an interval or equal probability across listed outcomes.
+
+A distribution is a model, not a fact. Real support messages may not be independent. Daily traffic rates may change. Choose a distribution because its assumptions are useful and checked, not because its curve is familiar.
+
+### Mean, expectation, and variance
+
+The **expected value** is the probability-weighted long-run average:
+
+```text
+E[X] = sum(value × probability)
+```
+
+For a reward:
+
+| Reward | Probability |
+|---|---:|
+| £0 | 0.5 |
+| £10 | 0.3 |
+| £20 | 0.2 |
+
+```text
+E[X] = 0×0.5 + 10×0.3 + 20×0.2 = £7
+```
+
+The expectation need not be a possible outcome. You never receive exactly £7 in this example; it is the long-run average.
+
+**Variance** measures average squared distance from the mean:
+
+```text
+Var(X) = E[(X - E[X])²]
+```
+
+Squaring prevents positive and negative deviations from cancelling. **Standard deviation** is the square root of variance, returning to the original units.
+
+For the reward above:
+
+```text
+variance = (0-7)²×0.5 + (10-7)²×0.3 + (20-7)²×0.2
+         = 24.5 + 2.7 + 33.8
+         = 61
+
+standard deviation ≈ 7.81
+```
+
+Expectation describes centre. Variance describes spread. Two systems can have the same average latency and very different tail behaviour.
+
+## Part 2 — Conditional probability changes the reference group
+
+<Term id="conditional-probability">Conditional probability</Term> asks for the probability of `A` given that `B` occurred:
+
+```text
+P(A | B) = P(A and B) / P(B)
+```
+
+The vertical bar means “given”.
+
+Do not reverse the condition:
+
+```text
+P(alert | urgent) is not P(urgent | alert)
+```
+
+The first asks what fraction of urgent messages trigger an alert. The second asks what fraction of alerts are truly urgent.
+
+### Bayes' rule updates a base rate
+
+<Term id="bayes-rule">Bayes' rule</Term> connects the two directions:
+
+```text
+P(urgent | alert)
+= P(alert | urgent) × P(urgent) / P(alert)
+```
+
+The terms have useful names:
+
+- **Prior:** `P(urgent)`, before this alert.
+- **Likelihood:** how compatible the alert is with each case.
+- **Posterior:** `P(urgent | alert)`, after observing the alert.
+
+<Figure id="00-08.1" label="BASE RATES CHANGE WHAT AN ALERT MEANS" caption="— out of 1,000 messages, 100 are urgent. The alert catches 80 of them but also flags 90 of the 900 non-urgent messages. Among all 170 alerts, only 80 are truly urgent, so the posterior is about 47%, not 80%.">
+  <BayesianUpdate />
+</Figure>
+
+Counts make Bayes easier:
+
+```text
+80 true alerts / (80 true alerts + 90 false alerts) ≈ 47%
+```
+
+The alert catches 80% of urgent messages, but an alert is not 80% likely to be urgent. The 10% base rate matters.
+
+This same mistake appears in fraud detection, medical screening, content moderation, and anomaly alerts.
+
+## Part 3 — Maximum likelihood fits model parameters
+
+Suppose a coin produced `H, H, T, H, T`. A Bernoulli model has unknown parameter `p`, the probability of heads.
+
+The **likelihood** asks: for a proposed `p`, how likely were these observed data?
+
+```text
+L(p) = p³ × (1-p)²
+```
+
+**Maximum likelihood estimation**, shortened to **MLE**, chooses the parameter that maximises likelihood.
+
+For Bernoulli data, the MLE is the observed success fraction:
+
+```text
+p_hat = 3/5 = 0.6
+```
+
+The hat means “estimate”.
+
+Products of many small probabilities underflow, so software maximises **log-likelihood**:
+
+```text
+log L(p) = 3 log(p) + 2 log(1-p)
+```
+
+The logarithm turns products into sums and preserves which positive likelihood is largest.
+
+MLE finds the parameter that best explains observed data under the assumed model. It does not guarantee the model family is correct or that the sample represents future traffic.
+
+## Part 4 — Populations, samples, and sampling variation
+
+A **population** is the full group you want to reason about: perhaps all future eligible support tickets.
+
+A **sample** is the observed subset.
+
+A **parameter** describes the population, such as true resolution rate. A **statistic** is calculated from a sample, such as the sample resolution rate.
+
+Different random samples produce different statistics. That is **sampling variation**.
+
+<CodeNotebook title="Watch sample estimates vary">
+
+```python
+import random
+
+random.seed(7)
+true_rate = 0.60
+
+for sample_size in (20, 200, 2_000):
+    resolved = sum(
+        random.random() < true_rate
+        for _ in range(sample_size)
+    )
+    estimate = resolved / sample_size
+    print(sample_size, round(estimate, 3))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+20 0.8
+200 0.615
+2000 0.609
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "random.seed(7)",
+      explanation: "Makes the teaching output reproducible; it does not remove sampling variation from real experiments.",
+    },
+    {
+      line: "random.random() < true_rate",
+      explanation: "Simulates one Bernoulli outcome with 60% success probability.",
+    },
+    {
+      line: "resolved / sample_size",
+      explanation: "Calculates the sample proportion, an estimate of the hidden population rate.",
+    },
+    {
+      line: "sample_size",
+      explanation: "Larger random samples usually produce less variable estimates, though bias does not disappear merely through size.",
+    },
+  ]}
+/>
+
+A huge biased sample can be precisely wrong. Randomisation and representative inclusion matter as much as sample size.
+
+## Part 5 — Confidence intervals express estimation uncertainty
+
+A <Term id="confidence-interval">confidence interval</Term> comes from a procedure with a long-run coverage rate.
+
+For a sample proportion `p_hat` from `n` sufficiently independent observations, a rough standard error is:
+
+```text
+SE ≈ square_root(p_hat × (1 - p_hat) / n)
+```
+
+A rough 95% interval is:
+
+```text
+p_hat ± 1.96 × SE
+```
+
+Example: 540 resolutions from 1,000 tickets:
+
+```text
+p_hat = 0.54
+SE ≈ square_root(0.54×0.46/1000) ≈ 0.0158
+interval ≈ 0.54 ± 0.031
+         ≈ [0.509, 0.571]
+```
+
+Careful interpretation:
+
+> If we repeated the valid sampling procedure many times, about 95% of the intervals produced would contain the true parameter.
+
+Once one interval is calculated, traditional frequentist language does not assign a 95% probability to the fixed unknown parameter being inside that fixed interval.
+
+The rough normal interval can behave poorly for small samples or rates near 0 and 1. Real work may use Wilson intervals, bootstrap intervals, or a model suited to the design.
+
+An interval reflects random sampling uncertainty under assumptions. It does not include unmeasured bias, broken randomisation, data leakage, or a changed product.
+
+## Part 6 — Hypothesis tests measure incompatibility with a null model
+
+A <Term id="hypothesis-test">hypothesis test</Term> starts with:
+
+- **Null hypothesis:** a stated baseline model, often “no difference”.
+- **Alternative hypothesis:** the relevant competing claim.
+- **Test statistic:** a summary of the observed difference relative to expected variation.
+- **p-value:** under the null and assumptions, the probability of a result at least as extreme as observed.
+
+A p-value is not:
+
+- the probability the null is true;
+- the probability the result happened “by chance”;
+- the size or importance of the effect;
+- proof the experiment was unbiased.
+
+“Statistically significant” at a threshold such as 0.05 means the result crossed a chosen decision rule. It does not mean practically important.
+
+Report the estimated effect, uncertainty interval, sample size, design, and decision context—not only a p-value.
+
+## Part 7 — A/B tests require product and statistical discipline
+
+An **A/B test** randomly assigns eligible experimental units to variants:
+
+- A: current system;
+- B: proposed system.
+
+For an AI support assistant:
+
+1. Define one primary outcome, such as resolution within 24 hours.
+2. Define guardrails, such as escalation rate and safety complaints.
+3. Choose the randomisation unit. User-level assignment may prevent one user seeing both experiences.
+4. Estimate required sample size from minimum useful effect, baseline rate, power, and error threshold.
+5. Run variants simultaneously.
+6. Analyse according to the predeclared plan.
+7. Consider practical value and harms, not only significance.
+
+Common failures:
+
+- **Peeking:** checking repeatedly and stopping the first time `p < 0.05`.
+- **Sample-ratio mismatch:** assignment counts differ unexpectedly from the planned split.
+- **Interference:** one user's treatment affects another user's outcome.
+- **Novelty effects:** behaviour changes temporarily because the feature is new.
+- **Attrition:** one variant causes missing outcomes.
+- **Metric movement without user value:** a proxy improves while the real goal worsens.
+
+### Multiple comparisons
+
+At a 5% false-positive threshold, testing many truly null metrics increases the chance that at least one crosses the threshold.
+
+For 20 independent null tests:
+
+```text
+P(at least one false positive) = 1 - 0.95²⁰ ≈ 64%
+```
+
+Independence is a simplification, but the danger remains.
+
+Strategies include:
+
+- choose one primary metric before running;
+- label secondary analyses exploratory;
+- control family-wise error, for example Bonferroni;
+- control false discovery rate, for example Benjamini–Hochberg;
+- use sequential-testing methods if continuous monitoring is required.
+
+Do not choose a correction after seeing which one makes the desired result survive.
+
+<PyRunner
+  client:idle
+  id="00-08.A"
+  label="SIMULATE FALSE POSITIVES FROM MANY TESTS"
+  code={`import random
+
+random.seed(12)
+experiments = 20_000
+tests_per_experiment = 20
+threshold = 0.05
+
+with_any_false_positive = 0
+for _ in range(experiments):
+    # Under a valid continuous null test, p-values are uniform from 0 to 1.
+    p_values = [random.random() for _ in range(tests_per_experiment)]
+    if min(p_values) < threshold:
+        with_any_false_positive += 1
+
+rate = with_any_false_positive / experiments
+theory = 1 - (1 - threshold) ** tests_per_experiment
+
+print("simulated:", round(rate, 3))
+print("theory:   ", round(theory, 3))
+
+# Try tests_per_experiment = 1, 5, 50.
+# More tests create more opportunities for a false alarm.`}
+/>
+
+Expected output is close to:
+
+```text
+simulated: 0.64
+theory:    0.642
+```
+
+## Part 8 — Gradient descent and SGD
+
+The previous lesson introduced:
+
+```text
+parameter = parameter - learning_rate × gradient
+```
+
+**Batch gradient descent** calculates a gradient using the complete training dataset before each update. That may be expensive.
+
+**Stochastic gradient descent**, shortened to **SGD**, estimates the gradient from one example or, more commonly, a small **mini-batch**.
+
+Mini-batch SGD:
+
+1. Sample a batch.
+2. Run predictions.
+3. Calculate average batch loss.
+4. Backpropagate a gradient estimate.
+5. Update parameters.
+6. Repeat.
+
+The estimate is noisy. Noise makes each step less exact, but mini-batches are efficient on modern hardware and allow frequent updates. Shuffle data and ensure batches represent the intended training distribution.
+
+An **epoch** is one pass through the training dataset. Batch size changes the number of updates per epoch and the gradient noise; it is not only a memory setting.
+
+## Part 9 — Momentum remembers recent direction
+
+Plain SGD reacts to the current gradient. **Momentum** keeps an exponentially weighted moving average:
+
+```text
+velocity = beta × velocity + (1 - beta) × gradient
+parameter = parameter - learning_rate × velocity
+```
+
+`beta` near 1 remembers a longer history.
+
+Momentum can:
+
+- smooth alternating gradients;
+- build speed along a consistent direction;
+- pass through shallow local irregularities.
+
+It can also overshoot. It adds state and another hyperparameter.
+
+<Figure id="00-08.2" label="OPTIMISERS DIFFER IN WHAT THEY REMEMBER" caption="— plain gradient descent reacts to the current gradient and may zigzag. Momentum averages recent directions. Adam tracks both average gradients and average squared gradients to rescale coordinates. AdamW applies weight decay separately from the adaptive update. Paths are illustrative, not universal guarantees.">
+  <OptimiserMemory />
+</Figure>
+
+## Part 10 — Adam and AdamW adapt step scales
+
+**Adam** tracks:
+
+- a first moment: moving average of gradients;
+- a second raw moment: moving average of squared gradients.
+
+Simplified:
+
+```text
+m = beta1 × m + (1-beta1) × gradient
+v = beta2 × v + (1-beta2) × gradient²
+
+parameter -= learning_rate × corrected_m / (sqrt(corrected_v) + epsilon)
+```
+
+The square and square root operate entry by entry.
+
+Why:
+
+- `m` smooths direction like momentum.
+- `v` records typical squared gradient size per coordinate.
+- Dividing by `sqrt(v)` reduces steps where gradients have been persistently large.
+- `epsilon` avoids division by zero.
+- Bias correction compensates for moments starting at zero.
+
+Adam often learns quickly with sparse or differently scaled gradients. It is not guaranteed to generalise better than SGD, and defaults are not universal.
+
+**Weight decay** gently shrinks parameters:
+
+```text
+parameter *= (1 - learning_rate × decay_rate)
+```
+
+**AdamW** decouples this shrinkage from Adam's adaptive gradient transformation. With adaptive optimisers, adding an L2 penalty to the loss is not generally equivalent to separate weight decay.
+
+<PyRunner
+  client:idle
+  id="00-08.B"
+  label="COMPARE SGD AND MOMENTUM ON A NOISY GRADIENT"
+  code={`gradients = [-8.0, -2.0, -7.0, -1.0, -5.0, -0.5]
+learning_rate = 0.1
+beta = 0.8
+
+sgd_weight = 0.0
+momentum_weight = 0.0
+velocity = 0.0
+
+print("step  gradient   SGD   momentum")
+for step, gradient in enumerate(gradients, start=1):
+    sgd_weight -= learning_rate * gradient
+
+    velocity = beta * velocity + (1 - beta) * gradient
+    momentum_weight -= learning_rate * velocity
+
+    print(
+        f"{step:>4} {gradient:>9.1f} "
+        f"{sgd_weight:>6.2f} {momentum_weight:>10.2f}"
+    )
+
+# Momentum's value moves more smoothly because velocity keeps history.
+# This toy sequence is not a claim that one optimiser always wins.`}
+/>
+
+## Part 11 — Learning-rate schedules change training over time
+
+A fixed learning rate treats every training stage alike. A **learning-rate schedule** changes it.
+
+Common patterns:
+
+- **Warm-up:** increase from a small rate during early unstable steps.
+- **Step decay:** reduce at chosen milestones.
+- **Exponential decay:** multiply by a fixed factor over time.
+- **Cosine decay:** smoothly reduce following part of a cosine curve.
+- **Reduce on plateau:** reduce when a validation metric stops improving.
+
+Warm-up can protect large models from unstable early updates. Decay allows broad movement early and finer adjustment later.
+
+The schedule must be defined in steps or epochs consistently with batch size, gradient accumulation, and distributed training. Changing batch size changes steps per epoch.
+
+## Part 12 — Convexity explains guarantees and their limits
+
+A function is **convex** when the line between any two points on its graph lies on or above the graph. A bowl-shaped quadratic is convex.
+
+For a differentiable convex function, any local minimum is global. Optimisation theory can provide strong guarantees.
+
+Neural-network losses are generally non-convex because layers compose nonlinear transformations and parameters can interact symmetrically.
+
+This does not make optimisation hopeless. High-dimensional networks often contain many useful low-loss solutions. But simple guarantees from convex optimisation do not transfer automatically.
+
+## Part 13 — Entropy measures expected surprise
+
+Information theory uses:
+
+```text
+surprise(outcome) = -log(probability)
+```
+
+A rare outcome is more surprising.
+
+**Entropy** is expected surprise under a distribution:
+
+```text
+H(P) = -sum P(x) × log P(x)
+```
+
+With natural logarithms, units are **nats**. With base-2 logarithms, units are **bits**.
+
+For a fair coin:
+
+```text
+H = -0.5 log₂(0.5) - 0.5 log₂(0.5) = 1 bit
+```
+
+For a coin that is always heads, entropy is 0: the outcome carries no surprise.
+
+Entropy is uncertainty in the distribution, not model error by itself.
+
+## Part 14 — Cross-entropy scores predicted probabilities
+
+<Term id="cross-entropy">Cross-entropy</Term> measures expected surprise when data follow distribution `P` but predictions use `Q`:
+
+```text
+H(P, Q) = -sum P(x) × log Q(x)
+```
+
+For one correct class, the target is one-hot, so:
+
+```text
+loss = -log(probability assigned to correct class)
+```
+
+| Correct-class probability | Cross-entropy loss |
+|---:|---:|
+| 0.90 | 0.105 |
+| 0.50 | 0.693 |
+| 0.10 | 2.303 |
+| 0.01 | 4.605 |
+
+Confident wrong predictions receive large loss.
+
+Cross-entropy encourages probability on the observed class. It does not by itself guarantee calibrated probabilities, fairness, robustness, or product value.
+
+## Part 15 — KL divergence measures extra coding cost
+
+**Kullback–Leibler divergence**, shortened to **KL divergence**, is:
+
+```text
+KL(P || Q) = sum P(x) × log(P(x) / Q(x))
+```
+
+It measures the extra expected surprise from using `Q` when reality follows `P`.
+
+Relationship:
+
+```text
+cross_entropy(P, Q) = entropy(P) + KL(P || Q)
+```
+
+Properties:
+
+- KL divergence is non-negative under valid conditions.
+- It is zero when distributions match almost everywhere.
+- It is not symmetric: `KL(P || Q)` usually differs from `KL(Q || P)`.
+- It can be infinite when `Q` assigns zero probability where `P` assigns positive probability.
+
+Do not call KL a distance without qualification; it does not satisfy the symmetry requirement of a mathematical metric.
+
+## Part 16 — Perplexity summarises token prediction loss
+
+<Term id="perplexity">Perplexity</Term> is:
+
+```text
+perplexity = exp(average token cross-entropy)
+```
+
+If average cross-entropy is `log(4)`, perplexity is 4. Informally, the model is as uncertain as choosing among roughly four equally likely possibilities at each step.
+
+Lower is better only under the same:
+
+- evaluation text;
+- tokenisation;
+- token boundaries and masking;
+- context handling;
+- averaging convention.
+
+A tokenizer that splits text differently changes the prediction task. Do not compare perplexities across incompatible setups as if they were one universal score.
+
+Perplexity also does not directly measure factuality, usefulness, instruction following, or safety.
+
+## Part 17 — Numerical stability keeps formulas computable
+
+Computers use finite-precision floating-point numbers. Very large magnitudes can overflow. Very small positive values can underflow to zero. Subtracting nearly equal values can lose significant digits.
+
+<Term id="numerical-stability">Numerical stability</Term> means choosing an equivalent computation that behaves well in finite precision.
+
+### Stable softmax
+
+Softmax turns logits into probabilities:
+
+```text
+softmax_i = exp(logit_i) / sum_j exp(logit_j)
+```
+
+For logits `[1000, 1001, 1002]`, direct exponentials overflow.
+
+Subtract the maximum:
+
+```text
+shifted = [-2, -1, 0]
+```
+
+Softmax does not change because the common factor cancels. Now every exponential is at most 1.
+
+### Log-sum-exp
+
+The unsafe expression:
+
+```text
+log(sum(exp(x_i)))
+```
+
+becomes:
+
+```text
+m = max(x)
+logsumexp(x) = m + log(sum(exp(x_i - m)))
+```
+
+<PyRunner
+  client:idle
+  id="00-08.C"
+  label="STABLE SOFTMAX AND LOG-SUM-EXP"
+  code={`from math import exp, log
+
+def logsumexp(values):
+    maximum = max(values)
+    return maximum + log(sum(exp(value - maximum) for value in values))
+
+def softmax(logits):
+    normalizer = logsumexp(logits)
+    return [exp(logit - normalizer) for logit in logits]
+
+logits = [1000.0, 1001.0, 1002.0]
+probabilities = softmax(logits)
+
+print([round(value, 4) for value in probabilities])
+print("sum:", round(sum(probabilities), 10))
+print("log-sum-exp:", round(logsumexp(logits), 4))
+
+# Try direct exp(1000) and observe the overflow.
+# Then add 5000 to every logit: probabilities remain unchanged.`}
+/>
+
+Expected output:
+
+```text
+[0.09, 0.2447, 0.6652]
+sum: 1.0
+log-sum-exp: 1002.4076
+```
+
+### Other stability habits
+
+- Use library `log1p(x)` for `log(1+x)` when `x` is tiny.
+- Use `expm1(x)` for `exp(x)-1` when `x` is tiny.
+- Clip probabilities only with an explicit mathematical reason and documented epsilon.
+- Prefer log-probabilities when multiplying many probabilities.
+- Check for `NaN` and infinity during training.
+- Use appropriate dtypes; lower precision saves memory but reduces range and resolution.
+- Separate a formula's mathematical meaning from the implementation used to compute it.
+
+## Worked example — did the AI assistant improve resolution?
+
+Variant A resolves 500 of 1,000 tickets. Variant B resolves 540 of 1,000.
+
+### 1. Estimate the effect
+
+```text
+A rate = 0.500
+B rate = 0.540
+absolute difference = 0.040 = 4 percentage points
+relative lift = 0.040 / 0.500 = 8%
+```
+
+Absolute and relative changes answer different questions. Report both with clear labels.
+
+### 2. Estimate uncertainty
+
+Approximate standard error for the difference of independent proportions:
+
+```text
+SE_difference
+≈ square_root(
+    pA(1-pA)/nA + pB(1-pB)/nB
+  )
+≈ square_root(0.5×0.5/1000 + 0.54×0.46/1000)
+≈ 0.0223
+```
+
+Approximate 95% interval:
+
+```text
+0.040 ± 1.96×0.0223
+≈ [-0.004, 0.084]
+```
+
+The interval includes zero under this rough method. The data are compatible with a small negative effect through an 8.4-point positive effect.
+
+### 3. Make the product decision honestly
+
+Do not translate that directly into “B does not work”. Ask:
+
+- Was assignment random and stable?
+- Was user-level clustering handled?
+- Was this the declared primary metric?
+- Were safety and escalation guardrails acceptable?
+- Is the minimum useful effect inside the interval?
+- Should the experiment continue under a valid preplanned design?
+
+Statistical uncertainty is one input to a product decision.
+
+## In a real AI system
+
+<RealWorldExample
+  title="Training and evaluating a support classifier"
+  steps={[
+    "A categorical distribution represents label probabilities",
+    "Cross-entropy penalises low probability on the observed label",
+    "Mini-batch gradients estimate the full-data gradient",
+    "AdamW updates weights and applies separate decay",
+    "Stable softmax avoids overflowing logits",
+    "A randomised experiment measures downstream user outcomes",
+  ]}
+>
+  Model training and product evaluation answer different questions. Training
+  loss asks whether predicted probabilities fit labelled examples. An A/B test
+  asks whether deploying the system changes an outcome for eligible users.
+
+A lower offline cross-entropy can coexist with worse resolution time, higher cost, or unfair failure patterns. Use model metrics and product evidence together.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Reversing `P(alert | urgent)` and `P(urgent | alert)`.",
+      fix: "Name the reference group in words and use counts. Sensitivity does not include the event's base rate.",
+    },
+    {
+      mistake: "Treating a probability from an uncalibrated model as trustworthy confidence.",
+      fix: "Evaluate calibration on representative held-out data and monitor it after deployment.",
+    },
+    {
+      mistake: "Interpreting a 95% confidence interval as a 95% posterior probability statement.",
+      fix: "Describe the long-run coverage procedure, or use a clearly specified Bayesian model if a posterior probability is the desired object.",
+    },
+    {
+      mistake: "Reporting only a p-value.",
+      fix: "Report effect size, uncertainty interval, design, sample size, assumptions, and practical threshold.",
+    },
+    {
+      mistake: "Peeking repeatedly at an ordinary fixed-horizon A/B test and stopping on significance.",
+      fix: "Predefine sample size and stopping, or use a valid sequential method.",
+    },
+    {
+      mistake: "Testing dozens of metrics and promoting whichever crosses 0.05.",
+      fix: "Declare primary outcomes and apply an appropriate multiple-comparison strategy.",
+    },
+    {
+      mistake: "Assuming AdamW removes the need to tune a learning rate.",
+      fix: "Adaptive scaling still multiplies by a global learning rate. Monitor loss, gradients, validation, and schedules.",
+    },
+    {
+      mistake: "Calculating softmax with raw exponentials of large logits.",
+      fix: "Subtract the maximum or use a tested log-softmax/log-sum-exp implementation.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "What does `P(urgent | alert)` mean?",
+      options: [
+        "Among alerts, the fraction that are urgent",
+        "Among urgent messages, the fraction that alert",
+        "The probability that no message arrives",
+      ],
+      answer: 0,
+      explanation: "The condition after the bar defines the reference group: only alerted messages.",
+    },
+    {
+      question: "What is a valid interpretation of a p-value?",
+      options: [
+        "The probability the null hypothesis is true",
+        "Under the null and assumptions, the probability of results at least this extreme",
+        "The practical importance of the effect",
+      ],
+      answer: 1,
+      explanation: "A p-value is conditional on the null model. It neither gives the null's probability nor effect importance.",
+    },
+    {
+      question: "What extra state does Adam track compared with plain SGD?",
+      options: [
+        "Moving averages of gradients and squared gradients",
+        "Every training example forever",
+        "Only the current loss",
+      ],
+      answer: 0,
+      explanation: "Adam uses first- and second-moment estimates to smooth and rescale updates.",
+    },
+    {
+      question: "Why subtract the maximum logit before softmax?",
+      options: [
+        "It changes the predicted class",
+        "It keeps exponentials in a safe numerical range without changing probabilities",
+        "It forces all probabilities to be equal",
+      ],
+      answer: 1,
+      explanation: "Adding or subtracting one constant from every logit cancels in softmax, while preventing overflow.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Analyse a small A/B result"
+  time="10–20 minutes"
+  goal="Calculate effect size and an approximate uncertainty interval for two resolution rates."
+  steps={[
+    "Calculate each sample proportion.",
+    "Calculate absolute percentage-point improvement.",
+    "Calculate relative improvement against A.",
+    "Calculate the independent-proportion standard error.",
+    "Create the rough 95% interval using ±1.96 standard errors.",
+    "Write a two-sentence decision that does not overclaim.",
+  ]}
+  expected="For A=500/1000 and B=540/1000, obtain a 4-point absolute lift, 8% relative lift, and approximate interval around the difference of [-0.004, 0.084]."
+  challenge="Write a simulation under equal 52% rates to estimate how often a difference at least four points appears."
+>
+
+```python
+from math import sqrt
+
+resolved_a, total_a = 500, 1_000
+resolved_b, total_b = 540, 1_000
+
+# Calculate rates, difference, standard error, and interval.
+```
+
+```python
+from math import sqrt
+
+resolved_a, total_a = 500, 1_000
+resolved_b, total_b = 540, 1_000
+
+rate_a = resolved_a / total_a
+rate_b = resolved_b / total_b
+difference = rate_b - rate_a
+relative_lift = difference / rate_a
+
+standard_error = sqrt(
+    rate_a * (1 - rate_a) / total_a
+    + rate_b * (1 - rate_b) / total_b
+)
+lower = difference - 1.96 * standard_error
+upper = difference + 1.96 * standard_error
+
+print(f"A: {rate_a:.1%}")
+print(f"B: {rate_b:.1%}")
+print(f"absolute: {difference:.1%}")
+print(f"relative: {relative_lift:.1%}")
+print(f"rough 95% interval: [{lower:.3f}, {upper:.3f}]")
+```
+
+Expected output:
+
+```text
+A: 50.0%
+B: 54.0%
+absolute: 4.0%
+relative: 8.0%
+rough 95% interval: [-0.004, 0.084]
+```
+
+A careful conclusion: “B's observed resolution rate is four percentage points higher. Under this rough independent-sample approximation, the interval includes zero, so the result remains uncertain; verify design and guardrails before deciding.”
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "A distribution describes uncertain outcomes; expectation describes centre and variance describes spread.",
+    "Conditional probability depends on the reference group, and Bayes' rule combines evidence with a prior base rate.",
+    "Samples create estimates with uncertainty; confidence intervals and hypothesis tests require valid design assumptions.",
+    "A/B tests need predeclared outcomes, correct randomisation, stopping rules, guardrails, and multiple-comparison discipline.",
+    "SGD uses noisy mini-batch gradients; momentum remembers direction; Adam rescales with first and second moments; AdamW decouples weight decay.",
+    "Entropy measures expected surprise, cross-entropy scores predicted probabilities, KL measures mismatch, and perplexity exponentiates average token loss.",
+    "Stable softmax and log-sum-exp preserve mathematical results without overflowing finite-precision arithmetic.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is a probability distribution?",
+      back: "A rule assigning probabilities to possible outcomes, with non-negative values totalling one.",
+    },
+    {
+      front: "What is conditional probability?",
+      back: "Probability after restricting attention to cases where another event occurred.",
+    },
+    {
+      front: "What does Bayes' rule combine?",
+      back: "A prior base rate and evidence likelihood to produce a posterior probability.",
+    },
+    {
+      front: "What is a confidence interval?",
+      back: "A range from a procedure with stated long-run coverage under valid repeated sampling.",
+    },
+    {
+      front: "What is a p-value?",
+      back: "Under the null and assumptions, the probability of a result at least as extreme as observed.",
+    },
+    {
+      front: "What does momentum remember?",
+      back: "An exponential moving average of recent gradients.",
+    },
+    {
+      front: "What two moments does Adam track?",
+      back: "Moving averages of gradients and squared gradients.",
+    },
+    {
+      front: "What is cross-entropy for one correct class?",
+      back: "The negative logarithm of the probability assigned to that class.",
+    },
+    {
+      front: "What is perplexity?",
+      back: "The exponential of average token cross-entropy under one fixed evaluation setup.",
+    },
+    {
+      front: "What is the log-sum-exp trick?",
+      back: "Subtract the maximum before exponentiating, then add it back after the logarithm.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Use counts to explain a Bayesian update for a rare-event detector.",
+    "Design an A/B test for an AI feature and name four ways its result could mislead.",
+    "Compare batch gradient descent, mini-batch SGD, momentum, Adam, and AdamW.",
+    "Connect entropy, cross-entropy, KL divergence, and perplexity.",
+    "Explain why mathematically equivalent formulas can differ in floating-point reliability.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Maths II: probability, statistics & optimisation"
+  terms={[
+    "Distribution — uncertain outcome model",
+    "Bayes — prior updated by evidence",
+    "Interval — estimation uncertainty",
+    "SGD — mini-batch gradient updates",
+    "Cross-entropy — probability loss",
+    "Log-sum-exp — stable exponentials",
+  ]}
+  mistakes={[
+    "Do not reverse conditional probabilities",
+    "Do not call a p-value the null probability",
+    "Do not peek without sequential design",
+    "Do not ignore multiple comparisons",
+    "Do not exponentiate huge logits directly",
+  ]}
+  takeaways={[
+    "Use base rates",
+    "Report effects and uncertainty",
+    "Design experiments before viewing results",
+    "Optimisers remember different statistics",
+    "Compute probability losses in stable form",
+  ]}
+  questions={[
+    "What is the reference group?",
+    "Which uncertainty is this interval measuring?",
+    "Can this exponential overflow?",
+  ]}
+>
+  <p slot="main">
+    Probability describes uncertainty, statistics qualifies evidence,
+    optimisation changes parameters, and stable information calculations make
+    those ideas usable in real AI software.
+  </p>
+  <div slot="diagram">
+    <BayesianUpdate />
+  </div>
+  <pre slot="code">
+    <code>{`posterior ∝ likelihood × prior
+parameter -= learning_rate * update
+logsumexp(x) = max(x) + log(sum(exp(x-max(x))))`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="maths-ii-probability-statistics-optimisation"
+  items={[
+    "I can explain a distribution, expectation, and variance.",
+    "I traced the Bayesian base-rate diagram.",
+    "I can interpret an interval and p-value without overclaiming.",
+    "I can name A/B-test and multiple-comparison failure modes.",
+    "I can compare SGD, momentum, Adam, and AdamW.",
+    "I can connect entropy, cross-entropy, KL, and perplexity.",
+    "I ran or traced stable softmax.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="data-foundations"
+  title="Data foundations"
+  why="You can now reason about samples, uncertainty, and optimisation. Next, turn raw data into trustworthy arrays and tables while preventing leakage, schema drift, and privacy failures."
+/>

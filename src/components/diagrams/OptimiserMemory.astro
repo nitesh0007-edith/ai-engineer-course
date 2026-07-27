@@ -1,0 +1,56 @@
+---
+/**
+ * OptimiserMemory — compare gradient descent, momentum, and Adam-style first
+ * and second moment memory without pretending the paths are universal.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 380"
+  role="img"
+  aria-label="Three panels compare optimiser update ideas on the same narrow loss valley. Plain gradient descent follows each local gradient and zigzags. Momentum keeps an exponential moving average of past gradients, smoothing the zigzag and building speed in a consistent direction. Adam keeps both a moving average of gradients and of squared gradients, scaling coordinates with persistently large gradients. AdamW applies weight decay separately from the adaptive gradient update."
+>
+  <defs>
+    <marker id="opt-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <g transform="translate(18,28)">
+    <rect width="232" height="320" rx="12" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+    <text x="116" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">gradient descent</text>
+    <ellipse cx="116" cy="176" rx="79" ry="118" fill="none" stroke="var(--rule-line)" stroke-width="4" />
+    <ellipse cx="116" cy="176" rx="49" ry="87" fill="none" stroke="var(--rule-line)" stroke-width="3" />
+    <ellipse cx="116" cy="176" rx="20" ry="43" fill="var(--highlight)" stroke="var(--ch1)" stroke-width="2" />
+    <polyline points="54,72 176,105 58,137 168,161 70,184 157,201 86,217 142,229 104,239 126,247"
+      fill="none" stroke="var(--ch2)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#opt-arrow)" />
+    <text x="116" y="284" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch2)">reacts to this step</text>
+    <text x="116" y="304" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">can zigzag across a valley</text>
+  </g>
+
+  <g transform="translate(274,28)">
+    <rect width="232" height="320" rx="12" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+    <text x="116" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">momentum</text>
+    <ellipse cx="116" cy="176" rx="79" ry="118" fill="none" stroke="var(--rule-line)" stroke-width="4" />
+    <ellipse cx="116" cy="176" rx="49" ry="87" fill="none" stroke="var(--rule-line)" stroke-width="3" />
+    <ellipse cx="116" cy="176" rx="20" ry="43" fill="var(--highlight)" stroke="var(--ch1)" stroke-width="2" />
+    <path d="M55 72 C156 99 76 132 143 161 C176 177 85 205 126 246"
+      fill="none" stroke="var(--blueprint)" stroke-width="4" stroke-linecap="round" marker-end="url(#opt-arrow)" />
+    <text x="116" y="284" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--blueprint)">remembers direction</text>
+    <text x="116" y="304" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">moving average of gradients</text>
+  </g>
+
+  <g transform="translate(530,28)">
+    <rect width="232" height="320" rx="12" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+    <text x="116" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">Adam / AdamW</text>
+    <ellipse cx="116" cy="176" rx="79" ry="118" fill="none" stroke="var(--rule-line)" stroke-width="4" />
+    <ellipse cx="116" cy="176" rx="49" ry="87" fill="none" stroke="var(--rule-line)" stroke-width="3" />
+    <ellipse cx="116" cy="176" rx="20" ry="43" fill="var(--highlight)" stroke="var(--ch1)" stroke-width="2" />
+    <path d="M55 72 C94 99 102 137 111 172 C117 198 120 225 121 246"
+      fill="none" stroke="var(--ch1)" stroke-width="4" stroke-linecap="round" marker-end="url(#opt-arrow)" />
+    <text x="116" y="276" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch1)">remembers + rescales</text>
+    <text x="116" y="297" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">mean gradient + squared gradient</text>
+    <text x="116" y="315" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">AdamW: separate weight decay</text>
+  </g>
+</svg>

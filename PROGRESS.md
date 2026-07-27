@@ -4,9 +4,9 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 8 / 90 |
+| Chapters published | 9 / 90 |
 | Layers complete | 0 / 11 |
-| Total diagrams | 17 |
+| Total diagrams | 19 |
 | Total interactive widgets | 4 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
@@ -43,3 +43,4 @@ Notes:
 | 00-05 | Data & storage | 0 | published | 2 | 4 | 2026-07-28 |
 | 00-06 | Containers, Git & CI | 0 | published | 2 | 4 | 2026-07-28 |
 | 00-07 | Maths I: linear algebra & calculus | 0 | published | 2 | 4 | 2026-07-28 |
+| 00-08 | Maths II: probability, statistics & optimisation | 0 | published | 2 | 4 | 2026-07-28 |
