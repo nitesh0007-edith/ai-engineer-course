@@ -1,0 +1,348 @@
+---
+layer: 0
+order: 3
+title: 'Modern Python tooling'
+slug: 'modern-python-tooling'
+subtitle: 'The five tools that close the gap between "works on my machine" and "works everywhere, provably, before you even commit."'
+depth: build
+difficulty: beginner
+readingTime: 22
+prerequisites:
+  - python-for-ai-engineering
+objectives:
+  - 'Explain what job each of uv, ruff, mypy, pytest, and pre-commit does, and why they replaced the older pip/venv/flake8 toolchain'
+  - 'Set up a project with uv so its dependencies are isolated and exactly reproducible on any machine'
+  - 'Read and fix a real ruff lint finding and a real mypy type error'
+  - 'Write and run a pytest test — including a failing one — and explain why pre-commit makes all of this automatic before a commit is ever made'
+concepts:
+  - lockfile
+  - virtual-environment
+  - linter
+  - pre-commit-hook
+diagrams:
+  - ToolingGate
+  - OneToolFiveJobs
+interactives:
+  - PyRunner
+codeExamples: 6
+exercises:
+  - prompt: 'A shared project''s requirements.txt has the line `requests` with no version at all. Rewrite it as an exact pin using `==`, and explain in one sentence why the pin matters for a project more than one person runs.'
+    difficulty: warmup
+    solution: "```text\nrequests==2.32.3\n```\nWithout a pin, `pip install` can resolve to whatever the newest `requests` release happens to be on the day it runs — a different version on your machine than on a teammate's, or than in CI, even though everyone ran the exact same install command against the exact same file."
+  - prompt: 'You have `def divide(a, b): return a / b` and one passing test, `def test_divide(): assert divide(10, 2) == 5`. Add a test for dividing by zero. What do you expect pytest to report, and how would you change `divide` to make that new test pass instead of error?'
+    difficulty: core
+    solution: "```python\ndef test_divide_by_zero():\n    assert divide(10, 0) == 0   # or whatever behaviour you decide is correct\n```\nRunning this against the current `divide` reports an **error**, not a failure — `10 / 0` raises `ZeroDivisionError` before the `assert` is even reached, and pytest shows it as `test_divide_by_zero ERROR` with the exception traceback. To make the new test pass, `divide` has to actually handle the zero case, e.g.:\n```python\ndef divide(a, b):\n    if b == 0:\n        return 0\n    return a / b\n```\nThe test forced a real decision about behaviour that didn't exist before — that is the point of writing it."
+  - prompt: 'A `.pre-commit-config.yaml` runs ruff and pytest as hooks. In what order should they run, and why does that order matter more as a codebase grows?'
+    difficulty: stretch
+    solution: 'ruff first, pytest last. ruff only reads the code — no imports, no execution — so it finishes in a fraction of a second even on a large codebase. pytest has to actually import and run your code, which is far slower and only gets slower as the test suite grows. Running the cheap, fast check first means a trivial mistake (an unused import, a formatting issue) gets caught and reported in milliseconds, before you pay the cost of a full test run that was never going to matter because the commit would have been blocked by ruff anyway.'
+resources:
+  - title: 'uv — Getting started'
+    url: 'https://docs.astral.sh/uv/getting-started/'
+    type: docs
+    note: 'The official docs for the tool this chapter leans on hardest — worth reading end to end once.'
+  - title: 'Ruff — Documentation'
+    url: 'https://docs.astral.sh/ruff/'
+    type: docs
+    note: 'The rule list is the actual reference for what ruff can catch — skim the "Rules" page once so the error codes stop looking like noise.'
+  - title: 'mypy — Documentation'
+    url: 'https://mypy.readthedocs.io/en/stable/'
+    type: docs
+    note: 'Covers the parts of type-checking this chapter didn''t have room for, like generics and Protocols.'
+  - title: 'pytest — Get Started'
+    url: 'https://docs.pytest.org/en/stable/getting-started.html'
+    type: docs
+    note: 'The shortest path from zero to a working test suite, from the project this chapter''s live cells actually run.'
+  - title: 'pre-commit — Documentation'
+    url: 'https://pre-commit.com/'
+    type: docs
+    note: 'How to write a .pre-commit-config.yaml for your own project once this chapter''s example stops being hypothetical.'
+status: published
+updated: 2026-07-26
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import ToolingGate from '../../../components/diagrams/ToolingGate.astro';
+import OneToolFiveJobs from '../../../components/diagrams/OneToolFiveJobs.astro';
+
+You test your retrieval pipeline locally: it works. You push the exact same code to a teammate's machine, and it breaks with an error neither of you has seen before. You both ran `pip install -r requirements.txt`. The file had one line that mattered:
+
+```text
+requests
+```
+
+No version. Three weeks apart, that one line resolved to two different releases of the same package on your two machines — and they didn't behave identically. Nobody changed a single line of your code. The bug was never in the code at all.
+
+This chapter is about the small set of tools that make that failure mode nearly impossible: <Term id="virtual-environment">isolated environments</Term> with a <Term id="lockfile">lockfile</Term> pinning exactly what's installed (uv), a fast <Term id="linter">linter</Term> and formatter (ruff), a type checker (mypy), a test runner (pytest), and a <Term id="pre-commit-hook">pre-commit hook</Term> that runs all of it automatically, before a broken change can even be committed.
+
+<Prerequisites data={frontmatter} />
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+None of these five tools make your code smarter. Each one catches one specific, mechanical class of mistake — the kind that has nothing to do with whether your idea is any good, and everything to do with whether the small details around it are right. ruff notices an import you never use, or a line formatted differently from the rest of the file. mypy notices you're passing a string somewhere a number was promised. pytest notices that a function no longer returns what you said it would. uv makes sure the packages installed on your machine are the *exact* same ones installed on anyone else's. Individually, each of these feels like a small thing. Together, run automatically before every single commit, they close almost all of the gap between "it works for me right now" and "it works, provably, for anyone, at any time."
+
+Be precise about what this buys you and what it doesn't: these tools catch mistakes you can *mechanically describe in advance* — a type mismatch, an unused name, a broken assertion, an unpinned version. None of them catch a test suite that tests the wrong thing, or a design that solves the wrong problem. Automation raises the floor. It does not replace thinking about whether the code is right.
+
+<Figure id="00-03.1" label="THE GATE BEFORE A COMMIT" caption="— your code passes through ruff (cheapest, fastest), then mypy, then pytest (slowest, since it actually runs code). pre-commit runs all three; any failure blocks the commit and sends you back to fix it.">
+  <ToolingGate />
+</Figure>
+
+## How it works
+
+**uv** manages your project's Python version, its isolated <Term id="virtual-environment">virtual environment</Term>, and its dependencies — the jobs that used to need four or five separate tools:
+
+<Figure id="00-03.2" label="ONE TOOL REPLACES FIVE" caption="— pip installed packages, venv isolated an environment, pip-tools locked exact versions, pyenv managed Python versions, and pipx ran one-off CLI tools. uv does all five itself, from one config file and one lockfile.">
+  <OneToolFiveJobs />
+</Figure>
+
+```bash
+uv init my-project        # creates pyproject.toml, a .venv, and a first commit-ready layout
+uv add requests           # adds requests to pyproject.toml, resolves it, updates uv.lock
+uv run python pipeline.py # runs inside the project's own isolated environment, no "activate" step
+```
+
+The file that matters most here is `uv.lock`. `pyproject.toml` says "I need `requests`, roughly this version range" — that's still an intentional range, so you can pick up compatible patches. `uv.lock` says exactly which version, and every one of *its* dependencies' exact versions, were actually resolved. Commit both. `uv sync` (or `uv run`, which syncs first) installs from the lockfile, not the range — so a fresh checkout on any machine gets the identical set of packages the lockfile recorded, which is precisely what the hook's bug was missing.
+
+**ruff** reads your code and reports style and correctness issues without running any of it — that's what makes it a <Term id="linter">linter</Term> rather than a test:
+
+```python
+import os          # never used below
+import requests
+
+def fetch(url):
+    resp = requests.get(url)
+    return resp.json()
+```
+
+```text
+$ ruff check pipeline.py
+pipeline.py:1:8: F401 [*] `os` imported but unused
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
+```
+
+`F401` is ruff's actual rule code for an unused import — not a generic warning, a specific, addressable finding. `ruff format pipeline.py` handles the layout side separately (spacing, quote style, line length) the same way `black` used to, in the same tool.
+
+**mypy** checks that the types you promised in your <Term id="type-hints">type hints</Term> actually line up, without running the code either:
+
+```python
+def apply_discount(price: float, pct: float) -> float:
+    return price - pct
+
+apply_discount(100, "10")   # a string where a float was promised
+```
+
+```text
+$ mypy pricing.py
+pricing.py:4: error: Argument 2 to "apply_discount" has incompatible type "str"; expected "float"  [arg-type]
+Found 1 error in 1 file (checked 1 source file)
+```
+
+This is exactly the shape of bug type hints exist to catch (Chapter 00-01) — except now something actually checks it for you, instead of it only being a note for a human reader.
+
+**pytest** is the one tool here that actually runs your code, to check it produces what you said it would. You'll run it for real in a moment.
+
+**pre-commit** ties all of this together. A `.pre-commit-config.yaml` lists the hooks a project runs automatically, right before git creates a commit:
+
+```yaml
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+```
+
+`pre-commit install` (run once per clone) wires this into git itself — after that, `git commit` runs every listed hook first:
+
+```text
+$ git commit -m "add discount logic"
+ruff.....................................................................Passed
+ruff-format...............................................................Passed
+pytest....................................................................Failed
+- hook id: pytest
+- exit code: 1
+
+FAILED test_pricing.py::test_apply_discount - assert 90.0 == 91.0
+```
+
+The commit did not happen. Nothing reached the repository's history. You fix the failing assertion or the code it's checking, and try again — this is the loop the diagram above is showing.
+
+## A worked example
+
+Trace one small change through the whole gate. You write:
+
+```python
+import os
+def apply_discount(price: float, pct: float) -> float:
+    return price - pct
+```
+
+with a test file asserting `apply_discount(100, 10) == 90`, and you run `git commit`. Walk it stage by stage:
+
+| Stage | What it checks | Finds | Commit proceeds? |
+|---|---|---|---|
+| ruff | style, dead code, common bugs — reads the code, doesn't run it | `F401`: `os` imported but never used | No — blocked here, cheapest check, fails first |
+| mypy | do the declared types actually line up? — reads the code, doesn't run it | (not reached yet — you fix ruff's finding first) | — |
+| pytest | does the code actually produce the right result? — really runs it | (not reached yet) | — |
+
+You delete the unused `import os` and commit again. This time ruff passes, mypy passes (the types genuinely line up), and pytest actually executes `apply_discount(100, 10)` and gets `90` — matching the assertion. All three stages pass, in increasing order of cost, and only then does the commit happen. Notice what each stage could and couldn't have caught: if the test had asserted `== 91` by mistake, ruff and mypy would both have passed cleanly — neither of them runs the code, so neither could have known the expected number was wrong. Only pytest, the one stage that executes anything, would have caught it.
+
+## Try it
+
+`pytest` and `mypy` are themselves just Python packages, so — unlike `uv`, `ruff`, and `pre-commit`, which are project-management tools that need a real project on a real filesystem — you can run them for real, right here, in the browser.
+
+First, a genuine pytest run against a bug, then fix it and rerun:
+
+<PyRunner
+  client:idle
+  id="00-03.A"
+  label="A REAL PYTEST RUN"
+  packages={["micropip"]}
+  code={`import micropip
+await micropip.install("pytest")
+
+import pytest, io, contextlib
+
+with open("test_pricing.py", "w") as f:
+    f.write('''
+def apply_discount(price, pct):
+    return price - pct
+
+def test_apply_discount():
+    assert apply_discount(100, 10) == 90
+
+def test_apply_discount_large_order():
+    assert apply_discount(1000, 10) == 91   # bug: should be 990
+''')
+
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    pytest.main(["test_pricing.py", "-v", "--no-header", "-p", "no:cacheprovider"])
+print(buf.getvalue())
+
+# Try: fix the "91" above to the correct expected value and run again.
+# The first run downloads pytest from PyPI, so it takes a few seconds —
+# that download is the real, un-cached cost this chapter is about.`}
+/>
+
+Next, a genuine mypy run against a real type mistake:
+
+<PyRunner
+  client:idle
+  id="00-03.B"
+  label="A REAL MYPY RUN"
+  packages={["micropip"]}
+  code={`import micropip
+await micropip.install(["typing-extensions", "mypy_extensions", "tomli", "pathspec", "mypy"])
+
+with open("pricing.py", "w") as f:
+    f.write('''
+def apply_discount(price: float, pct: float) -> float:
+    return price - pct
+
+apply_discount(100, "10")
+''')
+
+from mypy import api
+out, err, code = api.run(["pricing.py", "--no-color-output"])
+print(out)
+
+# Try: change "10" to 10 (a real float, no quotes) and run again —
+# "Found 1 error" should become "Success: no issues found".`}
+/>
+
+## Production reality
+
+The course you are reading right now runs exactly this pattern: a `Quality` CI workflow runs a typecheck, a manifest check, and a full Playwright/axe/Lighthouse suite on every push — and, as of the previous chapter, the site's own deploy is gated on that workflow passing. Nothing about that is special to this project; it is the same gate this chapter describes, just running in CI instead of (or in addition to) on your own machine.
+
+A few things worth knowing before you rely on this in a real team:
+
+- **Lockfiles matter most exactly when you need to move fast.** A security patch to a dependency needs to reach every environment — laptops, CI, production — identically and quickly. Without a lockfile, "it's fixed in CI" and "it's fixed in production" can silently mean two different sets of installed packages.
+- **ruff is fast enough that teams run it on save, not just before commit** — it reads code, it doesn't execute it, so there's very little to wait for. That speed is *why* it replaced several older, slower tools that did similar jobs one at a time.
+- **Retrofitting mypy onto an old, untyped codebase is a real project, not a switch you flip.** Most teams start it on new code only, or run it in a mode that doesn't yet demand every function be annotated, and tighten the rules gradually. Trying to type an entire large existing codebase in one pass is usually a mistake — it stalls, and nobody finishes it.
+- **A green pipeline is not the same as correct code.** ruff, mypy, and pytest can all pass while the code still does the wrong thing — pytest only checks what you actually wrote a test for, and mypy only checks where you actually wrote a type hint. These tools raise the floor under mistakes you can name in advance; they do not check whether you understood the problem correctly.
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: 'Never running `pre-commit install`, so the hooks in .pre-commit-config.yaml exist in the repo but never actually run on your machine.',
+      fix: 'pre-commit install wires the hooks into git itself, once per clone. Without it, the config file is just a document — nothing stops a broken commit locally, and you find out only when CI (or a teammate) rejects it.',
+    },
+    {
+      mistake: 'Treating a loose dependency spec ("requests", or "requests>=2") as good enough for a shared project.',
+      fix: 'A range lets the exact resolved version drift between machines and over time — the hook\'s bug, exactly. Commit a lockfile (uv.lock) and install from it (uv sync / uv run) in every environment, not just from the range in pyproject.toml.',
+    },
+    {
+      mistake: 'Silencing a real mypy error with a bare `# type: ignore` instead of fixing the mismatch it found.',
+      fix: 'An unscoped ignore hides every future error on that line too, not just the one you meant to suppress. Ignore a specific error code (`# type: ignore[arg-type]`) with a comment explaining why, and treat it as a rare, deliberate exception — not a habit for making mypy quiet.',
+    },
+    {
+      mistake: 'Writing a test that passes no matter what the code does — asserting something trivially true, or asserting nothing at all.',
+      fix: 'A test is only worth trusting if it can actually fail. Before trusting a new test, deliberately break the code it\'s supposed to check and confirm the test goes red — if it stays green, the test isn\'t testing anything.',
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Checkpoint
+
+<Checkpoint
+  questions={[
+    {
+      q: 'A requirements file lists a package with no version pin. Two machines run the exact same install command weeks apart and end up with different behaviour. What actually happened, and what fixes it?',
+      a: 'The unpinned line let each install resolve to whatever the newest compatible release happened to be on that day, and the two resolved versions did not behave identically — no code changed, only the installed packages differed. A lockfile (uv.lock), committed alongside pyproject.toml and installed from directly (uv sync), fixes it by recording and reproducing the exact same versions everywhere.',
+    },
+    {
+      q: 'ruff and mypy both read your code without running it. What kind of bug can neither of them ever catch, and which tool catches it?',
+      a: 'Neither can catch a bug in what the code actually computes — a wrong return value, a miscalculated result — because neither executes the code. Only pytest, which actually runs the code and checks its output against an assertion, can catch that class of bug.',
+    },
+    {
+      q: 'Why does the pre-commit pipeline run ruff before pytest, rather than the other way round?',
+      a: 'ruff only reads the code and finishes in a fraction of a second, even on a large codebase; pytest has to actually import and execute it, which is much slower and gets slower as the suite grows. Running the cheap check first means a trivial mistake gets reported almost instantly, without first paying for a full test run that a ruff failure was going to block anyway.',
+    },
+    {
+      q: 'What is the difference between what pyproject.toml says and what uv.lock says about a dependency?',
+      a: 'pyproject.toml states an intentional range — "this package, roughly this version or newer" — so compatible updates can still be picked up. uv.lock records the exact version that was actually resolved for every direct and transitive dependency, so a fresh install reproduces that exact set instead of whatever the range resolves to today.',
+    },
+    {
+      q: 'A full CI/pre-commit pipeline passes on a change. Does that mean the change is correct? Why or why not?',
+      a: 'Not necessarily. ruff, mypy, and pytest each catch a specific, pre-describable class of mistake — style and dead code, type mismatches, and only the behaviours you actually wrote tests for. A passing pipeline means none of those specific checks found a problem; it says nothing about a test suite that tests the wrong thing or a design that solves the wrong problem.',
+    },
+  ]}
+/>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    'uv, ruff, mypy, pytest, and pre-commit each catch one specific, mechanical class of mistake — none of them make your code smarter, and together they close most of the gap between "works on my machine" and "works everywhere, provably."',
+    'A lockfile (uv.lock) is what actually makes an install reproducible — pyproject.toml states an intentional range, uv.lock records and reproduces the exact versions that were resolved.',
+    'ruff and mypy read code without running it (style/dead-code and type mismatches); pytest is the one tool here that actually executes your code and checks what it produces.',
+    'pre-commit runs all of these automatically before a commit is created, in cheapest-first order, and blocks the commit entirely if any one fails — install it once per clone or it never runs.',
+    'A fully green pipeline still only proves what you told it to check; it does not prove the code solves the right problem.',
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="apis-and-services"
+  title="APIs & services"
+  why="With a reproducible project and an automatic quality gate in place, next you build the thing that gate is actually protecting: a real service — REST, FastAPI, Pydantic, streaming, auth, and retries."
+/>

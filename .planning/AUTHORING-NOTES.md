@@ -56,6 +56,22 @@ from `src/components/diagrams/*.astro`.
   non-blocking I/O honestly.
 - matplotlib figures are auto-captured as base64 PNGs after the run; no special code needed beyond
   drawing to the current figure.
+- **Micropip-installing arbitrary pure(ish)-Python PyPI packages works and is genuinely powerful** —
+  verified live: both `pytest` and `mypy` (plus its deps `typing-extensions`, `mypy_extensions`,
+  `tomli`, `pathspec`) install via micropip and run for real in-browser, producing real terminal
+  output (real `FAILED`/`PASSED` pytest output with assertion rewriting; real `mypy` error lines with
+  rule codes). Pattern: put `packages={["micropip"]}` on `<PyRunner>` (this maps to
+  `pyodide.loadPackage`, which micropip itself needs preloaded), then inside the cell's Python code:
+  `import micropip; await micropip.install([...])`. Bare `import micropip` with no `packages` prop
+  fails with `ModuleNotFoundError` — micropip is bundled with Pyodide but not auto-imported.
+  Each `<PyRunner>` instance gets its own Worker/pyodide instance (not shared across cells on a page),
+  so every cell that needs micropip pays its own install cost — don't assume a package installed in
+  one cell is available in another.
+- **Compiled/CLI tools cannot run in Pyodide at all** — `uv`, `ruff`, and `pre-commit` are Rust
+  binaries / process-orchestration tools with no Python-importable API and no Pyodide/wasm build.
+  For chapters covering these, use honest, clearly-labeled static terminal transcripts (real command
+  output format, not fabricated benchmark claims) rather than a live cell — don't fake it as
+  runnable.
 
 ## Diagram style (`src/components/diagrams/*.astro`)
 

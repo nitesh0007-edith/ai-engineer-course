@@ -11,16 +11,16 @@ See also: .planning/AUTHORING-NOTES.md — read this instead of re-reading sourc
 ## Current Position
 
 Phase: 1 of 14 (Layer 0 — Foundations)
-Plan: 4 of 10 in current phase (00-03 Modern Python tooling, next up)
+Plan: 5 of 10 in current phase (00-04 APIs & services, next up)
 Status: Ready to plan
-Last activity: 2026-07-26 — 00-02 Async Python published (2 new diagrams: ConcurrencyTimeline, EventLoopDiagram; 4 new glossary terms; verified live in a real browser via Playwright — all 3 PyRunner cells produce correct asyncio output; check/build/manifest/e2e-a11y/lighthouse all green)
+Last activity: 2026-07-27 — 00-03 Modern Python tooling published (2 new diagrams: ToolingGate, OneToolFiveJobs; 4 new glossary terms; 2 live PyRunner cells running real pytest and real mypy in-browser via micropip, verified in a real browser — uv/ruff/pre-commit covered via honest static transcripts since they're compiled/CLI tools that can't run in Pyodide; check/build/manifest/e2e-a11y/lighthouse all green)
 
-Progress: [░░░░░░░░░░] 9% (10/108 plans complete: 7 infra + 00-00 + 00-01 + 00-02)
+Progress: [░░░░░░░░░░] 10% (11/108 plans complete: 7 infra + 00-00 + 00-01 + 00-02 + 00-03)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10 (7 infra + 3 chapters)
+- Total plans completed: 11 (7 infra + 4 chapters)
 - Average duration: not yet tracked under GSD (chapters 00-00/00-01 predate this roadmap)
 - Total execution time: not tracked pre-GSD
 
@@ -29,7 +29,7 @@ Progress: [░░░░░░░░░░] 9% (10/108 plans complete: 7 infra + 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 0. Foundation infrastructure | 7/7 | - | - |
-| 1. Layer 0 — Foundations | 3/10 | - | - |
+| 1. Layer 0 — Foundations | 4/10 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: not yet tracked
@@ -59,6 +59,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-26 — bootstrapped `.planning/` from CLAUDE.md/PROGRESS.md, then built and shipped chapter 00-02 (Async Python) end to end: 2 new diagrams, 4 new glossary terms, 3 verified PyRunner cells, all quality gates green, committed and pushed.
-Stopped at: 00-02 published and deployed. Next up: 00-03 Modern Python tooling.
+Last session: 2026-07-27 — shipped chapter 00-03 (Modern Python tooling) end to end, plus fixed deploy.yml to actually gate on quality.yml passing (workflow_run), verified live via a real push.
+Stopped at: 00-03 published and deployed. Next up: 00-04 APIs & services.
 Resume file: None

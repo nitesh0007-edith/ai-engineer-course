@@ -55,13 +55,13 @@ Plans:
   1. All 10 Layer 0 chapters are published and pass `pnpm check:manifest`
   2. Every chapter has ≥2 diagrams, ≥1 interactive, ≥2 runnable code examples, all verified to execute
   3. `PROGRESS.md` shows Layer 0 at 10/10 and a `v0.0.x`-style layer milestone is tagged per CLAUDE.md §11 "Layer completion"
-**Plans**: 10 plans (3 complete)
+**Plans**: 10 plans (4 complete)
 
 Plans:
 - [x] 01-01: 00-00 How to use this course
 - [x] 01-02: 00-01 Python for AI engineering
 - [x] 01-03: 00-02 Async Python
-- [ ] 01-04: 00-03 Modern Python tooling
+- [x] 01-04: 00-03 Modern Python tooling
 - [ ] 01-05: 00-04 APIs & services
 - [ ] 01-06: 00-05 Data & storage
 - [ ] 01-07: 00-06 Containers, Git & CI
@@ -312,7 +312,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Foundation infrastructure | 7/7 | Complete | 2026-07-24 |
-| 1. Layer 0 — Foundations | 3/10 | In progress | - |
+| 1. Layer 0 — Foundations | 4/10 | In progress | - |
 | 2. Layer 1 — Classical ML | 0/8 | Not started | - |
 | 3. Layer 2 — Deep Learning | 0/8 | Not started | - |
 | 4. Layer 3 — Transformers & LLM Internals | 0/9 | Not started | - |

@@ -8,7 +8,8 @@
         "http://localhost:4321/ai-engineer-course/",
         "http://localhost:4321/ai-engineer-course/chapters/how-to-use-this-course/",
         "http://localhost:4321/ai-engineer-course/chapters/python-for-ai-engineering/",
-        "http://localhost:4321/ai-engineer-course/chapters/async-python/"
+        "http://localhost:4321/ai-engineer-course/chapters/async-python/",
+        "http://localhost:4321/ai-engineer-course/chapters/modern-python-tooling/"
       ],
       "numberOfRuns": 3,
       "settings": {

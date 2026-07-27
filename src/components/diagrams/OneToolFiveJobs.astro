@@ -1,0 +1,50 @@
+---
+/**
+ * OneToolFiveJobs — the same five jobs (install packages, isolate an
+ * environment, lock exact versions, manage Python versions, run one-off CLI
+ * tools) used to mean five separate tools with five separate config formats.
+ * uv does all five itself. Nothing here got smarter — it got consolidated.
+ */
+const jobs = ['install packages', 'isolate env', 'lock versions', 'python versions', 'run CLI tools'];
+const oldTools = ['pip', 'venv', 'pip-tools', 'pyenv', 'pipx'];
+const chipW = 118;
+const gap = 10;
+const startX = 30;
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 720 260"
+  role="img"
+  aria-label="Top: five separate tools — pip, venv, pip-tools, pyenv, pipx — each doing one job: installing packages, isolating an environment, locking versions, managing Python versions, and running CLI tools. Bottom: uv performs the same five jobs as one tool. The jobs are unchanged; what changed is that one tool now does all of them."
+>
+  <text x="16" y="26" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--ch1)">BEFORE · FIVE TOOLS, FIVE JOBS</text>
+  {
+    oldTools.map((t, i) => (
+      <g aria-hidden="true">
+        <rect x={startX + i * (chipW + gap)} y="40" width={chipW} height="40" rx="3" fill="var(--paper)" stroke="var(--ch1)" stroke-width="1.2" />
+        <text x={startX + i * (chipW + gap) + chipW / 2} y="64" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">{t}</text>
+        <text x={startX + i * (chipW + gap) + chipW / 2} y="96" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">{jobs[i]}</text>
+      </g>
+    ))
+  }
+
+  <line x1="16" y1="130" x2="704" y2="130" stroke="var(--hairline)" stroke-width="1" aria-hidden="true" />
+
+  <text x="16" y="158" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill="var(--ch2)">WITH UV · ONE TOOL, SAME FIVE JOBS</text>
+  <rect x="30" y="172" width={5 * chipW + 4 * gap} height="56" rx="4" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="1.4" />
+  <text x={30 + (5 * chipW + 4 * gap) / 2} y="196" text-anchor="middle" font-family="var(--font-mono)" font-size="13" letter-spacing="0.05em" fill="var(--ch2)">uv</text>
+  {
+    jobs.map((j, i) => (
+      <text
+        aria-hidden="true"
+        x={startX + i * (chipW + gap) + chipW / 2}
+        y="216"
+        text-anchor="middle"
+        font-family="var(--font-mono)"
+        font-size="9"
+        fill="var(--ink-muted)"
+      >{j}</text>
+    ))
+  }
+</svg>

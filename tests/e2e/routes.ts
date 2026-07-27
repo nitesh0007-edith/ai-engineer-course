@@ -4,4 +4,5 @@ export const ROUTES = [
   'chapters/how-to-use-this-course/',
   'chapters/python-for-ai-engineering/',
   'chapters/async-python/',
+  'chapters/modern-python-tooling/',
 ];

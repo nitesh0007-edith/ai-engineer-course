@@ -14,7 +14,7 @@ Every requirement below must satisfy the full chapter contract in CLAUDE.md §6 
 - [x] **00-00**: How to use this course — the map, depth tiers, how to practise
 - [x] **00-01**: Python for AI engineering [B] — types/hints, dataclasses, decorators, context managers, generators, comprehensions, error handling, logging, project layout
 - [x] **00-02**: Async Python [B] — async/await, asyncio, event loop, concurrent API calls, semaphores, timeouts, cancellation
-- [ ] **00-03**: Modern Python tooling [B] — uv, ruff, mypy, pytest, pre-commit, virtual environments, dependency pinning
+- [x] **00-03**: Modern Python tooling [B] — uv, ruff, mypy, pytest, pre-commit, virtual environments, dependency pinning
 - [ ] **00-04**: APIs & services [B] — REST, FastAPI, Pydantic v2, streaming, auth, rate limiting, retries, idempotency
 - [ ] **00-05**: Data & storage [B/U] — SQL, Postgres, transactions, indexing, pgvector, Redis, TTLs, message queues, background jobs
 - [ ] **00-06**: Containers, Git & CI [U/K] — Git workflow, Docker, multi-stage builds, GitHub Actions, IaC basics, Kubernetes concepts
@@ -175,7 +175,7 @@ None — this is a fixed, fully-scoped manifest (CLAUDE.md §10 is authoritative
 | 00-00 | Phase 1 | Complete |
 | 00-01 | Phase 1 | Complete |
 | 00-02 | Phase 1 | Complete |
-| 00-03 | Phase 1 | Pending |
+| 00-03 | Phase 1 | Complete |
 | 00-04 | Phase 1 | Pending |
 | 00-05 | Phase 1 | Pending |
 | 00-06 | Phase 1 | Pending |
