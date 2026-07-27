@@ -1,0 +1,12 @@
+---
+interface Props { title: string; steps: string[] }
+const { title, steps } = Astro.props;
+---
+<aside class="real-world sketch-card">
+  <p class="sketch-label">In a real AI system</p>
+  <h3>{title}</h3>
+  <slot />
+  <ol class="mini-flow">
+    {steps.map((step, index) => <li><span aria-hidden="true">{index + 1}</span>{step}</li>)}
+  </ol>
+</aside>

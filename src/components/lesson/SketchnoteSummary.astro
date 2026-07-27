@@ -1,0 +1,25 @@
+---
+interface Props {
+  title: string;
+  terms: string[];
+  mistakes: string[];
+  takeaways: string[];
+  questions: string[];
+}
+const { title, terms, mistakes, takeaways, questions } = Astro.props;
+---
+<section class="sketchnote-summary" aria-labelledby="summary-title">
+  <header>
+    <p class="sketch-label">Print me · one-page revision sheet</p>
+    <h2 id="summary-title">{title}</h2>
+  </header>
+  <div class="summary-grid">
+    <div class="summary-main"><h3>Main idea</h3><slot name="main" /></div>
+    <div><h3>Core terms</h3><ul>{terms.map((x) => <li>{x}</li>)}</ul></div>
+    <div class="summary-diagram"><h3>One picture</h3><slot name="diagram" /></div>
+    <div><h3>Code pattern</h3><slot name="code" /></div>
+    <div><h3>Watch out</h3><ul>{mistakes.map((x) => <li>{x}</li>)}</ul></div>
+    <div><h3>Remember</h3><ul>{takeaways.map((x) => <li>{x}</li>)}</ul></div>
+    <div class="summary-questions"><h3>Three quick questions</h3><ol>{questions.map((x) => <li>{x}</li>)}</ol></div>
+  </div>
+</section>

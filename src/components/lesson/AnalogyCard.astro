@@ -1,0 +1,10 @@
+---
+interface Props { title: string; limitation?: string }
+const { title, limitation } = Astro.props;
+---
+<aside class="analogy-card sketch-card">
+  <p class="sketch-label">Picture this</p>
+  <h3>{title}</h3>
+  <div class="analogy-body"><slot /></div>
+  {limitation && <p class="analogy-limit"><strong>Where the analogy stops:</strong> {limitation}</p>}
+</aside>

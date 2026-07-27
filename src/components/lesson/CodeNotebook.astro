@@ -1,0 +1,8 @@
+---
+interface Props { title: string; language?: string }
+const { title, language = 'Python' } = Astro.props;
+---
+<figure class="code-notebook">
+  <figcaption><span>{language}</span>{title}</figcaption>
+  <div class="code-paper"><slot /></div>
+</figure>

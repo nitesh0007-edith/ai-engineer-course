@@ -1,0 +1,8 @@
+---
+interface Props { questions: string[] }
+const { questions } = Astro.props;
+---
+<section class="revision-questions" aria-labelledby="revision-title">
+  <h3 id="revision-title">Revision and interview questions</h3>
+  <ol>{questions.map((question) => <li>{question}</li>)}</ol>
+</section>

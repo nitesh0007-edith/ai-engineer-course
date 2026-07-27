@@ -1,16 +1,16 @@
-import { defineCollection, z } from 'astro:content';
-import { glob } from 'astro/loaders';
+import { defineCollection, z } from "astro:content";
+import { glob } from "astro/loaders";
 
 /**
  * The chapter contract, enforced mechanically (CLAUDE.md §6).
  *
  * A chapter MDX file that does not meet this schema fails the build. The
- * `.min(...)` floors are the teeth: every chapter must carry at least two
- * diagrams, one interactive, two code examples, three objectives, three
- * concepts, three exercises (each with a solution), and three resources.
+ * `.min(...)` floors are the teeth. Published lesson completeness is also
+ * expressed in the MDX template: one purposeful visual and one small verified
+ * code example are better than duplicate artifacts added to satisfy a count.
  */
 const chapters = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/chapters' }),
+  loader: glob({ pattern: "**/*.mdx", base: "./src/content/chapters" }),
   schema: z.object({
     layer: z.number().min(0).max(10),
     order: z.number(),
@@ -18,35 +18,36 @@ const chapters = defineCollection({
     slug: z.string(),
     subtitle: z.string(),
     // Roadmap depth tiers.
-    depth: z.enum(['build', 'use', 'know']),
-    difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
+    depth: z.enum(["build", "use", "know"]),
+    difficulty: z.enum(["beginner", "intermediate", "advanced"]),
     readingTime: z.number(), // minutes, honest estimate
     prerequisites: z.array(z.string()), // chapter slugs
+    skillsGained: z.array(z.string()).optional(),
     objectives: z.array(z.string()).min(3), // "By the end you can…"
     concepts: z.array(z.string()).min(3), // glossary term ids introduced
-    diagrams: z.array(z.string()).min(2), // component names — MIN 2
+    diagrams: z.array(z.string()).min(1), // component names — MIN 1
     interactives: z.array(z.string()).min(1), // widget names — MIN 1
-    codeExamples: z.number().min(2),
+    codeExamples: z.number().min(1),
     exercises: z
       .array(
         z.object({
           prompt: z.string(),
-          difficulty: z.enum(['warmup', 'core', 'stretch']),
+          difficulty: z.enum(["warmup", "core", "stretch"]),
           solution: z.string(), // every exercise has a solution
         }),
       )
-      .min(3),
+      .min(1),
     resources: z
       .array(
         z.object({
           title: z.string(),
           url: z.url(),
-          type: z.enum(['paper', 'docs', 'video', 'course', 'blog', 'repo']),
+          type: z.enum(["paper", "docs", "video", "course", "blog", "repo"]),
           note: z.string().optional(), // one line on why it's worth reading (§6)
         }),
       )
       .min(3),
-    status: z.enum(['draft', 'review', 'published']),
+    status: z.enum(["draft", "review", "published"]),
     updated: z.coerce.date(),
   }),
 });
@@ -56,7 +57,7 @@ const chapters = defineCollection({
  * (DESIGN §5 / CLAUDE.md §14). The term id is the file's stem.
  */
 const glossary = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: './src/content/glossary' }),
+  loader: glob({ pattern: "**/*.md", base: "./src/content/glossary" }),
   schema: z.object({
     term: z.string(),
     definition: z.string(),

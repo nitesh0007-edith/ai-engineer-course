@@ -1,0 +1,31 @@
+---
+interface Props {
+  module: string;
+  lesson: string;
+  difficulty: string;
+  duration: string;
+  prerequisites: string[];
+  skills: string[];
+}
+const { module, lesson, difficulty, duration, prerequisites, skills } = Astro.props;
+---
+
+<section class="lesson-identity sketch-card" aria-labelledby="lesson-details-heading">
+  <h2 id="lesson-details-heading" class="sketch-label">Lesson details</h2>
+  <dl>
+    <div><dt>Module</dt><dd>{module}</dd></div>
+    <div><dt>Lesson</dt><dd>{lesson}</dd></div>
+    <div><dt>Difficulty</dt><dd>{difficulty}</dd></div>
+    <div><dt>Learning time</dt><dd>{duration}</dd></div>
+  </dl>
+  <div class="identity-lists">
+    <div>
+      <h3>Before you start</h3>
+      <ul>{prerequisites.map((item) => <li>{item}</li>)}</ul>
+    </div>
+    <div>
+      <h3>Skills you will gain</h3>
+      <ul>{skills.map((item) => <li>{item}</li>)}</ul>
+    </div>
+  </div>
+</section>

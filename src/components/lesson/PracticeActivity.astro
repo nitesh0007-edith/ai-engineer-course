@@ -1,0 +1,23 @@
+---
+interface Props {
+  title: string;
+  time: string;
+  goal: string;
+  steps: string[];
+  expected: string;
+  challenge?: string;
+}
+const { title, time, goal, steps, expected, challenge } = Astro.props;
+---
+<section class="practice-activity sketch-card" aria-labelledby="practice-title">
+  <p class="sketch-label">Practice · {time}</p>
+  <h3 id="practice-title">{title}</h3>
+  <p><strong>Goal:</strong> {goal}</p>
+  <ol>{steps.map((step) => <li>{step}</li>)}</ol>
+  <p><strong>Expected result:</strong> {expected}</p>
+  {challenge && <p class="optional-challenge"><strong>Optional challenge:</strong> {challenge}</p>}
+  <details>
+    <summary>Reveal solution</summary>
+    <div class="practice-solution"><slot /></div>
+  </details>
+</section>

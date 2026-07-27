@@ -1,0 +1,10 @@
+---
+interface Props { items: { line: string; explanation: string }[] }
+const { items } = Astro.props;
+---
+<div class="line-explanations">
+  <p class="sketch-label">Important lines</p>
+  <dl>
+    {items.map((item) => <div><dt><code>{item.line}</code></dt><dd>{item.explanation}</dd></div>)}
+  </dl>
+</div>

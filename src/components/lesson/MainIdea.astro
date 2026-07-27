@@ -1,0 +1,11 @@
+---
+interface Props { title?: string }
+const { title = 'The main idea' } = Astro.props;
+---
+<aside class="main-idea" aria-labelledby="main-idea-title">
+  <span aria-hidden="true" class="main-idea-doodle">✦</span>
+  <div>
+    <h2 id="main-idea-title">{title}</h2>
+    <slot />
+  </div>
+</aside>

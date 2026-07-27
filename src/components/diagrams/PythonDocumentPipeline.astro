@@ -1,0 +1,36 @@
+---
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+---
+<div class={`python-pipeline ${compact ? 'compact' : ''}`}>
+  <svg class="diagram-svg" viewBox="0 0 760 250" role="img" aria-labelledby="pipeline-title pipeline-desc">
+    <title id="pipeline-title">A small Python document-cleaning pipeline</title>
+    <desc id="pipeline-desc">Three raw document strings enter a clean function. The function strips surrounding spaces, ignores empty text, and returns two clean document strings for an AI model.</desc>
+    <defs>
+      <marker id="pipeline-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--blueprint)" />
+      </marker>
+    </defs>
+    <g class="sketch-node">
+      <rect x="28" y="52" width="190" height="145" rx="12" />
+      <text x="123" y="82" text-anchor="middle" class="diagram-label">RAW DOCUMENTS</text>
+      <text x="52" y="118">"  Refund please  "</text>
+      <text x="52" y="148">"     "</text>
+      <text x="52" y="178">"Where is my order?"</text>
+    </g>
+    <path class="flow-arrow" d="M232 125 C270 105 282 105 318 125" marker-end="url(#pipeline-arrow)" />
+    <g class="sketch-node emphasised">
+      <rect x="332" y="74" width="150" height="102" rx="48" />
+      <text x="407" y="114" text-anchor="middle" class="diagram-label">clean()</text>
+      <text x="407" y="141" text-anchor="middle">strip + keep</text>
+    </g>
+    <path class="flow-arrow" d="M495 125 C530 145 545 145 579 125" marker-end="url(#pipeline-arrow)" />
+    <g class="sketch-node">
+      <rect x="594" y="65" width="140" height="120" rx="12" />
+      <text x="664" y="95" text-anchor="middle" class="diagram-label">CLEAN TEXT</text>
+      <text x="612" y="130">"Refund please"</text>
+      <text x="612" y="160">"Where is..."</text>
+    </g>
+    {!compact && <text x="380" y="226" text-anchor="middle" class="diagram-note">input → small dependable steps → useful output</text>}
+  </svg>
+</div>
