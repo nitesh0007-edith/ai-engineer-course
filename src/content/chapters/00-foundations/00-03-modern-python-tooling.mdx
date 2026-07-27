@@ -6,14 +6,21 @@ slug: 'modern-python-tooling'
 subtitle: 'The five tools that close the gap between "works on my machine" and "works everywhere, provably, before you even commit."'
 depth: build
 difficulty: beginner
-readingTime: 22
+readingTime: 36
 prerequisites:
   - python-for-ai-engineering
+skillsGained:
+  - 'Explain the job of five core Python tools'
+  - 'Create a reproducible Python project'
+  - 'Read lint and type-checking feedback'
+  - 'Write a small pytest test'
+  - 'Describe an automated pre-commit quality gate'
 objectives:
-  - 'Explain what job each of uv, ruff, mypy, pytest, and pre-commit does, and why they replaced the older pip/venv/flake8 toolchain'
-  - 'Set up a project with uv so its dependencies are isolated and exactly reproducible on any machine'
-  - 'Read and fix a real ruff lint finding and a real mypy type error'
-  - 'Write and run a pytest test — including a failing one — and explain why pre-commit makes all of this automatic before a commit is ever made'
+  - 'Explain the job of uv, ruff, mypy, pytest, and pre-commit'
+  - 'Compare a dependency range with a lockfile'
+  - 'Identify and fix a lint or type-checking error'
+  - 'Write a test that can fail for the right reason'
+  - 'Design a cheapest-first quality gate'
 concepts:
   - lockfile
   - virtual-environment
@@ -24,6 +31,9 @@ diagrams:
   - OneToolFiveJobs
 interactives:
   - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
 codeExamples: 6
 exercises:
   - prompt: 'A shared project''s requirements.txt has the line `requests` with no version at all. Rewrite it as an exact pin using `==`, and explain in one sentence why the pin matters for a project more than one person runs.'
@@ -57,32 +67,70 @@ resources:
     type: docs
     note: 'How to write a .pre-commit-config.yaml for your own project once this chapter''s example stops being hypothetical.'
 status: published
-updated: 2026-07-26
+updated: 2026-07-28
 ---
 
 import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
 import ToolingGate from '../../../components/diagrams/ToolingGate.astro';
 import OneToolFiveJobs from '../../../components/diagrams/OneToolFiveJobs.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
 
-You test your retrieval pipeline locally: it works. You push the exact same code to a teammate's machine, and it breaks with an error neither of you has seen before. You both ran `pip install -r requirements.txt`. The file had one line that mattered:
+Working code is only useful when another person—or a deployment server—can run it reliably.
 
-```text
-requests
-```
+Modern Python tools make the project repeatable. They record its dependencies, check common mistakes, run tests, and stop broken changes before they enter the repository.
 
-No version. Three weeks apart, that one line resolved to two different releases of the same package on your two machines — and they didn't behave identically. Nobody changed a single line of your code. The bug was never in the code at all.
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="3 · Modern Python tooling"
+  difficulty="Beginner"
+  duration="36 minutes"
+  prerequisites={[
+    "Python functions and type hints",
+    "Python foundations for AI applications",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
 
-This chapter is about the small set of tools that make that failure mode nearly impossible: <Term id="virtual-environment">isolated environments</Term> with a <Term id="lockfile">lockfile</Term> pinning exactly what's installed (uv), a fast <Term id="linter">linter</Term> and formatter (ruff), a type checker (mypy), a test runner (pytest), and a <Term id="pre-commit-hook">pre-commit hook</Term> that runs all of it automatically, before a broken change can even be committed.
+## Why this matters
 
-<Prerequisites data={frontmatter} />
+An AI application may work on your laptop and fail in continuous integration or production because a package version changed, a type was wrong, or a previously working behaviour broke.
+
+These tools catch different parts of that problem early, when a fix is cheaper and easier to understand.
+
+<MainIdea>
+  A reliable Python project has a repeatable environment and an automatic
+  quality gate. Each tool has one clear job: manage dependencies, inspect code,
+  check promised types, run behaviour tests, or trigger the checks before a
+  commit.
+</MainIdea>
 
 <Objectives data={frontmatter} />
 
 ## The intuition
 
-None of these five tools make your code smarter. Each one catches one specific, mechanical class of mistake — the kind that has nothing to do with whether your idea is any good, and everything to do with whether the small details around it are right. ruff notices an import you never use, or a line formatted differently from the rest of the file. mypy notices you're passing a string somewhere a number was promised. pytest notices that a function no longer returns what you said it would. uv makes sure the packages installed on your machine are the *exact* same ones installed on anyone else's. Individually, each of these feels like a small thing. Together, run automatically before every single commit, they close almost all of the gap between "it works for me right now" and "it works, provably, for anyone, at any time."
+<AnalogyCard
+  title="A quality gate is an airport security line"
+  limitation="Software checks can only find problems they were designed to detect. Passing every check does not prove that the product solves the right problem."
+>
+  Different stations inspect different risks. One checks your documents. Another scans your bag. A final check confirms you are boarding the correct flight.
 
-Be precise about what this buys you and what it doesn't: these tools catch mistakes you can *mechanically describe in advance* — a type mismatch, an unused name, a broken assertion, an unpinned version. None of them catch a test suite that tests the wrong thing, or a design that solves the wrong problem. Automation raises the floor. It does not replace thinking about whether the code is right.
+The Python toolchain works in the same way. A fast linter checks inexpensive problems first. Type checking and tests inspect different risks. The commit proceeds only after the chosen checks pass.
+
+</AnalogyCard>
+
+None of these tools make an idea smarter. They catch mechanical mistakes you can describe in advance: an unused import, a mismatched type, a broken assertion, or an environment that cannot be reproduced.
 
 <Figure id="00-03.1" label="THE GATE BEFORE A COMMIT" caption="— your code passes through ruff (cheapest, fastest), then mypy, then pytest (slowest, since it actually runs code). pre-commit runs all three; any failure blocks the commit and sends you back to fix it.">
   <ToolingGate />
@@ -142,6 +190,53 @@ Found 1 error in 1 file (checked 1 source file)
 This is exactly the shape of bug type hints exist to catch (Chapter 00-01) — except now something actually checks it for you, instead of it only being a note for a human reader.
 
 **pytest** is the one tool here that actually runs your code, to check it produces what you said it would. You'll run it for real in a moment.
+
+## A small test you can copy
+
+<CodeNotebook title="Test a model-cost calculation">
+
+```python
+def estimate_cost(tokens: int, price_per_token: float) -> float:
+    return tokens * price_per_token
+
+
+def test_estimate_cost():
+    result = estimate_cost(1_000, 0.000_002)
+    assert result == 0.002
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+1 passed
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "tokens: int",
+      explanation: "A type hint says tokens should be a whole number.",
+    },
+    {
+      line: "-> float",
+      explanation: "The function promises to return a decimal number.",
+    },
+    {
+      line: "def test_estimate_cost():",
+      explanation: "pytest discovers functions whose names begin with test_.",
+    },
+    {
+      line: "assert result == 0.002",
+      explanation: "The test fails if the actual result differs from the expected behaviour.",
+    },
+  ]}
+/>
+
+Try changing the expected result to `0.02`. A useful test should now fail and show the two different values.
 
 **pre-commit** ties all of this together. A `.pre-commit-config.yaml` lists the hooks a project runs automatically, right before git creates a commit:
 
@@ -264,6 +359,21 @@ print(out)
 
 The course you are reading right now runs exactly this pattern: a `Quality` CI workflow runs a typecheck, a manifest check, and a full Playwright/axe/Lighthouse suite on every push — and, as of the previous chapter, the site's own deploy is gated on that workflow passing. Nothing about that is special to this project; it is the same gate this chapter describes, just running in CI instead of (or in addition to) on your own machine.
 
+<RealWorldExample
+  title="Protecting a document assistant before deployment"
+  steps={[
+    "uv recreates the recorded environment",
+    "ruff catches inexpensive code problems",
+    "mypy checks important data contracts",
+    "pytest runs retrieval and response tests",
+    "deployment starts only after the gate passes",
+  ]}
+>
+  A document assistant depends on parsers, an API client, validation code, and retrieval logic. A lockfile keeps package versions consistent, while automated checks catch known failure classes before users receive the change.
+
+The gate reduces avoidable mistakes. Human review and realistic evaluation are still required to decide whether the assistant behaves well.
+</RealWorldExample>
+
 A few things worth knowing before you rely on this in a real team:
 
 - **Lockfiles matter most exactly when you need to move fast.** A security patch to a dependency needs to reach every environment — laptops, CI, production — identically and quickly. Without a lockfile, "it's fixed in CI" and "it's fixed in production" can silently mean two different sets of installed packages.
@@ -298,32 +408,86 @@ A few things worth knowing before you rely on this in a real team:
 
 <Exercises data={frontmatter} />
 
-## Checkpoint
+## Knowledge check
 
-<Checkpoint
+<QuizCard
+  client:load
   questions={[
     {
-      q: 'A requirements file lists a package with no version pin. Two machines run the exact same install command weeks apart and end up with different behaviour. What actually happened, and what fixes it?',
-      a: 'The unpinned line let each install resolve to whatever the newest compatible release happened to be on that day, and the two resolved versions did not behave identically — no code changed, only the installed packages differed. A lockfile (uv.lock), committed alongside pyproject.toml and installed from directly (uv sync), fixes it by recording and reproducing the exact same versions everywhere.',
+      question: "Which file records the exact resolved dependency versions?",
+      options: ["uv.lock", "README.md", ".gitignore"],
+      answer: 0,
+      explanation: "uv.lock records exact direct and transitive versions so another environment can reproduce the installation.",
     },
     {
-      q: 'ruff and mypy both read your code without running it. What kind of bug can neither of them ever catch, and which tool catches it?',
-      a: 'Neither can catch a bug in what the code actually computes — a wrong return value, a miscalculated result — because neither executes the code. Only pytest, which actually runs the code and checks its output against an assertion, can catch that class of bug.',
+      question: "What does ruff primarily do?",
+      options: [
+        "Runs the application against live users",
+        "Inspects code for style and common correctness issues",
+        "Stores secret API keys",
+      ],
+      answer: 1,
+      explanation: "ruff is a linter and formatter. It reads code without executing the application.",
     },
     {
-      q: 'Why does the pre-commit pipeline run ruff before pytest, rather than the other way round?',
-      a: 'ruff only reads the code and finishes in a fraction of a second, even on a large codebase; pytest has to actually import and execute it, which is much slower and gets slower as the suite grows. Running the cheap check first means a trivial mistake gets reported almost instantly, without first paying for a full test run that a ruff failure was going to block anyway.',
+      question: "Which tool actually executes your test functions?",
+      options: ["mypy", "pytest", "uv.lock"],
+      answer: 1,
+      explanation: "pytest runs code and evaluates assertions. Ruff and mypy inspect code without running its behaviour.",
     },
     {
-      q: 'What is the difference between what pyproject.toml says and what uv.lock says about a dependency?',
-      a: 'pyproject.toml states an intentional range — "this package, roughly this version or newer" — so compatible updates can still be picked up. uv.lock records the exact version that was actually resolved for every direct and transitive dependency, so a fresh install reproduces that exact set instead of whatever the range resolves to today.',
-    },
-    {
-      q: 'A full CI/pre-commit pipeline passes on a change. Does that mean the change is correct? Why or why not?',
-      a: 'Not necessarily. ruff, mypy, and pytest each catch a specific, pre-describable class of mistake — style and dead code, type mismatches, and only the behaviours you actually wrote tests for. A passing pipeline means none of those specific checks found a problem; it says nothing about a test suite that tests the wrong thing or a design that solves the wrong problem.',
+      question: "Why should a fast linter run before a slower test suite?",
+      options: [
+        "It can reject inexpensive mistakes before paying for slower checks",
+        "Tests cannot run after a linter",
+        "The order changes Python syntax",
+      ],
+      answer: 0,
+      explanation: "Cheapest-first feedback shortens the loop and avoids running expensive checks when a simpler gate already fails.",
     },
   ]}
 />
+
+## Practice activity
+
+<PracticeActivity
+  title="Create a tiny tested pricing module"
+  time="10–20 minutes"
+  goal="Add type hints and two useful tests to a small AI-cost function."
+  steps={[
+    "Copy the starter function.",
+    "Add int and float type hints.",
+    "Write one test for a normal token count.",
+    "Write one test for zero tokens.",
+    "Deliberately break the function and confirm a test fails.",
+  ]}
+  expected="Two passing tests before the deliberate break, followed by at least one clear failing assertion."
+  challenge="Reject a negative token count with ValueError and test it using pytest.raises."
+>
+
+Starter code:
+
+```python
+def estimate_cost(tokens, price_per_token):
+    return tokens * price_per_token
+```
+
+```python
+def estimate_cost(tokens: int, price_per_token: float) -> float:
+    return tokens * price_per_token
+
+
+def test_estimate_cost():
+    assert estimate_cost(1_000, 0.000_002) == 0.002
+
+
+def test_zero_tokens_cost_nothing():
+    assert estimate_cost(0, 0.000_002) == 0.0
+```
+
+Run `uv run pytest`. Then change `*` to `+` and confirm the tests turn red.
+
+</PracticeActivity>
 
 ## Key takeaways
 
@@ -334,6 +498,107 @@ A few things worth knowing before you rely on this in a real team:
     'ruff and mypy read code without running it (style/dead-code and type mismatches); pytest is the one tool here that actually executes your code and checks what it produces.',
     'pre-commit runs all of these automatically before a commit is created, in cheapest-first order, and blocks the commit entirely if any one fails — install it once per clone or it never runs.',
     'A fully green pipeline still only proves what you told it to check; it does not prove the code solves the right problem.',
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What problem does a virtual environment solve?",
+      back: "It isolates one project's Python packages from other projects.",
+    },
+    {
+      front: "What is a lockfile?",
+      back: "A record of the exact dependency versions resolved for a project.",
+    },
+    {
+      front: "What does ruff check?",
+      back: "Formatting, style, unused code, and selected common correctness problems.",
+    },
+    {
+      front: "What does mypy check?",
+      back: "Whether code uses values consistently with its type hints.",
+    },
+    {
+      front: "What does pytest check?",
+      back: "Runtime behaviour expressed through test functions and assertions.",
+    },
+    {
+      front: "What does a pre-commit hook do?",
+      back: "Runs configured checks automatically before Git creates a commit.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Compare pyproject.toml and uv.lock.",
+    "Why can ruff and mypy pass while a calculation is still wrong?",
+    "What makes a test useful rather than merely green?",
+    "Design a cheapest-first quality gate for a small AI service.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Modern Python tooling"
+  terms={[
+    "uv — environment and dependency manager",
+    "Lockfile — exact resolved versions",
+    "ruff — linter and formatter",
+    "mypy — static type checker",
+    "pytest — behaviour test runner",
+    "pre-commit — automatic local gate",
+  ]}
+  mistakes={[
+    "Do not leave shared dependencies unpinned",
+    "Do not silence type errors without a reason",
+    "Do not trust a test you never saw fail",
+    "Do not forget pre-commit install",
+  ]}
+  takeaways={[
+    "Reproduce the environment",
+    "Run cheap checks first",
+    "Test behaviour",
+    "Automate the gate",
+    "Green checks are evidence, not proof",
+  ]}
+  questions={[
+    "Which tool owns each job?",
+    "What does the lockfile record?",
+    "Can your test fail correctly?",
+  ]}
+>
+  <p slot="main">
+    Reliable AI projects combine repeatable dependencies with fast automated
+    checks. Each tool protects a different part of the engineering workflow.
+  </p>
+  <div slot="diagram">
+    <ToolingGate />
+  </div>
+  <pre slot="code">
+    <code>{`uv sync
+uv run ruff check .
+uv run mypy src
+uv run pytest`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="modern-python-tooling"
+  items={[
+    "I can explain the job of all five tools.",
+    "I can compare dependency ranges and a lockfile.",
+    "I read the ruff and mypy examples.",
+    "I ran or traced a failing test.",
+    "I completed the knowledge check.",
+    "I attempted the practice activity.",
+    "I reviewed the flashcards.",
   ]}
 />
 
