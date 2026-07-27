@@ -435,6 +435,7 @@
 
 /* ═══ Prose — DESIGN §3.2 ═════════════════════════════════════════════════ */
 .prose {
+  min-width: 0;
   max-width: var(--measure);
   margin-inline: auto;
   font-family: var(--font-body);
@@ -497,6 +498,9 @@
   padding: 0.08em 0.34em;
 }
 .prose pre {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.62;
@@ -511,6 +515,27 @@
   border: 0;
   padding: 0;
   font-size: inherit;
+}
+
+.prose :not(pre) > code {
+  overflow-wrap: anywhere;
+}
+
+.prose table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.prose th,
+.prose td {
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--hairline);
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
 }
 
 /* Shiki dual-theme code colours — DESIGN §2.3, §3. defaultColor:false emits
@@ -1385,6 +1410,8 @@
 
 .sketchnote-summary {
   position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
   margin: 42px auto 28px;
   border: 3px solid var(--ink);
   border-radius: 12px 7px 14px 8px;
@@ -1427,6 +1454,8 @@
   gap: 12px;
 }
 .summary-grid > div {
+  min-width: 0;
+  box-sizing: border-box;
   border: 2px solid var(--ink);
   border-radius: 10px 6px 12px 7px;
   background: color-mix(in oklch, var(--paper-raise) 92%, transparent);
@@ -1465,6 +1494,9 @@
   grid-column: 1 / -1;
 }
 .summary-grid pre {
+  overflow-x: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   margin: 0;
   padding: 9px;
   font-size: 11px;

@@ -1,0 +1,108 @@
+---
+/**
+ * StreamingTransports — three ways a client can find out about something
+ * that takes the server time to produce. Polling repeats a full request and
+ * mostly gets "not ready yet" back. SSE opens one connection and lets the
+ * server push chunks down it as they're ready, one direction only — the
+ * shape an LLM token stream actually uses. WebSocket opens one connection
+ * where either side can send at any time, which polling and SSE don't allow.
+ */
+const cols = [
+  { x: 10, title: 'POLLING', color: 'var(--ch2)', note: 'repeat request, mostly empty' },
+  { x: 250, title: 'SSE', color: 'var(--blueprint)', note: 'one connection, one direction' },
+  { x: 490, title: 'WEBSOCKET', color: 'var(--ch1)', note: 'one connection, both directions' },
+];
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 720 340"
+  role="img"
+  aria-label="Three columns compare how a client learns about something the server takes time to produce. Polling: the client repeats a full request-response round trip, mostly receiving 'not ready yet' until a final ready reply. Server-Sent Events: one request opens a connection, and the server pushes several chunks down it over time, one direction only. WebSocket: after one handshake, both client and server can send messages to each other at any time on the same open connection."
+>
+  {
+    cols.map((c) => (
+      <g aria-hidden="true">
+        <text x={c.x + 110} y="24" text-anchor="middle" font-family="var(--font-mono)" font-size="11" letter-spacing="0.04em" fill={c.color}>{c.title}</text>
+        <line x1={c.x + 40} y1="40" x2={c.x + 40} y2="290" stroke="var(--frame)" stroke-width="1.2" />
+        <line x1={c.x + 180} y1="40" x2={c.x + 180} y2="290" stroke="var(--frame)" stroke-width="1.2" />
+        <text x={c.x + 40} y="52" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">client</text>
+        <text x={c.x + 180} y="52" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">server</text>
+      </g>
+    ))
+  }
+
+  <!-- POLLING: request / not-ready x2, then ready -->
+  <g aria-hidden="true">
+    <line x1="50" y1="72" x2="170" y2="72" stroke="var(--ink-muted)" stroke-width="1.1" />
+    <polygon points="170,72 162,68 162,76" fill="var(--ink-muted)" />
+    <line x1="170" y1="98" x2="50" y2="98" stroke="var(--ch2)" stroke-width="1" stroke-dasharray="3 3" />
+    <polygon points="50,98 58,94 58,102" fill="var(--ch2)" />
+    <text x="110" y="94" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch2)">not ready</text>
+
+    <line x1="50" y1="130" x2="170" y2="130" stroke="var(--ink-muted)" stroke-width="1.1" />
+    <polygon points="170,130 162,126 162,134" fill="var(--ink-muted)" />
+    <line x1="170" y1="156" x2="50" y2="156" stroke="var(--ch2)" stroke-width="1" stroke-dasharray="3 3" />
+    <polygon points="50,156 58,152 58,160" fill="var(--ch2)" />
+    <text x="110" y="152" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch2)">not ready</text>
+
+    <line x1="50" y1="188" x2="170" y2="188" stroke="var(--ink-muted)" stroke-width="1.1" />
+    <polygon points="170,188 162,184 162,192" fill="var(--ink-muted)" />
+    <line x1="170" y1="214" x2="50" y2="214" stroke="var(--ch1)" stroke-width="1.3" />
+    <polygon points="50,214 58,210 58,218" fill="var(--ch1)" />
+    <text x="110" y="210" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch1)">ready</text>
+  </g>
+
+  <!-- SSE: one request, connection stays open, server pushes chunks -->
+  <g aria-hidden="true">
+    <line x1="290" y1="72" x2="410" y2="72" stroke="var(--ink-muted)" stroke-width="1.1" />
+    <polygon points="410,72 402,68 402,76" fill="var(--ink-muted)" />
+    <text x="350" y="64" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ink-muted)">GET /stream</text>
+
+    <line x1="290" y1="80" x2="290" y2="280" stroke="var(--blueprint)" stroke-width="1" stroke-dasharray="2 3" />
+    <text x="222" y="180" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--blueprint)" transform="rotate(-90 222 180)">connection stays open</text>
+
+    <line x1="410" y1="112" x2="290" y2="112" stroke="var(--blueprint)" stroke-width="1.2" />
+    <polygon points="290,112 298,108 298,116" fill="var(--blueprint)" />
+    <text x="350" y="108" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--blueprint)">chunk 1</text>
+
+    <line x1="410" y1="152" x2="290" y2="152" stroke="var(--blueprint)" stroke-width="1.2" />
+    <polygon points="290,152 298,148 298,156" fill="var(--blueprint)" />
+    <text x="350" y="148" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--blueprint)">chunk 2</text>
+
+    <line x1="410" y1="192" x2="290" y2="192" stroke="var(--blueprint)" stroke-width="1.2" />
+    <polygon points="290,192 298,188 298,196" fill="var(--blueprint)" />
+    <text x="350" y="188" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--blueprint)">chunk 3</text>
+  </g>
+
+  <!-- WEBSOCKET: handshake, then either side sends anytime -->
+  <g aria-hidden="true">
+    <line x1="530" y1="72" x2="650" y2="72" stroke="var(--ink)" stroke-width="1.3" />
+    <polygon points="650,72 642,68 642,76" fill="var(--ink)" />
+    <line x1="650" y1="80" x2="530" y2="80" stroke="var(--ink)" stroke-width="1.3" />
+    <polygon points="530,80 538,76 538,84" fill="var(--ink)" />
+    <text x="590" y="64" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ink)">handshake</text>
+
+    <line x1="530" y1="112" x2="650" y2="112" stroke="var(--ch1)" stroke-width="1.2" />
+    <polygon points="650,112 642,108 642,116" fill="var(--ch1)" />
+    <text x="590" y="108" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch1)">client message</text>
+
+    <line x1="650" y1="150" x2="530" y2="150" stroke="var(--ch1)" stroke-width="1.2" />
+    <polygon points="530,150 538,146 538,154" fill="var(--ch1)" />
+    <text x="590" y="146" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch1)">server message</text>
+
+    <line x1="650" y1="188" x2="530" y2="188" stroke="var(--ch1)" stroke-width="1.2" />
+    <polygon points="530,188 538,184 538,192" fill="var(--ch1)" />
+    <text x="590" y="184" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch1)">server message</text>
+
+    <line x1="530" y1="226" x2="650" y2="226" stroke="var(--ch1)" stroke-width="1.2" />
+    <polygon points="650,226 642,222 642,230" fill="var(--ch1)" />
+    <text x="590" y="222" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ch1)">client message</text>
+  </g>
+
+  {
+    cols.map((c) => (
+      <text x={c.x + 110} y="312" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)" aria-hidden="true">{c.note}</text>
+    ))
+  }
+</svg>

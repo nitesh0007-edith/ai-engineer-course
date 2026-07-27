@@ -5,4 +5,5 @@ export const ROUTES = [
   'chapters/python-for-ai-engineering/',
   'chapters/async-python/',
   'chapters/modern-python-tooling/',
+  'chapters/apis-and-services/',
 ];

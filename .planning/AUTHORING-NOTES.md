@@ -106,6 +106,35 @@ between panels — see `GeneratorStream.astro`, `ConcurrencyTimeline.astro`.
 6. If a test fails unexpectedly and looks unrelated to your change, check for a stray leftover dev
    server first (`lsof -i :4321`) before re-running the test repeatedly. `pkill -f "astro dev"`
    does **not** match the real process name (`astro.mjs dev`) — kill by PID from `lsof`/`ps` instead.
+   This also matters for `pnpm test:e2e` itself: `playwright.config.ts` sets
+   `reuseExistingServer: !process.env.CI`, so *locally* it silently reuses whatever's already on
+   :4321 — including a stale `astro dev` server — instead of the `astro preview` (built dist) server
+   the config comments say it tests against. A stray dev server caused one flaky-looking local test
+   failure (theme toggle) that vanished once the port was cleared and Playwright started its own
+   `preview` server. Always check `lsof -i :4321` before trusting a local e2e failure.
+7. When a `<Figure>` sits deep enough into a long chapter page (multiple thousand px of scrollY), the
+   `mcp__claude-in-chrome__computer` screenshot action can intermittently return a **blank frame**
+   even though the DOM/CSS is verifiably correct (confirmed via `getBoundingClientRect` +
+   `getComputedStyle` + `elementFromPoint` all agreeing real content is painted there) — a capture
+   tool quirk at depth, not a rendering bug. Don't chase it by fighting the screenshot tool; verify
+   via JS-driven DOM/style inspection instead, and trust one successful screenshot earlier on the
+   same page using the same diagram primitives as proof the styling itself is sound.
+8. **FastAPI/Pydantic v2 genuinely run in Pyodide** (verified live, not assumed) — `pydantic` (with
+   its Rust `pydantic-core`) and `fastapi` both install via micropip and import cleanly. Two non-
+   obvious constraints, both confirmed by reproducing the failure first:
+   - **Path operations must be `async def`, not plain `def`.** Starlette runs sync handlers through
+     `anyio.to_thread.run_sync`, which spawns a real OS thread — unsupported in Pyodide
+     (`RuntimeError: can't start new thread`). An `async def` handler never touches the thread pool
+     and runs fine.
+   - **Don't use `fastapi.testclient.TestClient`** — it also goes through an anyio thread portal and
+     hits the same `can't start new thread` error. Instead call the app in-process with
+     `httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")` — genuinely
+     no real socket, no thread, and it supports `client.stream(...)` for real Server-Sent-Events
+     demos (`StreamingResponse` + an async generator + real `asyncio.sleep` between chunks) with
+     real chunk-by-chunk timing. `pyjwt` also installs and runs cleanly for JWT encode/decode/verify
+     demos. Give any JWT demo secret ≥32 bytes — a shorter one triggers PyJWT's
+     `InsecureKeyLengthWarning` on **stderr**, and `worker.ts` captures stderr into the same visible
+     output stream as stdout, so a short secret shows up as scary-looking noise in the cell's output.
 
 ## CI gating
 

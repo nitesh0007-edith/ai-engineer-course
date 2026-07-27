@@ -1,0 +1,725 @@
+---
+layer: 0
+order: 4
+title: 'APIs & services'
+slug: 'apis-and-services'
+subtitle: 'The contract between your code and everyone else''s — and the parts of it that quietly cause double charges, leaked tokens, and hammered servers when nobody designs for failure.'
+depth: build
+difficulty: beginner
+readingTime: 42
+prerequisites:
+  - python-for-ai-engineering
+  - async-python
+skillsGained:
+  - 'Explain how an API request becomes a response'
+  - 'Validate incoming JSON with FastAPI and Pydantic'
+  - 'Compare polling, Server-Sent Events, and WebSockets'
+  - 'Retry transient failures without overwhelming a service'
+  - 'Prevent duplicate side effects with an idempotency key'
+objectives:
+  - 'Explain what a REST request/response contract is, and how FastAPI + Pydantic enforce it automatically — before your handler code ever runs'
+  - 'Read a JWT''s structure and state precisely what its signature does and does not guarantee'
+  - 'Implement a token-bucket rate limiter, and a client-side retry loop with exponential backoff and jitter'
+  - 'Explain why retrying a request is only safe automatically when the operation is idempotent, and design an idempotency key for one that is not'
+  - 'Choose between polling, Server-Sent Events, and WebSockets for a given streaming problem, and explain why LLM APIs stream with SSE'
+concepts:
+  - idempotency-key
+  - jwt
+  - exponential-backoff
+  - token-bucket
+  - server-sent-events
+diagrams:
+  - RequestContract
+  - RetryIdempotencyTimeline
+  - StreamingTransports
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 10
+exercises:
+  - prompt: 'A FastAPI endpoint declares `class Signup(BaseModel): email: str; age: int`. A client sends `POST /signup` with the JSON body `{"email": "a@b.com", "age": "thirty"}`. What status code comes back, and why does your handler function''s body never execute at all?'
+    difficulty: warmup
+    solution: '`422 Unprocessable Entity`. FastAPI runs the request body through the `Signup` Pydantic model *before* calling your handler — `"thirty"` cannot be parsed as an `int`, so validation fails and FastAPI returns a field-level error (`{"detail": [{"loc": ["body", "age"], "msg": "...", "type": "int_parsing"}]}`) itself. Your handler is never invoked, because the request never satisfied the contract it promised to satisfy — there is nothing valid to hand it.'
+  - prompt: 'Write `backoff_delay(attempt, base=0.5, cap=8.0)` returning the exponential backoff delay (no jitter) for a 1-indexed retry attempt, capped at `cap`. Then write a jittered version that returns a random value between 0 and that delay, and explain in one sentence why the jittered version is safer to actually deploy.'
+    difficulty: core
+    solution: "```python\nimport random\n\ndef backoff_delay(attempt, base=0.5, cap=8.0):\n    return min(cap, base * 2 ** (attempt - 1))\n\ndef backoff_delay_jittered(attempt, base=0.5, cap=8.0):\n    return random.uniform(0, backoff_delay(attempt, base, cap))\n```\nWithout jitter, every client that failed at the same moment (say, because the server briefly went down) computes the *exact same* delay and retries at the *exact same* instant — recreating the spike that caused the failure in the first place. Jitter spreads those retries out over the delay window instead of letting them land in lockstep."
+  - prompt: 'Design an idempotency scheme for `POST /transfers`, which moves money between two accounts. Where does the key come from, where is it stored, and what should the server do if a second request with the same key arrives while the first is still being processed — not yet finished?'
+    difficulty: stretch
+    solution: 'The client generates the key (typically a UUID) once per logical transfer attempt and sends it as a header (`Idempotency-Key: ...`) on every retry of that same attempt — the server must never generate it, or a retry would get a new key and defeat the whole point. The server stores it in a table keyed by that string, recording a status (`in_progress` / `completed`) and, once done, the actual result. The subtle case is a second request arriving *while the first is still running*: if the server only checks for a *completed* result, both requests race past the check and the transfer happens twice. The fix is to claim the key — write an `in_progress` row — before starting any work, as a single atomic operation (e.g. an `INSERT` with a unique constraint on the key). A second request that hits that constraint knows a transfer is already underway and should wait, poll, or return 409, but must never start a second transfer.'
+resources:
+  - title: 'FastAPI — Documentation'
+    url: 'https://fastapi.tiangolo.com/'
+    type: docs
+    note: 'The framework this chapter leans on for request/response models, dependency injection, and streaming — worth reading beyond what one chapter can cover.'
+  - title: 'Pydantic — Documentation'
+    url: 'https://docs.pydantic.dev/latest/'
+    type: docs
+    note: 'Covers validators, nested models, and settings management — the parts of Pydantic v2 this chapter did not have room for.'
+  - title: 'MDN — Using server-sent events'
+    url: 'https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events'
+    type: docs
+    note: 'The client side of SSE (EventSource) — this chapter only showed the server and a raw stream reader.'
+  - title: 'jwt.io — Introduction to JSON Web Tokens'
+    url: 'https://jwt.io/introduction'
+    type: docs
+    note: 'The canonical explanation of JWT structure, plus a debugger for decoding a real token to see its claims.'
+  - title: 'Stripe — Idempotent requests'
+    url: 'https://stripe.com/docs/api/idempotent_requests'
+    type: docs
+    note: 'A real, production idempotency-key design from a company where a duplicate request means a duplicate charge — this chapter''s hook, shipped.'
+  - title: 'Amazon Builders'' Library — Timeouts, retries, and backoff with jitter'
+    url: 'https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/'
+    type: blog
+    note: 'Goes well beyond this chapter on why naive retries make outages worse, and the several flavors of jitter used to fix it.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import RequestContract from '../../../components/diagrams/RequestContract.astro';
+import RetryIdempotencyTimeline from '../../../components/diagrams/RetryIdempotencyTimeline.astro';
+import StreamingTransports from '../../../components/diagrams/StreamingTransports.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+An **application programming interface**, or **API**, is a set of rules that lets two programs talk. One program sends a **request** asking for something. Another program sends back a **response** with the result or a clear error.
+
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="4 · APIs & services"
+  difficulty="Beginner"
+  duration="42 minutes"
+  prerequisites={[
+    "Python functions, classes, and JSON",
+    "Async Python and await",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+AI applications rarely contain only a model. A website may call an AI service, an AI service may call a model provider, and both may read data from other systems. APIs are the contracts that keep these programs working together.
+
+They also protect real users. A careful API rejects invalid data, limits overload, retries temporary failures safely, and avoids charging or processing the same request twice.
+
+<MainIdea>
+  An API is a written contract for a conversation between programs. A reliable
+  API defines valid requests and responses, checks identity and permissions,
+  controls traffic, and plans for messages that arrive late, twice, or not at
+  all.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+<AnalogyCard
+  title="An API is a restaurant menu"
+  limitation="A real network is less reliable than a waiter. Requests and replies can be delayed, lost, or repeated, so software needs explicit timeout and retry rules."
+>
+  The menu is the contract. It lists what you may order and what information
+  the kitchen needs. The waiter carries your order to the kitchen and brings
+  the result back.
+
+  A request that does not match the menu is rejected before the kitchen starts
+  cooking. In the same way, an API can reject invalid data before the main
+  handler function runs.
+</AnalogyCard>
+
+A **client** is the program making the request. A **server** is the program receiving it. An **endpoint** is one available destination, such as `POST /orders`. A **schema** describes the fields and data types that are allowed.
+
+A **status code** is a three-digit result label. For example, `200` means the request succeeded, `422` means the submitted data did not match the schema, and `429` means the client sent too many requests.
+
+<Figure id="00-04.1" label="THE REQUEST/RESPONSE CONTRACT" caption="— a Pydantic model checks the incoming JSON before your handler ever sees it. A mismatch never reaches your code: it short-circuits straight to a 422 with a field-level error. Only a request that matches the schema reaches the handler, whose return value is itself checked against a response model on the way back out.">
+  <RequestContract />
+</Figure>
+
+Read the diagram from left to right: the client sends JSON, Pydantic checks it, the handler performs the work, and FastAPI turns the result into an HTTP response. Essential information is repeated in the caption and surrounding text, so the flow does not depend on colour alone.
+
+## How it works
+
+**FastAPI + Pydantic v2** are how the contract in the diagram above gets enforced without you writing the checking code yourself. You declare the shape you expect as a class, and FastAPI wires it into the request path automatically:
+
+<CodeNotebook title="Create a validated order endpoint">
+
+```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Order(BaseModel):
+    item: str
+    quantity: int
+    price: float
+
+@app.post("/orders")
+async def create_order(order: Order):
+    return {"received": order.model_dump(), "total": round(order.quantity * order.price, 2)}
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+POST /orders with {"item": "keyboard", "quantity": 2, "price": 49.5}
+200 OK
+{"received": {"item": "keyboard", "quantity": 2, "price": 49.5}, "total": 99.0}
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "class Order(BaseModel)",
+      explanation: "Defines the request schema. Pydantic checks each incoming field against it.",
+    },
+    {
+      line: '@app.post("/orders")',
+      explanation: "Connects POST requests at /orders to the function below.",
+    },
+    {
+      line: "order: Order",
+      explanation: "Asks FastAPI to validate the JSON before calling the function.",
+    },
+    {
+      line: "order.model_dump()",
+      explanation: "Turns the validated Pydantic object into a normal Python dictionary.",
+    },
+  ]}
+/>
+
+`order: Order` is doing two jobs at once: it tells FastAPI to parse the request body as JSON, validate every field against the `Order` schema, and only then call `create_order` with a real, type-correct `Order` instance — and it tells FastAPI's auto-generated OpenAPI docs exactly what this endpoint expects, for free. If `quantity` arrives as `"two"` instead of `2`, none of that code runs; FastAPI has already returned a `422` with a message naming the exact field and the exact problem.
+
+**Auth: OAuth2 and JWTs.** Most real APIs need to know *who* is asking, not just *what* they're asking for. The common shape: a client logs in once against an auth endpoint and gets back a **token** — commonly a <Term id="jwt">JWT</Term> — then attaches it to every subsequent request as `Authorization: Bearer <token>`, instead of re-sending a password on every call. FastAPI's `OAuth2PasswordBearer` dependency handles the mechanical part of this — pulling that header out and making it available to your code — but *validating* the token is still your job.
+
+A JWT is three base64url-encoded segments joined by dots — `header.payload.signature` — and the important, easy-to-miss fact is in the middle segment:
+
+```text
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTQyIiwicm9sZSI6ImN1c3RvbWVyIn0.6QdXq_OV6av2eCHGSrF4ETy0YwmRkG4fKcLVHMNid9E
+└──────────── header ────────────┘ └──────────────── payload ────────────────┘ └──────────── signature ────────────┘
+```
+
+The payload is *encoded*, not *encrypted* — anyone holding the token can decode the middle segment and read the claims inside it with nothing more than a base64 decoder, no secret required. What the signature (the third segment) actually guarantees is narrower than people assume: it proves the payload hasn't been altered since the server signed it, *and only if the server's signing secret has stayed secret*. It says nothing about whether the payload should be trusted for a particular action — that's a separate check your code still has to make (e.g. does this token's `role` claim actually permit this operation?). Never put a real secret or password inside a JWT payload — it is exactly as readable as if you'd sent it in plain text.
+
+**Rate limiting** protects a service from being asked to do more work than it can handle, whether that's abuse or just a legitimate traffic spike. A common, simple approach is the <Term id="token-bucket">token bucket</Term>: a bucket holds up to `capacity` tokens, refills at a fixed rate, and every request has to take one token to proceed. Run dry, and the server replies `429 Too Many Requests` — usually with a `Retry-After` header — until the bucket refills. The useful property, compared to a plain "N requests per second" counter, is that it still allows a short burst up to the bucket's capacity while capping the *average* rate over time — a real client doesn't call at a perfectly even cadence, and a token bucket doesn't punish it for that.
+
+**Retries with exponential backoff.** A request can fail for reasons that have nothing to do with whether it was well-formed: the server is momentarily overloaded, a network hop drops a packet, a connection times out. The correct client response to a *transient* failure is usually to retry — but retrying immediately, in a tight loop, is close to the worst thing a client can do to a struggling server, because it adds load at exactly the moment the server has the least of it to spare. <Term id="exponential-backoff">Exponential backoff</Term> waits progressively longer between attempts — `0.5s, 1s, 2s, 4s, ...` — instead of retrying instantly, and real implementations add **jitter**, a random amount added to (or substituted for) each delay, so that many clients who failed at the same moment don't all retry in lockstep and recreate the exact spike that caused the failure.
+
+**Idempotency** is what makes a retry *safe* rather than merely *polite*. An operation is idempotent if doing it twice has the same effect as doing it once — `PUT /users/42 {"name": "Alex"}` is idempotent by definition: setting the name to "Alex" a second time changes nothing further. `POST /charge {"amount": 50}` is not: doing it twice charges the card twice. For non-idempotent operations, the fix is an <Term id="idempotency-key">idempotency key</Term> — a value the client generates once and sends on the original request *and every retry of it*. The server, on first seeing that key, does the work and stores the result against it; on seeing it again, it returns the stored result instead of doing the work a second time.
+
+<Figure id="00-04.2" label="WHY THE DOUBLE CHARGE HAPPENED" caption="— top: a client retries a timed-out request with no idempotency key. The first attempt actually succeeded server-side; the client just never saw the reply. The retry looks like a brand-new charge to the server, because nothing marks it as a repeat. Bottom: the same timeline, but both attempts carry the same idempotency key — the server recognizes the retry and returns the cached result instead of charging again.">
+  <RetryIdempotencyTimeline />
+</Figure>
+
+**Streaming: polling, SSE, and WebSockets.** Not every response is ready instantly, and not every client interaction fits a single request/response pair. Three shapes cover almost every case:
+
+<Figure id="00-04.3" label="THREE WAYS TO GET DATA OVER TIME" caption="— polling repeats a full request/response round trip, mostly receiving empty replies, until the answer is ready. Server-Sent Events open one connection and let the server push chunks down it as they become available — one direction only, which is exactly the shape an LLM uses to stream tokens. A WebSocket opens one connection where either side can send at any time — needed when the client has to talk back mid-conversation, not just receive.">
+  <StreamingTransports />
+</Figure>
+
+<Term id="server-sent-events">Server-Sent Events</Term> (SSE) run over a plain HTTP response with `Content-Type: text/event-stream` — the server keeps the connection open and writes `data: ...\n\n` lines as they become available, and the client reads them as a stream instead of waiting for one complete body. It only flows one way, server to client, which is precisely the shape of an LLM producing an answer token by token: the client never needs to send anything back mid-stream. A WebSocket, by contrast, is a genuinely bidirectional connection — needed when the client has to send more messages on the same connection *during* the exchange, like a chat interface where either side can speak at any time.
+
+## A worked example
+
+Trace `backoff_delay(attempt) = min(cap, base * 2^(attempt - 1))` with `base=0.5s`, `cap=4.0s`, across five attempts, and see where jitter changes the picture:
+
+| Attempt | Delay before this attempt (no jitter) | With full jitter — `random(0, delay)` |
+|---|---|---|
+| 1 | 0s (first try, no wait) | — |
+| 2 | 0.5s | somewhere in `[0s, 0.5s]` |
+| 3 | 1.0s | somewhere in `[0s, 1.0s]` |
+| 4 | 2.0s | somewhere in `[0s, 2.0s]` |
+| 5 | 4.0s (capped — `0.5 * 2^4 = 8.0` would exceed `cap`) | somewhere in `[0s, 4.0s]` |
+
+Without jitter, a thousand clients that all failed at `t=0` because a server briefly choked would all retry again at *exactly* `t=0.5s`, then all again at *exactly* `t=1.5s`, and so on — a thousand-request spike, on a schedule, hitting a server that just proved it couldn't handle the load a moment ago. With jitter, those thousand retries land at any point across each window instead of one instant, which is the entire reason jitter is worth the extra line of code.
+
+Now trace the double-charge bug itself as a small ledger. The client sends `POST /charge` with `Idempotency-Key: order-abc`; the response is lost in transit; the client retries with the *same* key:
+
+| Step | Server-side ledger for key `order-abc` | Client sees |
+|---|---|---|
+| 1st attempt arrives | not present → server charges the card, stores `{charge_id: 1}` against the key | reply lost — client thinks it failed |
+| Client retries (same key) | key *is* present → server returns the stored `{charge_id: 1}`, does not charge again | `charge_id: 1` |
+| **Total real charges** | **1** | — |
+
+Drop the idempotency key from that trace and the second row reads "not present → server charges the card again, stores `{charge_id: 2}`" — two real charges for one purchase, exactly the support ticket this chapter opened with.
+
+## Try it
+
+First, a real FastAPI service — Pydantic validation, a rejected request, and a real SSE stream — running end to end with no server anywhere except an in-memory ASGI transport (`httpx.ASGITransport`), which calls the app directly without opening a real socket:
+
+<PyRunner
+  client:idle
+  id="00-04.A"
+  label="A REAL FASTAPI SERVICE, VALIDATED AND STREAMED"
+  packages={["micropip"]}
+  code={`import micropip
+await micropip.install(["fastapi", "httpx"])
+
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+import httpx, asyncio
+
+app = FastAPI()
+
+class Order(BaseModel):
+    item: str
+    quantity: int
+    price: float
+
+@app.post("/orders")
+async def create_order(order: Order):
+    return {"received": order.model_dump(), "total": round(order.quantity * order.price, 2)}
+
+async def token_stream():
+    for word in ["The", " order", " is", " confirmed", "."]:
+        await asyncio.sleep(0.15)
+        yield f"data: {word}\\n\\n"
+
+@app.get("/orders/confirm-stream")
+async def confirm_stream():
+    return StreamingResponse(token_stream(), media_type="text/event-stream")
+
+transport = httpx.ASGITransport(app=app)
+async with httpx.AsyncClient(transport=transport, base_url="http://api.internal") as client:
+    good = await client.post("/orders", json={"item": "keyboard", "quantity": 2, "price": 49.5})
+    print("valid request  ->", good.status_code, good.json())
+
+    bad = await client.post("/orders", json={"item": "keyboard", "quantity": "two", "price": 49.5})
+    print("invalid request ->", bad.status_code, bad.json())
+
+    print()
+    print("streaming response, chunk by chunk, as it actually arrives:")
+    async with client.stream("GET", "/orders/confirm-stream") as r:
+        async for line in r.aiter_lines():
+            if line:
+                print(" ", line)
+
+# Try: change "two" back to a real int, and watch the second request pass instead.
+# Try: add a field FastAPI hasn't seen, like "currency": "usd", to the Order model
+# and to the request, then delete it from one side only — see which way it breaks.`}
+/>
+
+Next, a JWT issued, read without a secret, verified with one, and rejected after tampering:
+
+<PyRunner
+  client:idle
+  id="00-04.B"
+  label="JWTS: SIGNED, NOT SECRET"
+  packages={["micropip"]}
+  code={`import micropip
+await micropip.install(["pyjwt"])
+import jwt, time, base64, json
+
+secret = "the-servers-signing-secret-keep-this-safe"
+payload = {"sub": "user-42", "role": "customer", "exp": int(time.time()) + 3600}
+token = jwt.encode(payload, secret, algorithm="HS256")
+print("issued token:", token)
+
+header_b64, payload_b64, sig_b64 = token.split(".")
+padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+readable = json.loads(base64.urlsafe_b64decode(padded))
+print()
+print("the payload needs no secret to read — anyone holding the token sees:", readable)
+
+verified = jwt.decode(token, secret, algorithms=["HS256"])
+print()
+print("the server verifies it with its secret ->", verified)
+
+tampered_payload = dict(payload, role="admin")
+tampered_payload_b64 = base64.urlsafe_b64encode(json.dumps(tampered_payload).encode()).decode().rstrip("=")
+tampered_token = f"{header_b64}.{tampered_payload_b64}.{sig_b64}"
+try:
+    jwt.decode(tampered_token, secret, algorithms=["HS256"])
+    print("tampered token accepted (this should not happen)")
+except jwt.InvalidSignatureError as e:
+    print()
+    print("tampered token rejected:", repr(e))
+
+# Try: change "role": "customer" to "role": "admin" in the *original* payload
+# and re-encode with the real secret — that's a legitimate, signed token, and
+# it decodes fine. The signature only proves the payload wasn't altered
+# *after* signing; it says nothing about whether "admin" should have been
+# granted in the first place. That check still belongs to your own code.`}
+/>
+
+Now the bug from the top of this chapter, reproduced directly — the same retry logic, run once with an idempotency key and once without:
+
+<PyRunner
+  client:idle
+  id="00-04.C"
+  label="THE DOUBLE-CHARGE BUG, WITH AND WITHOUT AN IDEMPOTENCY KEY"
+  code={`import asyncio
+
+charge_ledger = {}   # lives on the "server": idempotency key -> result
+charge_count = 0
+
+async def server_charge(amount, key, use_key):
+    global charge_count
+    if use_key and key in charge_ledger:
+        return {"charge_id": charge_ledger[key]["charge_id"], "cached": True}
+    await asyncio.sleep(0.05)          # the actual card-network call
+    charge_count += 1
+    result = {"charge_id": charge_count, "cached": False}
+    if use_key:
+        charge_ledger[key] = result
+    return result
+
+DROPPED_ATTEMPTS = {1}   # attempt 1's reply never reaches the client — a real, common failure
+
+async def client_call(amount, key, attempt, use_key):
+    result = await server_charge(amount, key, use_key)
+    if attempt in DROPPED_ATTEMPTS:
+        return None      # the client never sees this reply, even though the server finished
+    return result
+
+async def pay_with_retries(amount, key, use_key):
+    delay = 0.3
+    for attempt in (1, 2, 3):
+        result = await client_call(amount, key, attempt, use_key)
+        if result is not None:
+            print(f"  attempt {attempt}: server replied {result}")
+            return result
+        print(f"  attempt {attempt}: no reply reached the client (dropped) — retrying in {delay}s")
+        await asyncio.sleep(delay)
+        delay *= 2
+    raise RuntimeError("gave up")
+
+print("WITHOUT an idempotency key:")
+await pay_with_retries(49.99, "order-abc", use_key=False)
+print("actual charges made:", charge_count)
+
+charge_count = 0
+charge_ledger.clear()
+print()
+print("WITH an idempotency key:")
+await pay_with_retries(49.99, "order-abc", use_key=True)
+print("actual charges made:", charge_count)
+
+# Try: remove "DROPPED_ATTEMPTS" entirely (set it to an empty set) — attempt 1
+# now succeeds and there's no retry at all. The bug only shows up when a
+# reply is lost, which is exactly why it's easy to miss in testing.`}
+/>
+
+Last, a token bucket rate limiter — tune the capacity and refill rate and watch when `429` starts:
+
+<PyRunner
+  client:idle
+  id="00-04.D"
+  label="A TOKEN BUCKET RATE LIMITER"
+  code={`import time, asyncio
+
+class TokenBucket:
+    def __init__(self, capacity, refill_rate):
+        self.capacity = capacity
+        self.tokens = float(capacity)
+        self.refill_rate = refill_rate     # tokens added per second
+        self.last_check = time.monotonic()
+
+    def allow(self):
+        now = time.monotonic()
+        elapsed = now - self.last_check
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
+        self.last_check = now
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return True
+        return False
+
+bucket = TokenBucket(capacity=3, refill_rate=1)   # allow a burst of 3, then 1/sec
+
+for i in range(5):
+    ok = bucket.allow()
+    print(f"request {i + 1}: {'200 OK' if ok else '429 Too Many Requests'} (tokens left: {bucket.tokens:.2f})")
+
+print("waiting 1.2s for the bucket to refill...")
+await asyncio.sleep(1.2)
+ok = bucket.allow()
+print(f"request 6: {'200 OK' if ok else '429 Too Many Requests'} (tokens left: {bucket.tokens:.2f})")
+
+# Try: raise capacity to allow a bigger burst, or raise refill_rate so the
+# bucket recovers faster — watch exactly which request number starts failing.`}
+/>
+
+## Production reality
+
+<RealWorldExample
+  title="A document assistant calling a hosted model"
+  steps={[
+    "The browser sends a validated question to the assistant API.",
+    "The API checks the user's token and permissions.",
+    "The service calls the model with a timeout.",
+    "A transient failure triggers bounded backoff with jitter.",
+    "The model's answer streams to the browser with SSE.",
+    "Logs record timing and status, but never the user's token.",
+  ]}
+>
+  A user submits a question. The assistant must call a model service that can
+  be slow, temporarily unavailable, or rate limited.
+
+The user sees the answer arrive progressively, while the service remains safe under temporary failure or heavy traffic.
+</RealWorldExample>
+
+Every FastAPI service the fixtures in this course describe — and every real LLM API you'll call in Layer 4 — is built from exactly these pieces, under real constraints:
+
+- **Idempotency keys cost storage and a design decision, not just a header.** Stripe's real idempotency implementation (see Resources) keeps a stored key for 24 hours and explicitly documents what happens if you reuse a key with a *different* request body — it's treated as a client bug, not honoured, because the whole guarantee depends on the key meaning "the same request," not "some request."
+- **A JWT's short expiry is doing real work.** Because a JWT can't be revoked the way a server-side session can — the server has no record of it beyond the fact that its signature checks out — a leaked token stays valid until it expires. Real systems keep expiries short (minutes to a few hours) and pair a long-lived JWT-issuing flow with a separate, revocable refresh token, precisely so a leak has a small blast radius.
+- **429 without `Retry-After` just moves the guessing to the client.** A well-behaved rate limiter tells the client how long to wait, not just that it should; a well-behaved client reads that header instead of guessing its own backoff schedule against a server it knows nothing about.
+- **Retries interact badly with things that aren't idempotent, in ways that are easy to ship by accident.** A generic "retry on any 5xx" middleware, bolted onto a client library after the fact, will retry a POST exactly as happily as a GET unless someone explicitly taught it the difference — the bug in this chapter's hook is usually not a missing feature, it's a *default* nobody thought to turn off for the one endpoint where it matters.
+- **Streaming changes your error handling, not just your response type.** A normal request either succeeds or fails as a whole; a stream can fail *after* it's already sent the client half an answer. Production SSE endpoints need a defined way to signal "the rest of this didn't arrive" mid-stream, not just a clean success/failure split.
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: 'Adding a client-side retry loop for resilience, without checking whether the operation being retried is idempotent.',
+      fix: 'Retrying is only free resilience for idempotent operations (GET, PUT) or ones protected by an idempotency key. For anything else — most POSTs — a naive retry loop turns a transient network blip into a duplicated side effect, exactly like this chapter\'s opening bug.',
+    },
+    {
+      mistake: 'Treating a JWT\'s signature as proof that the request is authorized to do what it\'s asking, rather than proof the payload wasn\'t altered.',
+      fix: 'A valid signature only means the claims are genuinely what the server originally signed. Whether those claims actually permit this specific action is a separate authorization check your own code still has to make on every request — a syntactically valid token from a legitimately logged-in low-privilege user is not the same as a token allowed to do this.',
+    },
+    {
+      mistake: 'Retrying immediately in a tight loop ("just call it again") when a request fails, instead of backing off.',
+      fix: 'Immediate, synchronized retries add load at exactly the moment a struggling server has the least capacity to spare, which can turn a brief blip into an extended outage. Exponential backoff with jitter spaces retries out, both over time and across the many clients failing at once.',
+    },
+    {
+      mistake: 'Assuming a 429 or a timeout means the request definitely didn\'t happen server-side.',
+      fix: 'A timeout only means the *client* didn\'t get a reply in time — the server may have completed the work anyway, as in this chapter\'s worked example. Never treat "I didn\'t get a response" as equivalent to "nothing happened"; that gap is exactly what idempotency keys exist to close.',
+    },
+    {
+      mistake: 'Choosing a WebSocket for a problem that\'s actually one-directional, like streaming an LLM\'s answer to the client.',
+      fix: 'A WebSocket buys bidirectional messaging at the cost of a stickier, stateful connection your infrastructure has to manage (load balancers, reconnect logic, backpressure on both sides). If the server only ever pushes and the client never talks back mid-stream, SSE gets the same "watch it arrive" experience over plain HTTP, with far less to build and operate.',
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: 'A client sends `quantity: "two"` where the schema requires an integer. What should FastAPI return?',
+      options: ["200 OK", "422 Unprocessable Entity", "429 Too Many Requests"],
+      answer: 1,
+      explanation: "Pydantic validation fails before the handler runs, so FastAPI returns a field-level 422 response.",
+    },
+    {
+      question: "What does a valid JWT signature prove?",
+      options: [
+        "The payload is secret",
+        "The user may perform every action",
+        "The signed payload has not been changed",
+      ],
+      answer: 2,
+      explanation: "A signature detects alteration. It neither encrypts the readable payload nor replaces an authorisation check.",
+    },
+    {
+      question: "Why add jitter to exponential backoff?",
+      options: [
+        "To spread different clients' retries across time",
+        "To guarantee every request succeeds",
+        "To make the API response larger",
+      ],
+      answer: 0,
+      explanation: "Randomised timing prevents many clients from retrying together and creating another traffic spike.",
+    },
+    {
+      question: "A payment request timed out, but the server may have completed it. What makes an automatic retry safe?",
+      options: [
+        "A longer JSON body",
+        "The same idempotency key on both attempts",
+        "Changing POST to WebSocket",
+      ],
+      answer: 1,
+      explanation: "The shared key lets the server recognise the retry and return the stored result instead of charging again.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Make a retry delay calculator"
+  time="10–20 minutes"
+  goal="Write and test a capped exponential-backoff function."
+  steps={[
+    "Copy the starter function.",
+    "Return base * 2 raised to attempt - 1.",
+    "Use min so the delay never exceeds cap.",
+    "Print the delays for attempts 1 through 6.",
+    "Check that the sequence stops growing after it reaches the cap.",
+  ]}
+  expected="With base 0.5 and cap 4.0, print 0.5, 1.0, 2.0, 4.0, 4.0, 4.0."
+  challenge="Add full jitter by returning a random value between zero and the capped delay."
+>
+
+Starter code:
+
+```python
+def backoff_delay(attempt: int, base: float = 0.5, cap: float = 4.0) -> float:
+    # Replace this line.
+    return 0.0
+
+
+for attempt in range(1, 7):
+    print(backoff_delay(attempt))
+```
+
+```python
+def backoff_delay(attempt: int, base: float = 0.5, cap: float = 4.0) -> float:
+    delay = base * 2 ** (attempt - 1)
+    return min(delay, cap)
+
+
+for attempt in range(1, 7):
+    print(backoff_delay(attempt))
+```
+
+The exponent doubles the delay after each failed attempt. `min` applies the safety cap so a later retry does not wait forever.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    'FastAPI + Pydantic enforce a request/response contract mechanically — a malformed request never reaches your handler code; it fails fast with a 422 before your function is ever called.',
+    'A JWT\'s signature proves its payload wasn\'t altered since signing; it does not hide the payload\'s contents (base64 is readable by anyone) and it does not prove the request is authorized — that check is still yours to make.',
+    'Exponential backoff with jitter exists because retrying immediately, in lockstep with every other failing client, can turn a brief blip into a sustained outage.',
+    'A retry is only automatically safe for idempotent operations; for anything with a real side effect, an idempotency key is what prevents a lost reply from becoming a duplicated action.',
+    'Streaming is a spectrum — polling (simplest, wasteful), SSE (one-directional push, what LLM token streams use), WebSocket (full duplex) — and the right choice depends on whether the client ever needs to talk back mid-stream.',
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is an API?",
+      back: "A contract that defines how programs send requests and receive responses.",
+    },
+    {
+      front: "What is an endpoint?",
+      back: "One API destination, identified by an HTTP method and path.",
+    },
+    {
+      front: "What does Pydantic do in FastAPI?",
+      back: "It validates incoming data against a declared schema.",
+    },
+    {
+      front: "What is exponential backoff?",
+      back: "A retry strategy that waits progressively longer between attempts.",
+    },
+    {
+      front: "What is an idempotency key?",
+      back: "A client-generated value that lets a server recognise repeated attempts of the same operation.",
+    },
+    {
+      front: "When is SSE a good choice?",
+      back: "When a server must push a one-way stream, such as model tokens, to a client.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Trace a valid FastAPI request from incoming JSON to the final response.",
+    "Explain what a JWT signature proves and what it does not prove.",
+    "Why can an immediate retry make an overloaded service less reliable?",
+    "Compare polling, Server-Sent Events, and WebSockets for an AI response.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="APIs & services"
+  terms={[
+    "API — a conversation contract",
+    "Schema — allowed data shape",
+    "JWT — signed identity claims",
+    "Backoff — increasing retry delay",
+    "Idempotency key — duplicate protection",
+    "SSE — one-way server stream",
+  ]}
+  mistakes={[
+    "Do not retry side effects without duplicate protection",
+    "Do not put secrets inside JWT payloads",
+    "Do not retry immediately in a tight loop",
+    "Do not use WebSockets when one-way streaming is enough",
+  ]}
+  takeaways={[
+    "Validate at the boundary",
+    "Authorise every protected action",
+    "Back off and add jitter",
+    "Design retries and idempotency together",
+    "Choose the smallest streaming tool that fits",
+  ]}
+  questions={[
+    "Where does validation happen?",
+    "Could this request safely run twice?",
+    "Does the client need to send during the stream?",
+  ]}
+>
+  <p slot="main">
+    Reliable APIs make the happy path clear and the failure path safe. Their
+    contracts cover data, identity, traffic, retries, and streaming.
+  </p>
+  <div slot="diagram">
+    <RequestContract />
+  </div>
+  <pre slot="code">
+    <code>{`@app.post("/orders")
+async def create_order(order: Order):
+    return {"total": order.quantity * order.price}`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="apis-and-services"
+  items={[
+    "I can explain a request and response in plain English.",
+    "I traced the request-contract diagram.",
+    "I can explain why JWT payloads are not secret.",
+    "I compared polling, SSE, and WebSockets.",
+    "I completed the knowledge check.",
+    "I attempted the retry practice activity.",
+    "I reviewed the flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="data-and-storage"
+  title="Data & storage"
+  why="A service that validates requests and streams responses still has to put something somewhere — next: SQL, transactions, indexing, pgvector, caching, and the message queues that keep a slow job off the request path."
+/>
