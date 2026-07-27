@@ -6,14 +6,21 @@ slug: 'async-python'
 subtitle: 'How to run many slow calls at once instead of one after another — the pattern almost every agent depends on.'
 depth: build
 difficulty: beginner
-readingTime: 22
+readingTime: 38
 prerequisites:
   - python-for-ai-engineering
+skillsGained:
+  - 'Explain when async Python is useful'
+  - 'Write and await a small coroutine'
+  - 'Run independent waits concurrently'
+  - 'Limit concurrent work with a semaphore'
+  - 'Add a timeout and clean up cancelled work'
 objectives:
-  - 'Explain why most AI code is I/O-bound, and why that makes waiting — not raw CPU speed — the thing worth optimising'
-  - 'Write coroutines with async/await and run several of them concurrently with asyncio.gather instead of one after another'
-  - 'Bound concurrency with a semaphore and stop a hung call with a timeout, so one slow dependency cannot hang your whole program'
-  - 'Cancel a running task cleanly, including releasing resources in a finally block'
+  - 'Explain the difference between waiting and computing'
+  - 'Identify work that benefits from async Python'
+  - 'Write a coroutine with async def and await'
+  - 'Compare sequential waiting with concurrent waiting'
+  - 'Apply a semaphore, timeout, and cleanup block'
 concepts:
   - coroutine
   - event-loop
@@ -24,6 +31,9 @@ diagrams:
   - EventLoopDiagram
 interactives:
   - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
 codeExamples: 9
 exercises:
   - prompt: 'You have three async functions, `fetch_a()`, `fetch_b()`, `fetch_c()`, each of which awaits `asyncio.sleep(1)` and returns a string. Write the code to run all three concurrently and print the total time taken.'
@@ -49,45 +59,73 @@ resources:
     type: blog
     note: 'A slower, example-heavy walkthrough if this chapter''s pace feels too fast, including the history of why Python''s async model looks the way it does.'
 status: published
-updated: 2026-07-26
+updated: 2026-07-27
 ---
 
 import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
 import ConcurrencyTimeline from '../../../components/diagrams/ConcurrencyTimeline.astro';
 import EventLoopDiagram from '../../../components/diagrams/EventLoopDiagram.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
 
-Your support-ticket bot needs three answers before it can reply: the user's plan tier, their last five tickets, and a classification of the new one. You write the obvious code:
+AI applications spend a lot of time waiting.
 
-```python
-import time
+They wait for a model, a database, a file, or another service to reply. Async Python lets the program use that waiting time to make progress on other work.
 
-def call_api(name, seconds):
-    time.sleep(seconds)          # standing in for a real network call
-    return f"{name}: done"
+It does not make the model faster. It stops one wait from unnecessarily blocking every other independent wait.
 
-start = time.perf_counter()
-for name, secs in [("plan", 1), ("history", 1), ("classify", 1)]:
-    print(call_api(name, secs))
-print(f"total: {time.perf_counter() - start:.1f}s")
-```
-```text
-plan: done
-history: done
-classify: done
-total: 3.0s
-```
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="2 · Async Python"
+  difficulty="Beginner"
+  duration="38 minutes"
+  prerequisites={[
+    "Python variables, lists, loops, and functions",
+    "Python foundations for AI applications",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
 
-Three seconds — and your CPU did almost nothing in any of them. Each call is a network round trip: your code sends a request, then sits there, doing nothing, until a reply arrives. Sitting and doing nothing is **waiting**, and it is, by a wide margin, the most common thing an AI application spends its time doing — waiting on a model, a vector database, a tool call. This chapter is about not wasting the wait.
+## Why this matters
 
-<Prerequisites data={frontmatter} />
+Imagine a support assistant that needs a customer's plan, recent tickets, and a classification of their new message. Those three requests are independent. Waiting for each one before starting the next creates a slower answer.
+
+Async code can start all three waits together while still limiting traffic and handling slow services safely.
+
+<MainIdea>
+  Async Python reorganises waiting. When one task reaches an `await`, it pauses
+  and lets another ready task make progress. This is useful for network and file
+  operations, but it does not speed up heavy calculation.
+</MainIdea>
 
 <Objectives data={frontmatter} />
 
 ## The intuition
 
-Picture one chef, one kitchen, one oven — a single pair of hands. She has three dishes to cook, each of which needs ten minutes in the oven. A bad chef puts dish A in, then stands and stares at the oven door for ten minutes before even starting dish B. A good chef puts dish A in, and while it bakes, starts prepping dish B; when there's oven space, B goes in too; she starts C while both bake. She still only ever does one physical thing at any single instant — she never chops two vegetables at the same time — but she is never standing idle while an oven does the waiting for her.
+<AnalogyCard
+  title="One cook, several dishes in the oven"
+  limitation="The cook still has one pair of hands. Async concurrency is not the same as several CPU cores calculating in parallel."
+>
+  Picture one cook preparing three dishes. Each dish spends time in the oven. The cook does not stare at the first oven timer before starting the next dish. While one dish waits, the cook prepares another.
 
-That is the whole idea of <Term id="coroutine">async</Term> Python: one thread that never sits idle while something else — a network reply, a timer, a disk read — is "in the oven." Say plainly where the analogy stops: this is not three chefs working at once. Real parallelism (multiple CPU cores actually computing simultaneously, covered with multiprocessing and distributed training in later layers) is a different tool for a different problem. One chef gains nothing from this trick if none of her dishes ever go in an oven — if everything is chopping, all the time, with nothing to wait on, there is no idle time to reclaim. That is precisely why async is such a good fit for AI applications: an agent spends most of its life waiting for an LLM API, a vector store, or a tool to respond, and comparatively little time actually computing anything itself.
+Async Python follows the same pattern. One task pauses while it waits for a reply, and the program gives attention to another ready task.
+
+</AnalogyCard>
+
+A <Term id="coroutine">coroutine</Term> is a Python function that can pause and resume. It is written with `async def`.
+
+**Concurrency** means several tasks make progress during the same period. It does not mean they execute Python instructions at exactly the same instant.
 
 <Figure id="00-02.1" label="SEQUENTIAL VS CONCURRENT WAITING" caption="— three calls, each waiting about one second for a reply. Awaited one after another, the wait time stacks up: 3.0s. Started together with asyncio.gather, the same three waits overlap: ~1.0s. Nothing here got computed faster — the waiting itself got reorganised.">
   <ConcurrencyTimeline />
@@ -138,6 +176,64 @@ results = await asyncio.gather(
 ```
 
 `gather` schedules all three as tasks right away, then waits for all of them to finish. Because each one spends its second *waiting*, not computing, the loop interleaves them — all three waits overlap — so the wall-clock total is close to the slowest one (about 1s), not the sum of all three (3s). Results come back in the order you passed the coroutines in, regardless of which one actually finished first.
+
+## A small complete example
+
+<CodeNotebook title="Fetch three independent pieces of support data">
+
+```python
+import asyncio
+
+
+async def fetch(name, seconds):
+    await asyncio.sleep(seconds)
+    return f"{name}: ready"
+
+
+async def main():
+    results = await asyncio.gather(
+        fetch("plan", 1),
+        fetch("history", 1),
+        fetch("classification", 1),
+    )
+    print(results)
+
+
+asyncio.run(main())
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+['plan: ready', 'history: ready', 'classification: ready']
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "async def fetch(name, seconds):",
+      explanation: "Defines a coroutine that is allowed to pause.",
+    },
+    {
+      line: "await asyncio.sleep(seconds)",
+      explanation: "Represents an external wait and gives control back to the event loop.",
+    },
+    {
+      line: "await asyncio.gather(...)",
+      explanation: "Starts the three independent coroutines and waits for every result.",
+    },
+    {
+      line: "asyncio.run(main())",
+      explanation: "Creates an event loop for a normal Python script and runs main to completion.",
+    },
+  ]}
+/>
+
+Common modifications include adding another `fetch(...)` call, giving calls different delays, or wrapping each call in a timeout.
 
 Real APIs come with limits, so unlimited concurrency is not always safe. A <Term id="semaphore">semaphore</Term> caps how many coroutines may be past a certain point at once:
 
@@ -271,6 +367,21 @@ await main()
 
 Nearly every LLM client and web framework you will use is built on this. FastAPI request handlers, `AsyncOpenAI`-style SDK clients, and agent frameworks are all async underneath, for the same reason: a server handling many users at once needs exactly this pattern — lots of I/O-bound waiting, happening concurrently, without spinning up a thread per request.
 
+<RealWorldExample
+  title="Building one support-assistant response"
+  steps={[
+    "Receive the customer's message",
+    "Fetch account and ticket data concurrently",
+    "Respect service concurrency limits",
+    "Cancel calls that exceed their timeout",
+    "Combine the checked results for the model",
+  ]}
+>
+  The assistant needs data from several services before it can construct a prompt. Independent reads can overlap, but each dependency still needs a concurrency limit and timeout.
+
+If ticket history fails, the application can log that failure and choose a safe fallback instead of waiting forever or silently passing incomplete data to the model.
+</RealWorldExample>
+
 A few things this chapter's toy examples hide, which matter the moment you ship:
 
 - **Unbounded concurrency gets you rate-limited.** `asyncio.gather` on ten thousand coroutines will fire ten thousand requests at once. Real providers respond with `429 Too Many Requests` long before that, and you have gained nothing over a much smaller, well-chosen concurrency limit. A semaphore (or a small pool of workers pulling from a queue) is not an optimisation here — it is what keeps you under the provider's actual limits.
@@ -307,32 +418,112 @@ That last point has a sharper, more dangerous version: mixing a genuinely blocki
 
 <Exercises data={frontmatter} />
 
-## Checkpoint
+## Knowledge check
 
-<Checkpoint
+<QuizCard
+  client:load
   questions={[
     {
-      q: 'Three calls each do time.sleep(1) sequentially and take 3 seconds total. Three calls each do await asyncio.sleep(1) concurrently via gather and take about 1 second. What is actually different?',
-      a: 'time.sleep really blocks the one thread you have — nothing else can happen during it. await asyncio.sleep(1) yields control back to the event loop for that second, so the loop runs the other two coroutines\' sleeps during the same second. Wall-clock time ends up close to the longest single wait, not the sum of all of them.',
+      question: "Which task is the best fit for async Python?",
+      options: [
+        "Waiting for three independent API responses",
+        "Training a neural network on one CPU core",
+        "Multiplying two small numbers",
+      ],
+      answer: 0,
+      explanation: "Async is most useful when work spends time waiting for external input or output.",
     },
     {
-      q: 'What determines whether async will actually make a piece of code faster?',
-      a: 'How much of its time is spent waiting on something outside the CPU — network, disk, a timer — versus how much is spent computing. Async helps I/O-bound work a great deal; it does nothing for CPU-bound work, since one thread still only executes one instruction at a time. CPU-bound speedups need multiprocessing or a different service entirely.',
+      question: "What happens when a coroutine reaches await on unfinished I/O?",
+      options: [
+        "The whole program must stop",
+        "It pauses so another ready task can run",
+        "Python creates a new processor",
+      ],
+      answer: 1,
+      explanation: "The event loop parks the waiting coroutine and gives another ready task a turn.",
     },
     {
-      q: 'Why add a semaphore around concurrent API calls instead of just calling asyncio.gather on all of them?',
-      a: 'Unlimited concurrency can trip a provider\'s rate limit or exhaust local resources like sockets. A semaphore caps how many calls are ever in flight at the same instant while still letting up to that many run concurrently — bounded concurrency, not none.',
+      question: "Why place a semaphore around model requests?",
+      options: [
+        "To make each model calculate faster",
+        "To limit how many requests are in flight",
+        "To convert text into tokens",
+      ],
+      answer: 1,
+      explanation: "A semaphore bounds concurrency so the application does not overwhelm a provider or its own connections.",
     },
     {
-      q: 'What actually happens when a task is cancelled (directly, or via a timeout), and why does a finally block matter?',
-      a: 'Cancellation is cooperative, not immediate: it raises asyncio.CancelledError inside the task at its next await point, so the task keeps running until it reaches one. Any cleanup that must happen regardless — closing a connection, releasing a lock — belongs in a finally block, since that still runs as the CancelledError propagates through.',
-    },
-    {
-      q: 'Why does one genuinely blocking call inside an async function freeze every other concurrent coroutine, not just that one?',
-      a: 'There is still only one thread. A real blocking call does not yield control back to the event loop the way await does — it occupies the only thread the loop has, so no other coroutine can run until it returns, no matter how many were scheduled.',
+      question: "Where should required cleanup happen when a task may be cancelled?",
+      options: [
+        "Inside a finally block",
+        "Only after asyncio.run",
+        "Inside an unrelated task",
+      ],
+      answer: 0,
+      explanation: "A finally block runs while cancellation unwinds the coroutine, making it the right place to release resources.",
     },
   ]}
 />
+
+## Practice activity
+
+<PracticeActivity
+  title="Fetch three mock AI resources concurrently"
+  time="10–20 minutes"
+  goal="Write a small async program that overlaps three independent waits."
+  steps={[
+    "Import asyncio.",
+    "Complete the fetch function so it waits without blocking.",
+    "Use asyncio.gather to fetch profile, history, and policy.",
+    "Print the returned list.",
+    "Run the program and confirm the result order.",
+  ]}
+  expected={`['profile: ready', 'history: ready', 'policy: ready']`}
+  challenge="Give policy a two-second delay, then add a timeout that returns a fallback value."
+>
+
+Starter code:
+
+```python
+import asyncio
+
+
+async def fetch(name, delay):
+    # Pause without blocking, then return "{name}: ready"
+    pass
+
+
+async def main():
+    # Run the three fetch calls concurrently.
+    pass
+
+
+asyncio.run(main())
+```
+
+```python
+import asyncio
+
+
+async def fetch(name, delay):
+    await asyncio.sleep(delay)
+    return f"{name}: ready"
+
+
+async def main():
+    results = await asyncio.gather(
+        fetch("profile", 1),
+        fetch("history", 1),
+        fetch("policy", 1),
+    )
+    print(results)
+
+
+asyncio.run(main())
+```
+
+</PracticeActivity>
 
 ## Key takeaways
 
@@ -343,6 +534,106 @@ That last point has a sharper, more dangerous version: mixing a genuinely blocki
     'A semaphore bounds how many calls are in flight at once — essential the moment you call a real, rate-limited API instead of a toy example.',
     'Timeouts (asyncio.wait_for) and cancellation (cleaned up in finally) stop one hung call from hanging your whole program — never ship an unbounded-wait network call.',
     'A single blocking call inside an async function freezes every other concurrent coroutine, because there is still only one thread — this is the most common way async code breaks in production.',
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is a coroutine?",
+      back: "A function that can pause and resume, usually defined with async def.",
+    },
+    {
+      front: "What does await mean?",
+      back: "Pause this coroutine until the awaited work is ready, allowing another task to run.",
+    },
+    {
+      front: "What is the event loop?",
+      back: "The scheduler that gives ready coroutines turns to make progress.",
+    },
+    {
+      front: "What does asyncio.gather do?",
+      back: "Runs several awaitable operations concurrently and returns their results in input order.",
+    },
+    {
+      front: "Why use a semaphore?",
+      back: "To cap the number of operations allowed in a protected section at once.",
+    },
+    {
+      front: "Why use a timeout?",
+      back: "To stop one slow or hung dependency from waiting without a limit.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Explain sequential waiting and concurrent waiting using the support-assistant example.",
+    "Why does async help network calls but not heavy CPU calculation?",
+    "How do gather and a semaphore work together?",
+    "What happens during cancellation, and why does finally matter?",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Async Python for AI applications"
+  terms={[
+    "Coroutine — a function that can pause and resume",
+    "Await — pause here and let another task run",
+    "Event loop — schedules ready coroutines",
+    "Semaphore — limits concurrent access",
+    "Timeout — an upper limit on waiting",
+  ]}
+  mistakes={[
+    "Do not forget to await a coroutine",
+    "Do not put blocking sleep inside async code",
+    "Do not send unbounded requests",
+    "Do not swallow cancellation",
+  ]}
+  takeaways={[
+    "Overlap independent waits",
+    "Async reorganises waiting, not calculation",
+    "Bound concurrency",
+    "Set timeouts",
+    "Clean up in finally",
+  ]}
+  questions={[
+    "When is async useful?",
+    "What does gather return?",
+    "Why limit concurrency?",
+  ]}
+>
+  <p slot="main">
+    Async Python lets one program make progress on other work while a model,
+    database, file, or tool is taking time to reply.
+  </p>
+  <div slot="diagram">
+    <ConcurrencyTimeline />
+  </div>
+  <pre slot="code">
+    <code>{`results = await asyncio.gather(
+    fetch("profile"),
+    fetch("history"),
+)`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="async-python"
+  items={[
+    "I can explain when async is useful.",
+    "I can describe coroutine, await, and event loop.",
+    "I compared sequential and concurrent waits.",
+    "I ran the interactive examples.",
+    "I completed the knowledge check.",
+    "I attempted the practice activity.",
+    "I reviewed the flashcards.",
   ]}
 />
 
