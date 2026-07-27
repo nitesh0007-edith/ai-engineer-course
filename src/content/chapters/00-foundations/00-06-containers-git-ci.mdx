@@ -1,0 +1,754 @@
+---
+layer: 0
+order: 6
+title: 'Containers, Git & CI'
+slug: 'containers-git-and-ci'
+subtitle: 'Turn a working service into a reviewable, repeatable package that automated checks can prove is ready to deploy.'
+depth: use
+difficulty: beginner
+readingTime: 44
+prerequisites:
+  - modern-python-tooling
+  - apis-and-services
+  - data-and-storage
+skillsGained:
+  - 'Create a focused Git branch and commit'
+  - 'Explain the difference between an image and a container'
+  - 'Read and modify a multi-stage Dockerfile'
+  - 'Design a useful GitHub Actions quality workflow'
+  - 'Explain the jobs of infrastructure as code and Kubernetes'
+objectives:
+  - 'Trace a change from local branch to reviewed deployment'
+  - 'Compare a container image with a running container'
+  - 'Identify reproducibility and security improvements in a Dockerfile'
+  - 'Write a continuous-integration workflow that checks and builds a Python service'
+  - 'Explain why immutable image tags support rollback'
+  - 'Decide when infrastructure as code or Kubernetes is justified'
+concepts:
+  - git-commit
+  - container-image
+  - continuous-integration
+  - infrastructure-as-code
+  - kubernetes
+diagrams:
+  - CommitToDeployment
+  - MultiStageContainer
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 7
+exercises:
+  - prompt: 'A branch contains a bug fix, formatting changes across fifty unrelated files, and a dependency upgrade. Why is this hard to review, and how would you improve it?'
+    difficulty: warmup
+    solution: 'The reviewer cannot easily separate behavioural risk from mechanical noise, and reverting one concern would also revert the others. Split the work into focused commits or separate pull requests: one for the bug fix with its test, one mechanical formatting change, and one dependency upgrade with its own validation.'
+  - prompt: 'A Dockerfile copies the entire repository before installing dependencies. Why can changing README.md force an expensive dependency reinstall, and what ordering is better?'
+    difficulty: core
+    solution: 'Docker caches a build step only while that step and all earlier inputs remain unchanged. Copying the whole repository invalidates the copy layer whenever README.md changes, so every later dependency layer rebuilds. Copy dependency metadata and the lockfile first, install dependencies, then copy frequently changing application source.'
+  - prompt: 'A team deploys the tag `latest` to production. The new version fails. Explain why rollback is uncertain and propose a safer tagging strategy.'
+    difficulty: stretch
+    solution: '`latest` is movable: it does not permanently identify the exact bytes that were deployed, and another push may already have changed it. Tag each image with an immutable identifier such as the full Git commit SHA, record that tag in the deployment, and roll back by redeploying the previous known-good SHA.'
+resources:
+  - title: 'Git — Pro Git book'
+    url: 'https://git-scm.com/book/en/v2'
+    type: docs
+    note: 'The complete official book covering snapshots, branching, remotes, merging, and collaboration.'
+  - title: 'Docker — Build with Dockerfile'
+    url: 'https://docs.docker.com/build/concepts/dockerfile/'
+    type: docs
+    note: 'Official Dockerfile concepts, build cache behaviour, multi-stage builds, and build checks.'
+  - title: 'GitHub Actions — Building and testing Python'
+    url: 'https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-python'
+    type: docs
+    note: 'Official workflow examples for clean Python environments, dependency installation, and test execution.'
+  - title: 'OpenTofu — Documentation'
+    url: 'https://opentofu.org/docs/'
+    type: docs
+    note: 'An open-source infrastructure-as-code tool and language for declaring cloud resources.'
+  - title: 'Kubernetes — Concepts'
+    url: 'https://kubernetes.io/docs/concepts/'
+    type: docs
+    note: 'Authoritative explanations of clusters, Pods, Deployments, Services, configuration, and workload management.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import CommitToDeployment from '../../../components/diagrams/CommitToDeployment.astro';
+import MultiStageContainer from '../../../components/diagrams/MultiStageContainer.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Working code on one laptop is not yet a deployable system.
+
+You need to record the change, let other people review it, package the application consistently, and prove the package passes agreed checks. Git, containers, and continuous integration form that path.
+
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="6 · Containers, Git & CI"
+  difficulty="Beginner"
+  duration="44 minutes"
+  prerequisites={[
+    "Modern Python tooling and tests",
+    "A small API service",
+    "Basic data and storage responsibilities",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+AI services often depend on Python, system libraries, model clients, parsers, and configuration. A missing package or different runtime can turn a correct change into a failed deployment.
+
+This workflow makes changes reviewable and environments repeatable. It also creates an audit trail: which source commit produced which image, which checks passed, and which version is running.
+
+<MainIdea>
+  Git records and reviews the change. A container image packages the exact
+  runtime. Continuous integration rebuilds and checks that package in a clean
+  environment. Deployment should promote the same immutable image that passed
+  the checks.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+<AnalogyCard
+  title="Shipping software is sending a sealed meal kit"
+  limitation="A real container shares the host machine's operating-system kernel. It is isolated as a process, but it is not a tiny independent computer or an automatic security boundary."
+>
+  Git is the recipe history: every focused change is recorded. Continuous
+  integration is the test kitchen that follows the recipe from a clean bench.
+  The container image is the sealed meal kit containing measured ingredients
+  and instructions. Deployment opens that same approved kit in another place.
+
+  If production receives a different kit from the one the test kitchen
+  checked, the evidence no longer applies.
+</AnalogyCard>
+
+## The complete path
+
+<Figure id="00-06.1" label="FROM FOCUSED COMMIT TO THE SAME DEPLOYED IMAGE" caption="— a branch and pull request enter continuous integration. Fast checks run before slower tests and the production build. Failure returns the change for repair. Success permits review and merge, then produces an image tagged with an immutable identifier for deployment.">
+  <CommitToDeployment />
+</Figure>
+
+The diagram is a chain of evidence. Each stage answers a different question:
+
+1. **Branch:** is the change isolated from stable work?
+2. **Commit:** is there one understandable snapshot?
+3. **Pull request:** can another person review the intention and evidence?
+4. **Continuous integration:** does it work from a clean checkout?
+5. **Image:** are the runtime and dependencies packaged?
+6. **Deployment:** are we running the exact package that passed?
+
+## Step 1 — Record a focused change with Git
+
+**Git** is a distributed version-control system. Version control records project history and helps people work on changes without overwriting each other.
+
+A **repository** is the project plus its Git history. A **branch** is a movable name pointing to a line of commits. A <Term id="git-commit">Git commit</Term> is a snapshot of tracked changes with an explanatory message and a link to its parent snapshot.
+
+```bash
+git switch -c feature/health-check
+git status
+git add src/health.py tests/test_health.py
+git diff --cached
+git commit -m "feat: add dependency health check"
+git push -u origin feature/health-check
+```
+
+These commands deliberately stage exact files. Before committing, `git diff --cached` shows the snapshot you are about to create.
+
+A useful commit:
+
+- represents one coherent change;
+- includes the test or documentation needed for that change;
+- does not quietly contain secrets or generated files;
+- uses a message that explains the outcome;
+- can be reverted without removing unrelated work.
+
+Git tracks snapshots, not a magical backup of everything on your computer. Untracked files are not in a commit. Ignored secrets are not protected merely because `.gitignore` exists; if a secret was committed once, it remains in history until you rotate it and deliberately repair the history.
+
+### Branch, merge, and rebase
+
+Two common ways to combine work are:
+
+- **Merge:** create a commit joining two histories. Existing commit identities stay unchanged.
+- **Rebase:** replay commits onto a new base, creating new commit identities and a straighter history.
+
+Neither is universally “correct”. Follow the repository's collaboration rules. Do not rebase commits that other people are already using unless the team expects rewritten history.
+
+A **pull request** is a hosted review conversation around a proposed branch. It is not a Git object itself. Reviewers inspect the diff, discuss decisions, and use automated checks as evidence before merge.
+
+## Step 2 — Package the runtime as an image
+
+A <Term id="container-image">container image</Term> is an immutable package of files and startup instructions. A **container** is a running process created from that image.
+
+This distinction matters:
+
+| Image | Container |
+|---|---|
+| Packaged template | Running process |
+| Built and tagged | Started and stopped |
+| Immutable layers | Has temporary writable state |
+| Stored in a registry | Runs on a host |
+
+A **container registry** stores and distributes images. Examples include GitHub Container Registry and cloud-provider registries.
+
+<CodeNotebook title="Package a small FastAPI service">
+
+```dockerfile
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv sync --frozen --no-dev
+
+COPY src ./src
+
+USER 10001
+EXPOSE 8000
+CMD ["uv", "run", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+$ docker build -t study-api:local .
+... exporting to image
+
+$ docker run --rm -p 8000:8000 study-api:local
+INFO: Uvicorn running on http://0.0.0.0:8000
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "FROM python:3.13-slim",
+      explanation: "Chooses a small base image. In production, pin the image by digest as well as a readable version tag.",
+    },
+    {
+      line: "COPY pyproject.toml uv.lock ./",
+      explanation: "Copies stable dependency metadata before frequently changing source so Docker can reuse the dependency layer.",
+    },
+    {
+      line: "uv sync --frozen --no-dev",
+      explanation: "Installs the exact locked runtime dependencies and rejects an out-of-date lockfile.",
+    },
+    {
+      line: "USER 10001",
+      explanation: "Runs the service without root privileges, reducing the impact of a compromise.",
+    },
+    {
+      line: "CMD [...]",
+      explanation: "Uses the executable form so signals reach the server process correctly during shutdown.",
+    },
+  ]}
+/>
+
+This is a teaching example. Exact uv paths and virtual-environment copying depend on how the project configures uv. The production build must actually run in CI; a plausible Dockerfile is not evidence.
+
+### Build context and `.dockerignore`
+
+The **build context** is the set of files Docker can see during a build. A `.dockerignore` file prevents unnecessary or sensitive files from entering that context:
+
+```text
+.git
+.venv
+__pycache__
+.env
+*.pyc
+test-results
+```
+
+Do not rely on `.dockerignore` as secret management. Build secrets need a mechanism that avoids placing secret values in image layers or build logs.
+
+### Why layers and ordering matter
+
+Each Dockerfile instruction creates or changes an image layer. Docker can reuse unchanged earlier layers.
+
+If you copy the whole source tree before installing dependencies, changing one README line invalidates every later layer. Copy lockfiles first, install dependencies, then copy source. The expensive dependency layer can remain cached while application code changes.
+
+## Step 3 — Use a multi-stage build
+
+A **multi-stage build** has more than one `FROM` instruction. One stage contains build tools. A later stage receives only the artefacts needed at runtime.
+
+<Figure id="00-06.2" label="LEAVE BUILD TOOLS OUT OF THE RUNTIME IMAGE" caption="— the builder stage may contain compilers, source, tests, and development dependencies. Only the required runtime artefacts are copied into the final stage, which runs as a non-root user.">
+  <MultiStageContainer />
+</Figure>
+
+```dockerfile
+FROM python:3.13-slim AS builder
+WORKDIR /build
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv sync --frozen --no-dev
+
+FROM python:3.13-slim AS runtime
+WORKDIR /app
+COPY --from=builder /build/.venv /app/.venv
+COPY src ./src
+ENV PATH="/app/.venv/bin:$PATH"
+USER 10001
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+Benefits include:
+
+- fewer packages and files in production;
+- smaller transfer and storage cost;
+- a smaller attack surface;
+- a clearer difference between “needed to build” and “needed to run”.
+
+Smaller is not automatically secure. Scan dependencies, patch base images, avoid secrets, run with minimal permissions, and rebuild regularly.
+
+## Step 4 — Rebuild from clean state in CI
+
+<Term id="continuous-integration">Continuous integration</Term>, shortened to **CI**, automatically checks every proposed change in a clean environment.
+
+A CI workflow should provide fast, relevant feedback. Run cheap checks first and expensive checks later or in parallel.
+
+```yaml
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: docker build -t study-api:${{ github.sha }} .
+```
+
+**GitHub Actions** is GitHub's workflow service. The file lives under `.github/workflows/`. A **runner** is the machine that executes the listed steps.
+
+Important workflow rules:
+
+- Pin third-party actions to trusted versions; high-security projects may pin full commit SHAs.
+- Use least-privilege `permissions`.
+- Never print secrets.
+- Give jobs timeouts.
+- Cache downloaded dependencies, not untrusted build output blindly.
+- Cancel superseded runs when only the latest commit matters.
+- Protect `main` so required checks and review must pass.
+
+CI is not a deployment by itself. **Continuous delivery** keeps a change deployable and may require approval. **Continuous deployment** automatically releases every passing change. Teams often use CI plus an explicit production approval.
+
+## Step 5 — Tag immutable artefacts
+
+An image tag such as `latest` can move. It does not prove which source produced the running bytes.
+
+Use an immutable identifier:
+
+```text
+ghcr.io/example/study-api:5d3253f4c7...
+```
+
+The full Git commit SHA connects:
+
+```text
+source commit → CI run → image digest → deployment
+```
+
+An **image digest** is a content-derived identifier such as `sha256:...`. A tag is a human-friendly pointer; a digest identifies exact image content. Production deployment records should preserve both.
+
+Rollback then means selecting a previous known-good image, not rebuilding old source and hoping the toolchain still resolves the same artefact.
+
+<PyRunner
+  client:idle
+  id="00-06.A"
+  label="DECIDE WHETHER A CHANGE MAY DEPLOY"
+  code={`checks = {
+    "lint": True,
+    "types": True,
+    "tests": True,
+    "build": True,
+    "review": False,
+}
+
+failed = [name for name, passed in checks.items() if not passed]
+
+if failed:
+    print("DEPLOY BLOCKED")
+    print("missing evidence:", ", ".join(failed))
+else:
+    print("READY TO DEPLOY")
+
+# Try: change review to True.
+# Then add a security_scan check set to False.
+# The decision is boring on purpose: every required gate must be explicit.`}
+/>
+
+The code is not a CI system. It demonstrates the gate's logic: deployment is permitted only when every required piece of evidence is present.
+
+## Step 6 — Describe infrastructure in version control
+
+<Term id="infrastructure-as-code">Infrastructure as code</Term>, shortened to **IaC**, describes infrastructure in reviewed files.
+
+Instead of clicking “create database” in a dashboard, a configuration may declare:
+
+```hcl
+resource "example_database" "course" {
+  engine         = "postgres"
+  storage_gb     = 20
+  backup_enabled = true
+}
+```
+
+An IaC tool calculates a **plan**: the difference between declared desired state and actual infrastructure. A reviewer inspects the plan before an approved apply changes real resources.
+
+IaC helps with:
+
+- repeatable environments;
+- review and history;
+- disaster recovery;
+- drift detection;
+- consistent security settings.
+
+It does not make infrastructure changes harmless. A reviewed configuration can still delete data, expose a network, or create large bills. Protect state files, review destructive plans carefully, and separate environments.
+
+IaC basics are important now. Provider-specific modules and remote-state architecture are optional advanced work for teams operating substantial cloud infrastructure.
+
+## Step 7 — Know what Kubernetes solves
+
+<Term id="kubernetes">Kubernetes</Term> is a container orchestration system. **Orchestration** means coordinating many running containers across machines.
+
+Core terms:
+
+- A **cluster** is the collection of machines and Kubernetes control components.
+- A **Pod** is the smallest scheduled unit, commonly containing one application container.
+- A **Deployment** declares an application image and desired number of replicas.
+- A **Service** gives a stable network address to changing Pods.
+- A **ConfigMap** holds non-secret configuration.
+- A **Secret** stores sensitive values, though additional encryption and access controls still matter.
+
+Kubernetes continually compares desired state with observed state. If a Pod dies and the Deployment asks for three replicas, Kubernetes starts a replacement.
+
+It also supports rolling updates, health probes, resource requests, autoscaling, and scheduling. That capability comes with substantial operational complexity.
+
+Do not choose Kubernetes because “production systems use it”. A managed container platform or a single virtual machine may be safer and cheaper for a small service. Kubernetes becomes compelling when you genuinely need coordinated workloads, standardised platform controls, sophisticated rollout, or cluster-level scheduling.
+
+## Worked example — ship a document assistant
+
+Trace one change:
+
+1. Create `feature/citation-health-check`.
+2. Add a `/health/dependencies` endpoint and focused tests.
+3. Inspect and commit only the endpoint and tests.
+4. Open a pull request explaining the expected response and failure mode.
+5. CI recreates locked dependencies.
+6. Ruff, mypy, unit tests, accessibility checks, and the production build pass.
+7. CI builds an image tagged with the commit SHA.
+8. A reviewer approves and merges.
+9. A staging environment deploys that exact image digest.
+10. A smoke test checks the endpoint without exposing secret details.
+11. Production approval promotes the same digest.
+12. Monitoring detects elevated failures; rollback selects the previous digest.
+
+Notice what does not happen: production does not run `git pull`, reinstall today's newest packages, and build a new untested image on the server. Build once, verify once, promote the same artefact.
+
+## In a real AI system
+
+<RealWorldExample
+  title="A document assistant with an API and worker"
+  steps={[
+    "Git records API, worker, and schema changes together",
+    "CI recreates locked environments and runs behaviour tests",
+    "A multi-stage build produces separate API and worker images",
+    "Images are tagged with the source commit and recorded by digest",
+    "IaC declares the database, queue, registry, and service configuration",
+    "The platform rolls out the checked images and monitors health",
+  ]}
+>
+  The assistant has more than one process: a user-facing API and a background
+  indexing worker. Both require reproducible dependencies and configuration.
+
+Kubernetes is one possible platform, not a requirement. The core invariant is that every environment runs an identified, tested artefact with secrets supplied at runtime.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Putting unrelated fixes, formatting, and upgrades into one large commit.",
+      fix: "Create focused commits and pull requests. Small coherent diffs are easier to understand, test, revert, and trust.",
+    },
+    {
+      mistake: "Copying `.env`, credentials, or cloud keys into an image.",
+      fix: "Keep secrets out of source, build context, layers, and logs. Inject them at runtime through the platform's secret mechanism and rotate any exposed value.",
+    },
+    {
+      mistake: "Running the application as root inside the container.",
+      fix: "Create or select a non-root user, grant only required filesystem access, and test startup under that identity.",
+    },
+    {
+      mistake: "Using `latest` as the only production image identifier.",
+      fix: "Tag with the full source commit and record the content digest. Rollback must identify exact known-good bytes.",
+    },
+    {
+      mistake: "Running tests locally but not rebuilding in a clean CI environment.",
+      fix: "CI should start from a fresh checkout, install from the lockfile, run checks, and build the deployable artefact.",
+    },
+    {
+      mistake: "Adopting Kubernetes before the team has a real orchestration problem.",
+      fix: "Start with the simplest platform that meets reliability needs. Add Kubernetes when its scheduling and platform capabilities repay its operational cost.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "What is the difference between an image and a container?",
+      options: [
+        "An image is a package; a container is a running process from it",
+        "An image runs only on laptops; a container runs only in cloud",
+        "There is no difference",
+      ],
+      answer: 0,
+      explanation: "The image is the immutable template. A container runtime starts an isolated process from that template.",
+    },
+    {
+      question: "Why copy dependency files before application source in a Dockerfile?",
+      options: [
+        "To hide the source from Git",
+        "To reuse the expensive dependency layer when only source changes",
+        "To make all images use latest dependencies",
+      ],
+      answer: 1,
+      explanation: "Docker can retain the dependency layer while later, more frequently changing source layers rebuild.",
+    },
+    {
+      question: "Which image identifier is safest for an exact rollback?",
+      options: ["latest", "A recorded image digest", "The developer's branch name"],
+      answer: 1,
+      explanation: "A content digest identifies exact bytes. Movable tags such as latest do not.",
+    },
+    {
+      question: "What problem does continuous integration primarily solve?",
+      options: [
+        "It proves a change passes automated checks in a clean environment",
+        "It removes the need for review",
+        "It stores application user data",
+      ],
+      answer: 0,
+      explanation: "CI creates repeatable evidence. It supports human review rather than replacing it.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Improve a risky Dockerfile"
+  time="10–20 minutes"
+  goal="Rewrite a Dockerfile for reproducibility, cache reuse, and safer runtime permissions."
+  steps={[
+    "Pin a readable Python base version.",
+    "Set a working directory.",
+    "Copy dependency metadata before source.",
+    "Install locked runtime dependencies.",
+    "Copy only the application source.",
+    "Run as a non-root user with an executable-form command.",
+  ]}
+  expected="A Dockerfile whose dependency layer survives source-only changes and whose service does not run as root."
+  challenge="Split it into builder and runtime stages, then explain which files cross the stage boundary."
+>
+
+Starter Dockerfile:
+
+```dockerfile
+FROM python
+COPY . .
+RUN pip install fastapi uvicorn
+CMD uvicorn src.app:app
+```
+
+One possible solution:
+
+```dockerfile
+FROM python:3.13-slim
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv sync --frozen --no-dev
+
+COPY src ./src
+USER 10001
+CMD ["uv", "run", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+Also add `.git`, `.env`, `.venv`, caches, and test output to `.dockerignore`. In a real repository, run the production build and container smoke test; syntax alone is not proof.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "A focused Git commit records one coherent, reviewable snapshot.",
+    "An image is an immutable package; a container is a running process created from it.",
+    "Dockerfile ordering and multi-stage builds improve cache reuse and keep build tools out of production.",
+    "CI must recreate the project from a clean checkout and produce repeatable evidence.",
+    "Immutable tags and image digests connect deployed bytes to tested source and make rollback dependable.",
+    "IaC and Kubernetes solve real coordination problems, but both add operational responsibility.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is a Git commit?",
+      back: "A focused snapshot of tracked changes, its parent history, and a message.",
+    },
+    {
+      front: "What is a container image?",
+      back: "An immutable package containing an application, runtime files, dependencies, and startup instructions.",
+    },
+    {
+      front: "What is a running container?",
+      back: "An isolated process started from a container image.",
+    },
+    {
+      front: "Why use a multi-stage build?",
+      back: "To keep compilers, development dependencies, and build files out of the final runtime image.",
+    },
+    {
+      front: "What does CI provide?",
+      back: "Automated evidence that a change builds and passes required checks in a clean environment.",
+    },
+    {
+      front: "What is an image digest?",
+      back: "A content-derived identifier for the exact image bytes.",
+    },
+    {
+      front: "What is infrastructure as code?",
+      back: "Version-controlled declarations of desired infrastructure and configuration.",
+    },
+    {
+      front: "What does Kubernetes reconcile?",
+      back: "The declared desired workload state with the state actually running in the cluster.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Trace a code change from branch creation to an identified production image.",
+    "Explain three ways to make a Python container image more reproducible or secure.",
+    "Design a cheapest-first CI gate for an AI API and background worker.",
+    "Compare the problems solved by Docker, infrastructure as code, and Kubernetes.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Containers, Git & CI"
+  terms={[
+    "Commit — coherent source snapshot",
+    "Image — immutable application package",
+    "Container — running image process",
+    "CI — clean automated evidence",
+    "IaC — declared infrastructure",
+    "Kubernetes — container orchestration",
+  ]}
+  mistakes={[
+    "Do not mix unrelated changes",
+    "Do not copy secrets into images",
+    "Do not run as root by default",
+    "Do not deploy only a movable latest tag",
+    "Do not adopt orchestration without a need",
+  ]}
+  takeaways={[
+    "Review focused changes",
+    "Build once",
+    "Test from clean state",
+    "Promote the same image",
+    "Record exact deployed bytes",
+  ]}
+  questions={[
+    "Which commit produced this image?",
+    "Did CI build from the lockfile?",
+    "Can we roll back exact bytes?",
+  ]}
+>
+  <p slot="main">
+    A reliable delivery path preserves identity: one reviewed commit produces
+    one checked image, and environments promote those same identified bytes.
+  </p>
+  <div slot="diagram">
+    <CommitToDeployment />
+  </div>
+  <pre slot="code">
+    <code>{`git diff --cached
+git commit
+CI: check → test → build
+deploy image@sha256:...`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="containers-git-and-ci"
+  items={[
+    "I can explain a focused branch and commit.",
+    "I can compare an image and a running container.",
+    "I traced both delivery diagrams.",
+    "I can explain why Dockerfile order changes build speed.",
+    "I can design a clean CI quality gate.",
+    "I understand immutable tags and digests.",
+    "I completed the knowledge check and practice activity.",
+    "I reviewed the flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="maths-i-linear-algebra-calculus"
+  title="Maths I: linear algebra & calculus"
+  why="You can now build, store, package, and deliver a reliable service. Next, learn the mathematical language models use internally: vectors, matrices, similarity, gradients, and the chain rule."
+/>

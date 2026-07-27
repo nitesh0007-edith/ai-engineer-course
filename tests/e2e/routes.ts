@@ -7,4 +7,5 @@ export const ROUTES = [
   'chapters/modern-python-tooling/',
   'chapters/apis-and-services/',
   'chapters/data-and-storage/',
+  'chapters/containers-git-and-ci/',
 ];

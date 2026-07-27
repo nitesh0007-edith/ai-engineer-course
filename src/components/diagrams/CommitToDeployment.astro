@@ -1,0 +1,49 @@
+---
+/**
+ * CommitToDeployment — evidence-producing path from a focused Git change to a
+ * reviewed, tested container image and deployment.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 320"
+  role="img"
+  aria-label="A developer creates a focused Git branch and commit, opens a pull request, and triggers continuous integration. The pipeline runs linting, type checking, tests, and a production build. A failure returns the change to the developer. A pass allows review and merge, builds an immutable container image, and deploys the same image to an environment."
+>
+  <defs>
+    <marker id="deploy-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <rect x="18" y="112" width="106" height="70" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="71" y="139" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">branch</text>
+  <text x="71" y="160" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">focused commit</text>
+
+  <path d="M124 147 H166" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#deploy-arrow)" />
+  <rect x="178" y="112" width="106" height="70" rx="9" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="2" />
+  <text x="231" y="139" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">pull request</text>
+  <text x="231" y="160" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">reviewable change</text>
+
+  <path d="M284 147 H326" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#deploy-arrow)" />
+  <rect x="338" y="58" width="174" height="178" rx="12" fill="var(--paper)" stroke="var(--ch1)" stroke-width="3" stroke-dasharray="7 4" />
+  <text x="425" y="88" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ch1)">continuous integration</text>
+  <text x="425" y="119" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">1 · lint + typecheck</text>
+  <text x="425" y="144" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">2 · tests + accessibility</text>
+  <text x="425" y="169" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">3 · production build</text>
+  <text x="425" y="200" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch1)">evidence, not hope</text>
+
+  <path d="M512 147 H554" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#deploy-arrow)" />
+  <rect x="566" y="112" width="90" height="70" rx="9" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="611" y="139" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">image</text>
+  <text x="611" y="160" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">immutable tag</text>
+
+  <path d="M656 147 H696" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#deploy-arrow)" />
+  <rect x="708" y="112" width="58" height="70" rx="9" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="2" />
+  <text x="737" y="139" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">deploy</text>
+  <text x="737" y="159" text-anchor="middle" font-family="var(--font-mono)" font-size="8.5" fill="var(--ink-muted)">same bits</text>
+
+  <path d="M383 236 C330 286 112 281 71 184" fill="none" stroke="var(--alert)" stroke-width="2.5" stroke-dasharray="5 4" marker-end="url(#deploy-arrow)" />
+  <text x="231" y="287" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--alert)">failure → repair the change</text>
+</svg>

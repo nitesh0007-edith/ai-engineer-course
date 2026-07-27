@@ -1,0 +1,44 @@
+---
+/**
+ * MultiStageContainer — a large builder stage creates artefacts; only runtime
+ * essentials are copied into the smaller final image.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 330"
+  role="img"
+  aria-label="A large builder stage contains compilers, development dependencies, source code, and tests. It produces a built application or dependency environment. A copy step moves only the required artefacts into a smaller runtime stage containing Python, runtime dependencies, the application, and a non-root user. Build tools and test files do not enter the final image."
+>
+  <defs>
+    <marker id="stage-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <rect x="30" y="44" width="280" height="242" rx="13" fill="var(--paper)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="170" y="77" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ch2)">builder stage</text>
+  <text x="170" y="99" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">large · used while building</text>
+  <rect x="62" y="124" width="216" height="35" rx="6" fill="var(--paper-raise)" stroke="var(--ink)" />
+  <text x="170" y="146" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">compiler + package tools</text>
+  <rect x="62" y="170" width="216" height="35" rx="6" fill="var(--paper-raise)" stroke="var(--ink)" />
+  <text x="170" y="192" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">source + tests + dev deps</text>
+  <rect x="62" y="216" width="216" height="42" rx="6" fill="var(--highlight)" stroke="var(--blueprint)" stroke-width="2" />
+  <text x="170" y="242" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">built runtime artefacts</text>
+
+  <path d="M310 236 H442" stroke="var(--blueprint)" stroke-width="4" marker-end="url(#stage-arrow)" />
+  <text x="376" y="216" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--blueprint)">COPY only</text>
+  <text x="376" y="258" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">what production needs</text>
+
+  <rect x="452" y="80" width="278" height="206" rx="13" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="591" y="113" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ch1)">runtime stage</text>
+  <text x="591" y="135" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">smaller · deployed</text>
+  <rect x="484" y="158" width="214" height="35" rx="6" fill="var(--paper)" stroke="var(--ink)" />
+  <text x="591" y="180" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">Python + runtime deps</text>
+  <rect x="484" y="204" width="214" height="35" rx="6" fill="var(--paper)" stroke="var(--ink)" />
+  <text x="591" y="226" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">application + non-root user</text>
+  <text x="591" y="263" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch1)">fewer bytes · smaller attack surface</text>
+
+  <text x="170" y="312" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">build tools stay behind</text>
+</svg>
