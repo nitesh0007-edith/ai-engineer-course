@@ -1,0 +1,47 @@
+---
+/**
+ * CacheAsideFlow — cache-aside read path, including miss, database read, TTL,
+ * and invalidation after a write.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 300"
+  role="img"
+  aria-label="For a read, the application checks Redis first. A cache hit returns the value immediately. A cache miss reads PostgreSQL, stores a temporary copy in Redis with a time to live, and returns it. After a database update, the application deletes the cached copy so the next read cannot return stale data."
+>
+  <defs>
+    <marker id="cache-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+  <rect x="22" y="108" width="120" height="66" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="82" y="137" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">application</text>
+  <text x="82" y="157" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">GET ticket:42</text>
+
+  <path d="M142 140 H228" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#cache-arrow)" />
+  <text x="185" y="126" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--blueprint)">1. check</text>
+
+  <rect x="240" y="91" width="130" height="96" rx="12" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="305" y="126" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">Redis cache</text>
+  <text x="305" y="149" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">temporary copy</text>
+  <text x="305" y="168" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">TTL: 60 seconds</text>
+
+  <path d="M305 91 C305 30 82 34 82 106" fill="none" stroke="var(--ch1)" stroke-width="3" marker-end="url(#cache-arrow)" />
+  <text x="190" y="36" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch1)">hit → return fast</text>
+
+  <path d="M370 140 H482" stroke="var(--ch2)" stroke-width="3" marker-end="url(#cache-arrow)" />
+  <text x="426" y="126" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch2)">miss → read</text>
+
+  <ellipse cx="574" cy="140" rx="80" ry="58" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="574" y="130" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">PostgreSQL</text>
+  <text x="574" y="153" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">source of truth</text>
+
+  <path d="M544 197 C500 254 342 250 318 189" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#cache-arrow)" />
+  <text x="431" y="256" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--blueprint)">store copy + TTL</text>
+
+  <path d="M654 140 H726" stroke="var(--alert)" stroke-width="2" stroke-dasharray="5 4" />
+  <text x="690" y="112" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">after update:</text>
+  <text x="690" y="132" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">delete cache key</text>
+</svg>

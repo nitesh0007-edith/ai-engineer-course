@@ -4,9 +4,9 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 5 / 90 |
+| Chapters published | 6 / 90 |
 | Layers complete | 0 / 11 |
-| Total diagrams | 11 |
+| Total diagrams | 13 |
 | Total interactive widgets | 4 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
@@ -40,3 +40,4 @@ Notes:
 | 00-02 | Async Python | 0 | published | 2 | 3 | 2026-07-26 |
 | 00-03 | Modern Python tooling | 0 | published | 2 | 2 | 2026-07-27 |
 | 00-04 | APIs & services | 0 | published | 3 | 4 | 2026-07-28 |
+| 00-05 | Data & storage | 0 | published | 2 | 4 | 2026-07-28 |

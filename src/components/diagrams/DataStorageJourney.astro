@@ -1,0 +1,56 @@
+---
+/**
+ * DataStorageJourney — how one support ticket moves from validated request to
+ * durable database row, optional cache, queued background work, and response.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 330"
+  role="img"
+  aria-label="A support ticket request enters an API. A database transaction writes the ticket and a background-job message together. The committed ticket can be read from PostgreSQL and copied into a short-lived Redis cache. A separate worker reads the queued message and creates an embedding. If the transaction fails, neither the ticket nor the message is committed."
+>
+  <defs>
+    <marker id="data-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <rect x="20" y="114" width="108" height="62" rx="8" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="74" y="140" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">API request</text>
+  <text x="74" y="160" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">new ticket</text>
+
+  <path d="M128 145 H174" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#data-arrow)" />
+
+  <rect x="184" y="64" width="226" height="166" rx="10" fill="var(--paper)" stroke="var(--blueprint)" stroke-width="3" stroke-dasharray="7 4" />
+  <text x="297" y="91" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--blueprint)">one transaction</text>
+  <rect x="210" y="111" width="174" height="43" rx="6" fill="var(--paper-raise)" stroke="var(--ink)" />
+  <text x="297" y="137" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">INSERT ticket row</text>
+  <rect x="210" y="169" width="174" height="43" rx="6" fill="var(--paper-raise)" stroke="var(--ink)" />
+  <text x="297" y="195" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">INSERT job message</text>
+
+  <path d="M410 122 H474" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#data-arrow)" />
+  <rect x="486" y="70" width="118" height="78" rx="42" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="545" y="101" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">PostgreSQL</text>
+  <text x="545" y="122" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">durable truth</text>
+
+  <path d="M604 109 H670" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#data-arrow)" />
+  <rect x="679" y="72" width="66" height="72" rx="9" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="712" y="102" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">Redis</text>
+  <text x="712" y="122" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">fast copy</text>
+
+  <path d="M410 191 H474" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#data-arrow)" />
+  <rect x="486" y="170" width="118" height="64" rx="9" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="545" y="196" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">job queue</text>
+  <text x="545" y="216" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">work waits safely</text>
+
+  <path d="M604 202 H670" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#data-arrow)" />
+  <rect x="679" y="170" width="66" height="64" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="712" y="197" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">worker</text>
+  <text x="712" y="216" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">embed</text>
+
+  <path d="M297 230 V284" stroke="var(--alert)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#data-arrow)" />
+  <text x="315" y="258" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">failure?</text>
+  <text x="297" y="310" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--alert)">ROLLBACK BOTH WRITES</text>
+</svg>

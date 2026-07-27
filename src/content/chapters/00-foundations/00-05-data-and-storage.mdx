@@ -1,0 +1,771 @@
+---
+layer: 0
+order: 5
+title: 'Data & storage'
+slug: 'data-and-storage'
+subtitle: 'Keep the right data durable, find it quickly, cache it carefully, and move slow work away from the user-facing request.'
+depth: build
+difficulty: beginner
+readingTime: 45
+prerequisites:
+  - python-for-ai-engineering
+  - async-python
+  - apis-and-services
+skillsGained:
+  - 'Design a small relational data model'
+  - 'Use a transaction to prevent partial writes'
+  - 'Explain when an index helps or hurts'
+  - 'Apply cache-aside with a TTL and invalidation'
+  - 'Move slow AI work to a background job queue'
+objectives:
+  - 'Explain the different jobs of PostgreSQL, pgvector, Redis, and a message queue'
+  - 'Write parameterised SQL to create, read, update, and delete rows'
+  - 'Trace commit and rollback behaviour through a transaction'
+  - 'Identify useful indexes from actual query patterns'
+  - 'Build a small cache-aside read path with expiry'
+  - 'Design a safe background-job flow for an AI task'
+concepts:
+  - database-transaction
+  - database-index
+  - cache
+  - time-to-live
+  - message-queue
+diagrams:
+  - DataStorageJourney
+  - CacheAsideFlow
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 7
+exercises:
+  - prompt: 'A support application must store one ticket and one audit event. Why should both writes be inside one transaction?'
+    difficulty: warmup
+    solution: 'They describe one logical action. If the ticket commits but the audit event fails, the application has incomplete history; if only the audit event commits, it refers to a ticket that does not exist. One transaction commits both writes together or rolls both back.'
+  - prompt: 'The most common query is `SELECT * FROM tickets WHERE user_id = ? ORDER BY created_at DESC`. Which index would you test first, and why?'
+    difficulty: core
+    solution: 'Test a composite index on `(user_id, created_at DESC)`. It first narrows rows to one user and then already holds those matching entries in the requested time order. Confirm the benefit with the database query plan and representative data rather than assuming.'
+  - prompt: 'A resume is updated in PostgreSQL, but `resume:42` remains in Redis for ten minutes. What can go wrong, and name two fixes.'
+    difficulty: stretch
+    solution: 'Reads may return the old resume until the key expires. Two common fixes are: delete `resume:42` immediately after the database update succeeds, or update the cached value after the durable write. A short TTL limits the maximum stale period but does not replace explicit invalidation when freshness matters.'
+resources:
+  - title: 'PostgreSQL — Tutorial'
+    url: 'https://www.postgresql.org/docs/current/tutorial.html'
+    type: docs
+    note: 'Official introduction to relational data, queries, joins, updates, and transactions.'
+  - title: 'PostgreSQL — Using EXPLAIN'
+    url: 'https://www.postgresql.org/docs/current/using-explain.html'
+    type: docs
+    note: 'The authoritative guide to reading a query plan before and after adding an index.'
+  - title: 'pgvector'
+    url: 'https://github.com/pgvector/pgvector'
+    type: repo
+    note: 'The PostgreSQL extension for storing embeddings and performing exact or approximate nearest-neighbour search.'
+  - title: 'Redis — Cache-aside'
+    url: 'https://redis.io/learn/howtos/solutions/microservices/caching'
+    type: docs
+    note: 'Practical guidance for keeping frequently read data in a fast cache.'
+  - title: 'RabbitMQ — Work queues'
+    url: 'https://www.rabbitmq.com/tutorials/tutorial-two-python'
+    type: docs
+    note: 'A concrete producer, queue, worker, acknowledgement, and redelivery walkthrough.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import DataStorageJourney from '../../../components/diagrams/DataStorageJourney.astro';
+import CacheAsideFlow from '../../../components/diagrams/CacheAsideFlow.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+An AI application needs somewhere reliable to remember things.
+
+A **database** is software that stores organised data and lets you retrieve or change it. The model is not the database. A language model may produce an answer, but your storage system remembers users, documents, permissions, jobs, feedback, and previous results.
+
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="5 · Data & storage"
+  difficulty="Beginner"
+  duration="45 minutes"
+  prerequisites={[
+    "Python collections and exceptions",
+    "Async tasks and timeouts",
+    "API requests and responses",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+A document assistant must remember uploaded files. A support bot needs ticket history. A recommendation service needs user events. An AI API may need to start a slow indexing job without making the user wait.
+
+One storage tool does not solve every problem. Reliable systems separate durable truth, fast temporary copies, meaning-based retrieval, and background work.
+
+<MainIdea>
+  Store durable facts in a database, protect related changes with transactions,
+  add indexes for measured query patterns, cache only when repeated work is
+  worth the freshness risk, and use a queue when slow work should happen
+  outside the request.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+<AnalogyCard
+  title="Storage is a well-run library"
+  limitation="Software can copy and update data far faster than a physical library. That speed creates concurrency, stale-cache, and partial-failure problems that the analogy does not show."
+>
+  PostgreSQL is the library catalogue: durable, organised, and trusted.
+  An index is the subject index that points to the right shelves. Redis is the
+  returns trolley beside the desk: very fast for popular items, but not the
+  permanent home. A message queue is the librarian's work tray: requests wait
+  there until a worker can process them.
+
+  pgvector adds a meaning-based index. It can find books about similar ideas
+  even when their titles use different words.
+</AnalogyCard>
+
+The analogy gives each tool one memorable job:
+
+| Tool | Plain-English job | Typical AI use |
+|---|---|---|
+| PostgreSQL | Durable source of truth | users, documents, jobs, feedback |
+| pgvector | Meaning-based search inside PostgreSQL | document embeddings |
+| Redis | Very fast temporary key-value storage | response cache, rate-limit counters |
+| Message queue | Durable waiting line for work | parsing, embedding, reports |
+
+## One request, four storage jobs
+
+<Figure id="00-05.1" label="FROM API REQUEST TO DURABLE AND BACKGROUND WORK" caption="— the ticket row and job message are created inside one database transaction. A successful commit makes both visible. A failure rolls both back. Later reads may use a Redis cache, while a separate worker processes the queued embedding job.">
+  <DataStorageJourney />
+</Figure>
+
+Read the diagram from left to right. The API accepts a new support ticket. One transaction records the ticket and its pending background job. PostgreSQL keeps the durable facts. Redis may hold a short-lived copy for faster reads. A worker processes the slow embedding task later.
+
+### Step 1 — Model facts as related tables
+
+A **relational database** stores data in tables. A table has columns that define the shape and rows that hold individual records.
+
+Consider two tables:
+
+```text
+users
+  id | email
+
+tickets
+  id | user_id | subject | status | created_at
+```
+
+`tickets.user_id` is a **foreign key**. A foreign key connects one row to another and can prevent a ticket from referring to a user who does not exist.
+
+Good table design starts with facts and relationships, not screens. A ticket belongs to one user. One user can own many tickets. That is a one-to-many relationship.
+
+### Step 2 — Read and change rows with SQL
+
+**Structured Query Language**, shortened to **SQL**, is the language used to work with relational databases.
+
+The four basic operations are often called CRUD:
+
+- **Create** a row with `INSERT`.
+- **Read** rows with `SELECT`.
+- **Update** a row with `UPDATE`.
+- **Delete** a row with `DELETE`.
+
+<CodeNotebook title="Create and query tickets safely">
+
+```python
+import sqlite3
+
+database = sqlite3.connect(":memory:")
+database.execute("""
+    CREATE TABLE tickets (
+        id INTEGER PRIMARY KEY,
+        subject TEXT NOT NULL,
+        status TEXT NOT NULL
+    )
+""")
+
+subject = "Cannot reset password"
+database.execute(
+    "INSERT INTO tickets (subject, status) VALUES (?, ?)",
+    (subject, "open"),
+)
+
+rows = database.execute(
+    "SELECT subject, status FROM tickets WHERE status = ?",
+    ("open",),
+).fetchall()
+
+print(rows)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+[('Cannot reset password', 'open')]
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: 'sqlite3.connect(":memory:")',
+      explanation: "Creates a temporary local database for this lesson. Production services commonly use PostgreSQL instead.",
+    },
+    {
+      line: "TEXT NOT NULL",
+      explanation: "Requires a text value. The database rejects a row that leaves the column empty at the data level.",
+    },
+    {
+      line: "VALUES (?, ?)",
+      explanation: "Uses parameter placeholders instead of joining user input into SQL text, preventing SQL injection.",
+    },
+    {
+      line: ".fetchall()",
+      explanation: "Collects every matching result row into a Python list.",
+    },
+  ]}
+/>
+
+The code uses SQLite because it is included with Python and needs no server. PostgreSQL uses the same core SQL ideas and adds production features for multiple users, larger workloads, richer data types, and extensions.
+
+Never build SQL by inserting user text into the query string:
+
+```python
+# Unsafe: user text becomes part of the SQL command.
+query = f"SELECT * FROM tickets WHERE subject = '{user_subject}'"
+```
+
+Use parameters instead. The database driver sends the command and the values separately, so a value cannot quietly become a new SQL instruction.
+
+### Step 3 — Keep related changes together
+
+A <Term id="database-transaction">database transaction</Term> groups operations into one all-or-nothing unit.
+
+Imagine transferring £20:
+
+1. Subtract £20 from account A.
+2. Add £20 to account B.
+
+If the program crashes after step one, money disappears. A transaction solves that:
+
+- **Begin** the transaction.
+- Run both updates.
+- **Commit** if both succeed.
+- **Roll back** if either fails.
+
+The database provides four useful promises, often shortened to **ACID**:
+
+- **Atomicity:** the whole transaction commits or none of it does.
+- **Consistency:** declared rules remain true.
+- **Isolation:** concurrent transactions do not see unsafe half-finished states.
+- **Durability:** committed data survives a crash.
+
+These are goals with different implementation choices. Isolation in particular has levels and trade-offs; this beginner lesson uses the central mental model: other work should not observe a dangerous partial change.
+
+<PyRunner
+  client:idle
+  id="00-05.A"
+  label="WATCH A TRANSACTION ROLL BACK"
+  code={`import sqlite3
+
+db = sqlite3.connect(":memory:")
+db.execute("CREATE TABLE accounts (name TEXT PRIMARY KEY, balance INTEGER CHECK(balance >= 0))")
+db.executemany("INSERT INTO accounts VALUES (?, ?)", [("A", 50), ("B", 10)])
+db.commit()
+
+def show_balances(label):
+    rows = db.execute("SELECT name, balance FROM accounts ORDER BY name").fetchall()
+    print(label, rows)
+
+show_balances("before:")
+
+try:
+    with db:  # commit on success; rollback on exception
+        db.execute("UPDATE accounts SET balance = balance - 80 WHERE name = 'A'")
+        db.execute("UPDATE accounts SET balance = balance + 80 WHERE name = 'B'")
+except sqlite3.IntegrityError as error:
+    print("transfer rejected:", error)
+
+show_balances("after: ")
+
+# Try: change 80 to 20. Both updates now succeed and commit together.`}
+/>
+
+The first update violates the rule `balance >= 0`. The database raises an error and the context manager rolls back the transaction. Neither account changes.
+
+### Step 4 — Add indexes for real query patterns
+
+A <Term id="database-index">database index</Term> is a separate lookup structure that helps the database find rows without examining the whole table.
+
+Think about a contacts app. Searching an alphabetised name index is faster than reading every contact from the beginning. The database can use a similar structure.
+
+```sql
+CREATE INDEX tickets_by_user_and_time
+ON tickets (user_id, created_at DESC);
+```
+
+This index matches a common query:
+
+```sql
+SELECT *
+FROM tickets
+WHERE user_id = 42
+ORDER BY created_at DESC;
+```
+
+An index is not free:
+
+- It takes storage.
+- Every insert or relevant update must also update the index.
+- An unused index adds write cost without helping reads.
+- A badly chosen column order may not support the query you expected.
+
+Use `EXPLAIN` to inspect the database's query plan. Test with representative data. “There is an index” is not proof that the database will use it.
+
+### Step 5 — Store embeddings with pgvector
+
+An **embedding** is a list of numbers that represents meaning. Later lessons build this idea carefully. For now, picture each document as a coordinate on a meaning map.
+
+**pgvector** is a PostgreSQL extension. An extension adds optional capability to the database. pgvector can store embedding vectors and compare them by distance.
+
+```sql
+CREATE EXTENSION vector;
+
+CREATE TABLE document_chunks (
+    id BIGSERIAL PRIMARY KEY,
+    document_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(3)
+);
+
+SELECT content
+FROM document_chunks
+ORDER BY embedding <=> '[0.12, 0.88, 0.31]'
+LIMIT 3;
+```
+
+The `vector(3)` in this tiny example stores three numbers. Real embedding models commonly produce many more dimensions. The `<=>` operator orders rows by cosine distance, so the closest meanings appear first.
+
+PostgreSQL plus pgvector is attractive when ordinary metadata and embeddings belong together. It is not automatically the best answer for every scale. Later semantic-search lessons compare exact search, approximate indexes, filtering, and specialised vector databases.
+
+### Step 6 — Cache repeated reads carefully
+
+A <Term id="cache">cache</Term> stores a faster temporary copy of data. Redis is a popular in-memory key-value store: you provide a key such as `ticket:42` and receive its value.
+
+**Cache-aside** is a common pattern:
+
+1. Ask the cache for the key.
+2. If found, return it. This is a **cache hit**.
+3. If missing, read the database. This is a **cache miss**.
+4. Store a temporary copy in the cache.
+5. Return the value.
+
+<Figure id="00-05.2" label="CACHE-ASIDE READS AND INVALIDATION" caption="— read Redis first. A hit returns quickly. A miss reads PostgreSQL, stores a copy with a time to live, and returns it. After updating PostgreSQL, delete the cached key so the next read cannot use the old value.">
+  <CacheAsideFlow />
+</Figure>
+
+A <Term id="time-to-live">time to live</Term>, shortened to **TTL**, tells the cache when to expire a value automatically.
+
+TTL limits how long stale data can survive, but it does not decide what “fresh enough” means. A public article count may tolerate a minute-old value. A user's permissions may require immediate invalidation.
+
+<PyRunner
+  client:idle
+  id="00-05.B"
+  label="A TINY CACHE-ASIDE READ PATH"
+  code={`import time
+
+database = {"ticket:42": {"subject": "Reset password", "status": "open"}}
+cache = {}
+
+def cache_set(key, value, ttl_seconds):
+    cache[key] = {"value": value.copy(), "expires_at": time.monotonic() + ttl_seconds}
+
+def cache_get(key):
+    entry = cache.get(key)
+    if entry is None or time.monotonic() >= entry["expires_at"]:
+        cache.pop(key, None)
+        return None
+    return entry["value"].copy()
+
+def get_ticket(key):
+    cached = cache_get(key)
+    if cached is not None:
+        print("cache hit")
+        return cached
+
+    print("cache miss — reading database")
+    value = database[key]
+    cache_set(key, value, ttl_seconds=2)
+    return value.copy()
+
+print(get_ticket("ticket:42"))
+print(get_ticket("ticket:42"))
+
+database["ticket:42"]["status"] = "closed"
+cache.pop("ticket:42", None)  # invalidate after the durable update
+print(get_ticket("ticket:42"))
+
+# Try: remove cache.pop(...). What stale status does the third read return?`}
+/>
+
+The cache is an optimisation, not the source of truth. The database update happens first. Only after that succeeds does the code invalidate the temporary copy.
+
+The hardest cache problem is **invalidation**: deciding when a cached value is no longer safe to use. Common strategies include short TTLs, deletion after a write, versioned keys, or avoiding a cache when correctness matters more than saved latency.
+
+### Step 7 — Queue slow work for a worker
+
+A <Term id="message-queue">message queue</Term> is a durable waiting line between the code that requests work and the code that performs it.
+
+- The **producer** publishes a message.
+- The **queue** stores it.
+- A **consumer** or **worker** receives it.
+- The worker sends an **acknowledgement** after success.
+
+For an uploaded PDF, the API can store the document and enqueue `index_document(document_id=42)`. It returns `202 Accepted` immediately. A worker later parses the PDF, creates chunks and embeddings, then marks the job complete.
+
+```python
+def upload_document(file):
+    document_id = save_document(file)
+    queue.publish({"job": "index_document", "document_id": document_id})
+    return {"document_id": document_id, "status": "queued"}
+```
+
+Real workers can crash after doing the work but before acknowledging the message. The queue may deliver that message again. This is called **at-least-once delivery**. Therefore a worker must tolerate duplicates, usually by checking a stable job identifier and making its actions idempotent.
+
+A queue is not a place to hide every slow function. It introduces retries, monitoring, delayed results, and duplicate-delivery design. Use it when the request does not need the final result immediately or when work must survive a web process restarting.
+
+## Worked example — upload and index a document
+
+Follow one document from input to searchable chunks:
+
+1. The client sends `POST /documents`.
+2. The API validates the owner and file metadata.
+3. A transaction inserts `documents(id=42, status='queued')`.
+4. The same transaction inserts an outbox job with `document_id=42`.
+5. The transaction commits. The API returns `202 Accepted`.
+6. A publisher moves the committed outbox message to the job queue.
+7. A worker claims the message and changes the document status to `processing`.
+8. The worker extracts text, divides it into chunks, and creates embeddings.
+9. One transaction stores all chunks and changes the status to `ready`.
+10. The worker acknowledges the message.
+11. A later search filters chunks by `owner_id` and ranks permitted matches by vector distance.
+
+Why use an **outbox table** in step four? Publishing to a queue and writing to a database are two different systems. If the row commits but publishing fails, the document could remain queued forever. Recording the intended message in the same database transaction makes the state recoverable. A separate publisher can retry unsent outbox rows.
+
+This is an optional advanced pattern, but the principle is essential: do not claim two independent operations are atomic when they are not.
+
+## In a real AI system
+
+<RealWorldExample
+  title="A resume and job-matching service"
+  steps={[
+    "PostgreSQL stores users, resumes, jobs, and permissions",
+    "A transaction records each upload and its indexing job",
+    "A worker extracts text and creates embeddings",
+    "pgvector retrieves jobs with similar meaning",
+    "Redis caches popular job details for a short TTL",
+    "Updates invalidate cached copies before the next read",
+  ]}
+>
+  A matching service needs ordinary relational facts and semantic similarity.
+  The vector is useful only alongside trustworthy ownership, status, and job
+  metadata.
+
+The design keeps PostgreSQL as the source of truth. Redis improves repeated reads, and a queue prevents document processing from blocking the upload request.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Building SQL with an f-string that contains user input.",
+      fix: "Use parameterised queries. String construction can turn data into executable SQL and expose or damage the database.",
+    },
+    {
+      mistake: "Performing related writes separately and hoping both succeed.",
+      fix: "Wrap one logical change in a transaction. Commit only after every required operation succeeds; otherwise roll back.",
+    },
+    {
+      mistake: "Adding an index to every column because indexes sound fast.",
+      fix: "Start from measured query patterns and inspect EXPLAIN. Every index consumes storage and slows relevant writes.",
+    },
+    {
+      mistake: "Treating Redis as the only copy of important user data.",
+      fix: "Keep durable truth in a database. Cache entries may expire, be evicted, or become stale.",
+    },
+    {
+      mistake: "Updating the database but leaving an old cache entry in place.",
+      fix: "Invalidate or update the cache after the durable write succeeds, and use a TTL that matches the product's freshness needs.",
+    },
+    {
+      mistake: "Assuming a queued job runs exactly once.",
+      fix: "Design workers for redelivery. Use a stable job identifier, idempotent writes, acknowledgements, bounded retries, and a dead-letter policy.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "What is the main purpose of a database transaction?",
+      options: [
+        "Make every query use Redis",
+        "Make related operations commit or roll back together",
+        "Turn text into an embedding",
+      ],
+      answer: 1,
+      explanation: "A transaction protects one logical change from becoming a dangerous partial change.",
+    },
+    {
+      question: "When is a database index most useful?",
+      options: [
+        "When it matches a frequent selective query",
+        "On every column regardless of queries",
+        "Only when the table has one row",
+      ],
+      answer: 0,
+      explanation: "Indexes should follow real filters, joins, and ordering patterns, then be verified with a query plan.",
+    },
+    {
+      question: "A Redis key has expired. What should cache-aside code do?",
+      options: [
+        "Return the expired value",
+        "Delete the database row",
+        "Read the source of truth and cache a fresh copy",
+      ],
+      answer: 2,
+      explanation: "An expired entry behaves like a cache miss. The application reads durable storage and may repopulate the cache.",
+    },
+    {
+      question: "Why should a background worker tolerate the same message twice?",
+      options: [
+        "Queues may redeliver work when acknowledgement is uncertain",
+        "SQL cannot store job identifiers",
+        "Redis always duplicates every key",
+      ],
+      answer: 0,
+      explanation: "A worker can finish and crash before acknowledging. Redelivery protects against lost work, so processing must be idempotent.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Build a safe ticket update"
+  time="10–20 minutes"
+  goal="Update a ticket and write its audit event as one transaction."
+  steps={[
+    "Create tickets and audit_events tables using the starter code.",
+    "Insert one open ticket.",
+    "Inside `with db`, change its status to closed.",
+    "Insert an audit row in the same block.",
+    "Force the audit insert to fail once and confirm the status rolls back.",
+  ]}
+  expected="The successful version leaves one closed ticket and one audit row. The deliberately failing version leaves the original open ticket and no audit row."
+  challenge="Add a foreign key from audit_events.ticket_id to tickets.id and enable SQLite foreign-key checks."
+>
+
+```python
+import sqlite3
+
+db = sqlite3.connect(":memory:")
+db.execute("CREATE TABLE tickets (id INTEGER PRIMARY KEY, status TEXT NOT NULL)")
+db.execute("""
+    CREATE TABLE audit_events (
+        id INTEGER PRIMARY KEY,
+        ticket_id INTEGER NOT NULL,
+        event TEXT NOT NULL
+    )
+""")
+db.execute("INSERT INTO tickets VALUES (1, 'open')")
+db.commit()
+
+# Write the transaction here.
+```
+
+```python
+try:
+    with db:
+        db.execute("UPDATE tickets SET status = ? WHERE id = ?", ("closed", 1))
+        db.execute(
+            "INSERT INTO audit_events (ticket_id, event) VALUES (?, ?)",
+            (1, "ticket_closed"),
+        )
+except sqlite3.DatabaseError as error:
+    print("rolled back:", error)
+
+print(db.execute("SELECT * FROM tickets").fetchall())
+print(db.execute("SELECT ticket_id, event FROM audit_events").fetchall())
+```
+
+Expected successful output:
+
+```text
+[(1, 'closed')]
+[(1, 'ticket_closed')]
+```
+
+To test rollback, temporarily change `event` in the `INSERT` statement to a column name that does not exist. The second statement fails, and the first update rolls back.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "PostgreSQL holds durable relational truth; Redis is normally a temporary optimisation, not the only copy.",
+    "A transaction commits one logical change completely or rolls it back completely.",
+    "Indexes speed selected reads by adding storage and write work, so they must follow measured queries.",
+    "pgvector keeps embeddings beside relational metadata and permissions, but similarity search still needs careful evaluation.",
+    "Cache-aside needs both an expiry policy and an invalidation policy.",
+    "Queues move slow work away from requests, while introducing duplicate delivery, retries, and monitoring responsibilities.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is SQL?",
+      back: "The language used to define, read, and change data in a relational database.",
+    },
+    {
+      front: "What does a transaction protect?",
+      back: "A group of related operations that must commit or roll back together.",
+    },
+    {
+      front: "What is the cost of an index?",
+      back: "Extra storage and extra work during inserts and relevant updates.",
+    },
+    {
+      front: "What is pgvector?",
+      back: "A PostgreSQL extension for storing vectors and searching by vector distance.",
+    },
+    {
+      front: "What does TTL mean?",
+      back: "Time to live: how long a cached value or message remains valid.",
+    },
+    {
+      front: "What is cache invalidation?",
+      back: "Removing or replacing a cached copy when it may no longer match the source of truth.",
+    },
+    {
+      front: "What does a message queue separate?",
+      back: "The producer requesting work from the worker performing it.",
+    },
+    {
+      front: "Why must a queued job be idempotent?",
+      back: "Because acknowledgement can be lost and the queue may deliver the same message again.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Design tables and relationships for users, documents, and document chunks.",
+    "Trace what commits and what rolls back when the second statement in a transaction fails.",
+    "Explain how you would decide whether to add a Redis cache to an endpoint.",
+    "Compare a database index, a vector index, a cache, and a message queue.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Data & storage"
+  terms={[
+    "SQL — relational data language",
+    "Transaction — all-or-nothing operations",
+    "Index — extra lookup structure",
+    "pgvector — meaning-based PostgreSQL search",
+    "Cache — fast temporary copy",
+    "Queue — durable waiting work",
+  ]}
+  mistakes={[
+    "Do not interpolate user input into SQL",
+    "Do not split one logical change across unsafe writes",
+    "Do not add unmeasured indexes everywhere",
+    "Do not keep stale cached values after updates",
+    "Do not assume queued work runs exactly once",
+  ]}
+  takeaways={[
+    "Keep one durable source of truth",
+    "Commit related changes together",
+    "Index actual query patterns",
+    "Expire and invalidate caches",
+    "Make workers safe to retry",
+  ]}
+  questions={[
+    "What must survive a restart?",
+    "Can this cache return stale data?",
+    "Can this job safely run twice?",
+  ]}
+>
+  <p slot="main">
+    Reliable AI systems separate durable facts, fast copies, semantic lookup,
+    and delayed work. Each tool solves one storage problem and creates specific
+    responsibilities.
+  </p>
+  <div slot="diagram">
+    <DataStorageJourney />
+  </div>
+  <pre slot="code">
+    <code>{`with database:
+    save_document()
+    enqueue_job()`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="data-and-storage"
+  items={[
+    "I can assign PostgreSQL, pgvector, Redis, and a queue distinct jobs.",
+    "I wrote or traced a parameterised SQL query.",
+    "I can explain commit and rollback.",
+    "I identified an index from a query pattern.",
+    "I traced the cache-aside diagram.",
+    "I completed the knowledge check.",
+    "I attempted the transaction practice activity.",
+    "I reviewed the flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="containers-git-and-ci"
+  title="Containers, Git & CI"
+  why="You can now build a service that stores data safely and runs background work. Next, package that service, track its changes, and make an automated pipeline prove it can be built before deployment."
+/>
