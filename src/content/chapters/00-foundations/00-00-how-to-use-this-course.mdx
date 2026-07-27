@@ -6,12 +6,19 @@ slug: 'how-to-use-this-course'
 subtitle: 'A map, three depth tiers, and the one habit that decides whether any of this sticks.'
 depth: know
 difficulty: beginner
-readingTime: 12
+readingTime: 28
 prerequisites: []
+skillsGained:
+  - 'Choose an appropriate depth for each lesson'
+  - 'Use the run–break–tune learning loop'
+  - 'Read a traceback as useful feedback'
+  - 'Create a realistic weekly study plan'
 objectives:
-  - 'Navigate the course by its 11 layers and decide what to read at build, use, or know depth'
-  - 'Run, edit, and deliberately break the interactive cells — and say why breaking them is the point'
-  - 'Set a sustainable pace that favours depth over coverage and sidesteps the tutorial-hopping trap'
+  - 'Explain the difference between build, use, and know depth'
+  - 'Choose a depth tier for a learning goal'
+  - 'Apply the run–break–tune loop to a small Python example'
+  - 'Identify useful information in a Python error message'
+  - 'Write a sustainable weekly study plan'
 concepts:
   - depth-tiers
   - pyodide
@@ -22,6 +29,9 @@ diagrams:
   - DepthTiers
 interactives:
   - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
 codeExamples: 2
 exercises:
   - prompt: 'Open any later chapter, find its "Production reality" section, and write one sentence on a cost or failure mode it names that you would not have guessed from the concept alone.'
@@ -47,161 +57,443 @@ resources:
     type: docs
     note: 'The runtime that executes Python in your browser here — worth a skim so the magic feels less like magic.'
 status: published
-updated: 2026-07-24
+updated: 2026-07-27
 ---
 
 import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
 import CourseAssembly from '../../../components/diagrams/CourseAssembly.astro';
 import DepthTiers from '../../../components/diagrams/DepthTiers.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
 
-You watch a three-hour video on transformers. You nod along. It makes sense. A week later a colleague asks why attention divides by the square root of the key dimension, and you have nothing — not because you are slow, but because **watching is not the same as knowing**, and your brain quietly filed the video under "seen," not "learned."
+This course is a workshop, not a book you race through.
 
-That gap — between recognising an idea when you see it and being able to reproduce it when you need it — is where most self-taught AI engineers get stuck. This chapter is about how this course is built to close that gap, and what you have to do for it to work.
+You will read short explanations. More importantly, you will predict, run, change, and repair small examples. Those actions turn an idea you recognise into a skill you can use.
 
-<Prerequisites data={frontmatter} />
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="0 · How to use this course"
+  difficulty="Beginner"
+  duration="28 minutes"
+  prerequisites={["A web browser", "No programming or AI experience required"]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Watching someone code can feel like learning. The real test comes later: can you explain the idea, change the code, and recover when it fails?
+
+This lesson gives you a repeatable study method. It also helps you spend your time where depth matters most.
+
+<MainIdea>
+  Learn each topic with a short loop: predict what will happen, run the example,
+  deliberately change it, observe the result, and explain what you learned. Use
+  the lesson's depth tag to decide how much detail you need.
+</MainIdea>
 
 <Objectives data={frontmatter} />
 
-## The intuition
+## Think of the course as a guided expedition
 
-The whole course rests on one unglamorous idea: **you learn engineering by doing engineering.** Not by reading about it. So every chapter contains at least one thing you cannot get from prose — something you can run, edit, break, and watch respond.
+A course **layer** is a group of lessons that builds one part of your AI engineering knowledge. Foundations sit underneath later application topics.
 
-The cells in this course are not screenshots. They are real Python, executed in your browser by <Term id="pyodide">Pyodide</Term>, with nothing sent to a server. When a demo genuinely needs a hosted model, it uses a committed <Term id="fixture">fixture</Term> so it still runs for free — and you can switch on <Term id="byok">BYOK</Term> mode to re-run it live against your own key.
+A **depth tier** tells you how far a lesson expects you to go:
 
-That changes what reading means here. When you hit a runnable cell, the instruction is never "look at this." It is **"change a number and see what moves."** A concept you have perturbed and watched react is one you can rebuild later. A concept you only read is one you will have to look up.
+- **Build:** create the idea yourself and explain its moving parts.
+- **Use:** apply it correctly and compare its trade-offs.
+- **Know:** recognise it, explain its purpose, and know when to revisit it.
 
-<Callout type="note">
-This course is deliberately long — about 88 chapters across 11 layers, months of work at a sustainable pace. That is a feature. The goal is not to finish; it is to still understand chapter 3 by the time you reach chapter 30.
-</Callout>
+<AnalogyCard
+  title="The course is a map with different hiking trails"
+  limitation="Learning is less predictable than a real journey. You may need to return to an earlier lesson, and that is normal."
+>
+  A map shows the whole landscape, but you do not walk every path in the same way. A build lesson is a steep trail you explore carefully. A use lesson is a marked route you practise following. A know lesson is a viewpoint that helps you see where a topic belongs.
+</AnalogyCard>
 
-## How it's built
+## See the whole course
 
-The course is organised as eleven **layers**, from the maths and Python foundations up through classical ML, deep learning, transformers, the application-engineering core, evaluation, adaptation, serving, operations, safety, and finally specialisations. Each builds on the ones below it.
-
-<Figure id="00-00.1" label="THE COURSE, EXPLODED" caption="— the eleven layers as an exploded assembly. Lower layers are load-bearing for everything above; you can enter at any layer you already have the parts for, but skipping a foundation shows up later as a gap you cannot name.">
+<Figure
+  id="00-00.1"
+  label="THE COURSE, LAYER BY LAYER"
+  caption="— foundations support the application topics above them. The diagram is a map, not a rule that forbids revisiting earlier lessons."
+>
   <CourseAssembly />
 </Figure>
 
-Every chapter carries a **depth tag** telling you how far it goes, because you neither can nor should go equally deep on everything.
+The lower layers introduce language and tools used later. If a later lesson feels as though it skipped a step, follow its prerequisite link and return when the missing idea feels clear.
 
-<Figure id="00-00.2" label="THE THREE DEPTH TIERS" caption="— build, use, and know. The tag on each chapter sets the contract: how much of the machinery you are expected to hold in your head afterwards.">
+<Figure
+  id="00-00.2"
+  label="CHOOSE THE RIGHT DEPTH"
+  caption="— build, use, and know are three learning contracts. Each tier asks for a different practical outcome."
+>
   <DepthTiers />
 </Figure>
 
-- **Build** chapters take you all the way down: you implement the thing from scratch, so you understand every moving part.
-- **Use** chapters stop at correct, informed usage: you can apply the technique and argue its trade-offs without rebuilding it.
-- **Know** chapters are a map pin: you learn that something exists and what problem it solves, so you can reach for it later.
+## Follow the learning loop
 
-Inside a chapter the shape is always the same — a hook, the intuition in plain words, diagrams, the mechanics, a worked example, something interactive, and then a **"Production reality"** section that most tutorials skip: what breaks, what it costs, and what the trade-offs are. That section is the difference between knowing a technique and being trusted to ship it.
+### Step 1: predict
 
-## A worked example: the run–break–tune loop
+Before running code, say what you expect. A prediction gives you something concrete to compare with the result.
 
-Here is the loop this course wants to become a habit. Suppose you meet this code:
+### Step 2: run
+
+Select **Run**. The interactive Python cells use <Term id="pyodide">Pyodide</Term>, which runs Python inside your browser.
+
+### Step 3: break
+
+Change one value or remove one line. This is **deliberate practice**: focused practice designed to expose what you do and do not yet know.
+
+### Step 4: read the feedback
+
+When Python cannot continue, it produces a **traceback**. A traceback is an error report that shows where execution stopped and names the type of error.
+
+### Step 5: tune and explain
+
+Repair the example. Then explain the cause in one sentence. If you cannot explain it yet, compare your code with the worked example and try again.
+
+## Worked example
+
+Suppose you want to study for six hours each week:
 
 ```python
-def average(numbers):
-    total = 0
-    for n in numbers:
-        total += n
-    return total / len(numbers)
-
-print(average([]))   # what happens here?
+hours_per_week = 6
+weeks = 4
+practice_hours = hours_per_week * weeks
+print(practice_hours)
 ```
 
-Passive reading says "a function that averages a list — fine, next." The run–break–tune loop says: *run it.* You get a `ZeroDivisionError`, because an empty list has length zero. Now you have learned something the prose never told you — this function has an edge case — and you learned it in the strongest possible way, by watching it fail. **Break, observe, then fix.** That single habit, applied a few hundred times across this course, is most of what separates an engineer from a spectator.
+Predict the result first. Python multiplies `6` by `4`, stores `24` in `practice_hours`, and prints:
 
-## Try it
+```text
+24
+```
 
-Below is a live cell — the same kind you will meet in every chapter. Edit it, press **Run** (or `⌘/Ctrl + Enter`), and watch it respond. The first run takes a few seconds while Python loads; after that it is instant.
+Now break the code by changing `weeks` to `"four"`. Quotation marks turn it into text. Multiplying text by `6` repeats it rather than performing the calculation. The unexpected output teaches you that the shape of data matters.
+
+Tune the program by changing the value back to the number `4`. Then explain the lesson: *numbers and text behave differently, even when they describe the same idea*.
+
+## Run the code
+
+<CodeNotebook title="Choose a study action from the available time">
+
+```python
+def study_action(minutes):
+    if minutes >= 20:
+        return (
+            "Run, break, and "
+            "repair the example."
+        )
+    return "Review six flashcards."
+
+
+print(study_action(25))
+print(study_action(10))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+Run, break, and repair the example.
+Review six flashcards.
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "def study_action(minutes):",
+      explanation: "Creates a reusable function that receives the available minutes.",
+    },
+    {
+      line: "if minutes >= 20:",
+      explanation: "Checks whether there are at least twenty minutes for practical work.",
+    },
+    {
+      line: 'return "Run, break, and repair the example."',
+      explanation: "Sends back the practical study action when the check is true.",
+    },
+    {
+      line: 'return "Review six flashcards."',
+      explanation: "Provides a smaller revision task when fewer than twenty minutes are available.",
+    },
+  ]}
+/>
+
+Run the example below. Change `minutes_today`, predict the new message, and run it again.
 
 <PyRunner
   client:idle
   id="00-00.A"
-  label="RUN PYTHON, RIGHT HERE"
-  code={`# This is real Python, running in your browser. Edit it and press Run.
-hours_per_week = 6
-weeks = 26
+  label="PLAN TODAY'S STUDY STEP"
+  code={`def study_action(minutes):
+    if minutes >= 20:
+        return (
+            "Run, break, and "
+            "repair the example."
+        )
+    return "Review six flashcards."
 
-total = hours_per_week * weeks
-print(f"{hours_per_week} h/week for {weeks} weeks = {total} hours of practice.")
+minutes_today = 25
+print(study_action(minutes_today))
 
-if total < 200:
-    print("Enough to go deep on a few layers — not to rush all eleven.")
-else:
-    print("Plenty. Spend the surplus breaking things, not just reading.")
-
-# Try: change hours_per_week to 15 and run again. Watch the message flip.`}
+# Try changing minutes_today to 10.`}
 />
 
-If you changed `hours_per_week` to `15` and the second message appeared, you just did the thing this whole course is built around. That is the loop.
+## Real-world AI engineering use
 
-## Production reality
+<RealWorldExample
+  title="Learning a model API safely"
+  steps={[
+    "Read the smallest working request",
+    "Predict the response shape",
+    "Run it with a local mock",
+    "Remove a required field",
+    "Read the error and repair the request",
+  ]}
+>
+  An **application programming interface (API)** is a defined way for software systems to exchange requests and responses. When an AI engineer learns a model API, reading documentation is only the beginning.
 
-No one hands a working AI engineer a tidy curriculum. The way people actually stay current on the job is a rougher version of this course: they **read the source** of the library they depend on, they **break things in a staging environment** to learn the failure modes before production finds them for them, and they keep a running note of trade-offs they have personally hit.
-
-The cost is real and worth naming: **depth is slow.** Genuinely understanding attention, or why a reranker earns its latency, takes hours you could have spent skimming ten blog posts. The blog posts feel more productive. They are not — a week later they are gone, and the person who built one small thing from scratch still has it.
-
-The trade-off you are managing throughout is **breadth versus depth**. You cannot build everything. The depth tags are your budget: spend "build" effort where you will work daily, take "know" depth on the rest, and revisit. Teams lose months to engineers who tutorial-hopped their way to a shallow familiarity with everything and a working command of nothing.
-
-<Callout type="watch-out">
-The most expensive mistake in learning this material is the feeling of progress without the substance of it. Finishing a chapter you did not run, or skipping the "Production reality" section because the chapter was already long, gives you the feeling and skips the substance.
-</Callout>
+They send a small request, inspect the response, test a failure, and record what happened. This is the same run–break–tune loop used throughout the course, with safe local examples before live services.
+</RealWorldExample>
 
 ## Common mistakes
 
 <CommonMistakes
   items={[
     {
-      mistake: 'Tutorial-hopping — starting a new course or video every time the current one gets hard.',
-      fix: 'The hard part is where the learning is. When a chapter gets uncomfortable, that is the signal to slow down and run the cell, not to switch tabs. Pick one path and finish a layer before you judge it.',
+      mistake: "Reading every example without changing it.",
+      fix: "Predict first, then change one value and run the code again. The comparison reveals how the idea behaves.",
     },
     {
-      mistake: 'Reading the runnable cells instead of running them.',
-      fix: 'A cell you read teaches you almost nothing a paragraph could not. Change a value and run it. The two-second habit is the entire point of an interactive course.',
+      mistake: "Starting a different tutorial whenever a lesson becomes uncomfortable.",
+      fix: "Write down the exact confusing term, revisit its prerequisite, and complete one small exercise before changing resources.",
     },
     {
-      mistake: 'Skipping the "Production reality" section because you "get the concept".',
-      fix: 'Getting the concept is table stakes. The production section is where the cost, the failure modes, and the trade-offs live — the things that decide whether what you build survives contact with real traffic. Never skip it.',
+      mistake: "Treating an error message as failure.",
+      fix: "Read the final traceback line first. Find the error type and line number, then test one repair.",
+    },
+    {
+      mistake: "Trying to complete every lesson at build depth.",
+      fix: "Use the published depth tag. Save build-level effort for skills you need to create and debug yourself.",
     },
   ]}
 />
 
-## Exercises
+## Knowledge check
 
-<Exercises data={frontmatter} />
+Choose an answer. Feedback appears immediately and explains why.
 
-## Checkpoint
-
-<Checkpoint
+<QuizCard
+  client:load
   questions={[
     {
-      q: 'What is the difference between a "build", "use", and "know" chapter, and how should each change how you read it?',
-      a: 'Build: implement it from scratch, hold every part in your head. Use: apply it correctly and explain the trade-offs, without rebuilding. Know: learn it exists and what problem it solves. Read build chapters slowly and hands-on; read know chapters for the map, not the mechanics.',
+      question: "What does a build-depth lesson ask you to do?",
+      options: [
+        "Implement the idea and explain its moving parts",
+        "Only recognise the topic name",
+        "Skip practical work",
+      ],
+      answer: 0,
+      explanation: "Build depth means creating the idea yourself so you can inspect and debug its parts.",
     },
     {
-      q: 'Why does this course insist you run and break the cells rather than read them?',
-      a: 'Because recognition is not recall. Perturbing a concept and watching it react builds a memory you can reconstruct later; reading builds one you will have to look up. Breaking things also teaches the failure modes, which is where the real engineering lives.',
+      question: "True or false: recognising code while reading proves that you can reproduce it later.",
+      options: ["True", "False"],
+      answer: 1,
+      explanation: "Recognition is weaker than recall. Predicting, changing, and repairing code provides stronger evidence.",
     },
     {
-      q: 'What runs the Python in these cells, and where does your code (and any API key) go?',
-      a: 'Pyodide — CPython compiled to WebAssembly — runs it entirely in your browser tab. Nothing is sent to a server; there is no server. In optional BYOK mode a key you paste stays in your browser and goes only to the provider you chose.',
+      question: "What should you inspect first when a Python example fails?",
+      options: [
+        "The final traceback line and error type",
+        "A completely different tutorial",
+        "Only the colour of the output",
+      ],
+      answer: 0,
+      explanation: "The final traceback line usually names the error and gives a useful starting point.",
     },
     {
-      q: 'You have limited time. How do the depth tags help you spend it?',
-      a: 'They are a budget. Spend "build" effort on the layers you will work in daily; take "know" depth on the rest so you have the map without the months. Depth is slow, so choose where to be deep on purpose.',
+      question: "You have ten minutes today. Which action best fits this lesson?",
+      options: [
+        "Skip learning until you have a free weekend",
+        "Review a few flashcards and explain one answer aloud",
+        "Rush through three new lessons",
+      ],
+      answer: 1,
+      explanation: "A small focused revision session keeps the habit alive without pretending there is time for deep practical work.",
     },
   ]}
 />
+
+## Practice activity
+
+<PracticeActivity
+  title="Create your run–break–tune study card"
+  time="10–20 minutes"
+  goal="Plan one focused study session that produces visible evidence of learning."
+  steps={[
+    "Choose one lesson you will study next.",
+    "Write one prediction you can make before running its example.",
+    "Choose one safe change that should alter the output.",
+    "Write what evidence will show that you repaired the example.",
+    "Choose a realistic day and duration for the session.",
+  ]}
+  expected="A five-line study card with a lesson, prediction, deliberate change, repair check, and scheduled time."
+  challenge="Add a fallback five-minute revision action for a busy day."
+>
+
+Starter template:
+
+```text
+Lesson:
+My prediction:
+Change I will make:
+How I will check the repair:
+When I will practise:
+```
+
+```text
+Lesson:
+  Python foundations
+  for AI applications
+My prediction:
+  Blank messages will be removed.
+Change I will make:
+  Move return inside the loop.
+How I will check the repair:
+  Every useful message appears
+  after the fix.
+When I will practise:
+  Tuesday, 19:00–19:20.
+Fallback:
+  Review the six lesson flashcards.
+```
+
+</PracticeActivity>
 
 ## Key takeaways
 
 <KeyTakeaways
   points={[
-    'Recognition is not recall — watching an explanation is not the same as being able to reproduce it.',
-    'Every chapter has something you can run, edit, and break; the run–break–tune loop is the core study habit.',
-    'The eleven layers build on each other; depth tags (build / use / know) are your budget for where to go deep.',
-    'The "Production reality" section carries the costs and trade-offs that tutorials omit — never skip it.',
-    'Depth is slow and feels less productive than skimming; do it anyway, because it is the part that lasts.',
+    "Learning is demonstrated by what you can explain, change, and repair.",
+    "Build, use, and know tags help you spend study time deliberately.",
+    "Predict before running so the result teaches you something specific.",
+    "A traceback is feedback about where and why Python stopped.",
+    "Short, regular practice is more useful than rushing for completion.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is a depth tier?",
+      back: "A tag describing how far a lesson expects you to learn a topic.",
+    },
+    {
+      front: "What does build depth require?",
+      back: "Implement the idea and explain its moving parts.",
+    },
+    {
+      front: "What does use depth require?",
+      back: "Apply the idea correctly and explain important trade-offs.",
+    },
+    {
+      front: "What does know depth require?",
+      back: "Recognise the idea, its purpose, and when to revisit it.",
+    },
+    {
+      front: "What is the run–break–tune loop?",
+      back: "Predict, run, change, observe, repair, and explain.",
+    },
+    {
+      front: "What is a traceback?",
+      back: "Python's error report showing where execution stopped and the error type.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Compare build, use, and know depth using one example topic.",
+    "Why is predicting an output useful before you run code?",
+    "How would you use a traceback to begin debugging an unfamiliar error?",
+    "Design a twenty-minute run–break–tune session for a lesson you want to learn.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="How to use this course"
+  terms={[
+    "Layer — related lessons that build one part of the course",
+    "Depth tier — the expected level of learning",
+    "Deliberate practice — focused work on a specific skill",
+    "Traceback — Python's error report",
+  ]}
+  mistakes={[
+    "Do not only read runnable examples",
+    "Do not tutorial-hop when work becomes difficult",
+    "Do not treat every topic as build depth",
+  ]}
+  takeaways={[
+    "Predict before running",
+    "Change one thing at a time",
+    "Read errors as feedback",
+    "Repair and explain",
+    "Study at a sustainable pace",
+  ]}
+  questions={[
+    "Which depth tier fits your goal?",
+    "What will you deliberately change?",
+    "What evidence proves you learned it?",
+  ]}
+>
+  <p slot="main">
+    This course is an interactive workshop. Use each lesson's depth tag, then
+    turn explanations into durable skill with the run–break–tune loop.
+  </p>
+  <div slot="diagram">
+    <DepthTiers compact />
+  </div>
+  <pre slot="code">
+    <code>{`predict()
+run()
+change_one_thing()
+observe()
+repair()
+explain()`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="how-to-use-this-course"
+  items={[
+    "I can compare build, use, and know depth.",
+    "I followed the worked example.",
+    "I ran and changed the Python cell.",
+    "I completed the knowledge check.",
+    "I created a study card.",
+    "I reviewed the flashcards.",
   ]}
 />
 
@@ -211,6 +503,6 @@ The most expensive mistake in learning this material is the feeling of progress 
 
 <NextUp
   slug="python-for-ai-engineering"
-  title="Python for AI engineering"
-  why="Foundations first: the Python idioms — types, dataclasses, generators, context managers — that the rest of the course assumes you can read and write."
+  title="Python foundations for AI applications"
+  why="You now have a method for active learning. Next you will use it to learn the small Python building blocks that move data through an AI application."
 />
