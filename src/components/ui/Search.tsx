@@ -80,9 +80,9 @@ export default function Search() {
         type="button"
         className="search-trigger"
         onClick={() => setOpen(true)}
-        aria-label="Search the course"
+        title="Search the course"
       >
-        <span aria-hidden="true">Search</span>
+        <span>Search</span>
         <kbd>⌘K</kbd>
       </button>
 
