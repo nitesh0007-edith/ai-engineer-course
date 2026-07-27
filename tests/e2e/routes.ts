@@ -8,4 +8,5 @@ export const ROUTES = [
   'chapters/apis-and-services/',
   'chapters/data-and-storage/',
   'chapters/containers-git-and-ci/',
+  'chapters/maths-i-linear-algebra-calculus/',
 ];

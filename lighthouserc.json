@@ -12,7 +12,8 @@
         "http://localhost:4321/ai-engineer-course/chapters/modern-python-tooling/",
         "http://localhost:4321/ai-engineer-course/chapters/apis-and-services/",
         "http://localhost:4321/ai-engineer-course/chapters/data-and-storage/",
-        "http://localhost:4321/ai-engineer-course/chapters/containers-git-and-ci/"
+        "http://localhost:4321/ai-engineer-course/chapters/containers-git-and-ci/",
+        "http://localhost:4321/ai-engineer-course/chapters/maths-i-linear-algebra-calculus/"
       ],
       "numberOfRuns": 3,
       "settings": {

@@ -1,0 +1,1026 @@
+---
+layer: 0
+order: 7
+title: 'Maths I: linear algebra & calculus'
+slug: 'maths-i-linear-algebra-calculus'
+subtitle: 'The visual language behind embeddings, neural layers, attention, and learning — built from lists, arrows, slopes, and small calculations.'
+depth: build
+difficulty: beginner
+readingTime: 55
+prerequisites:
+  - python-for-ai-engineering
+skillsGained:
+  - 'Read vectors and matrices by shape'
+  - 'Calculate dot products, norms, and cosine similarity'
+  - 'Trace a small matrix multiplication'
+  - 'Explain rank, projection, eigenvectors, and SVD intuitively'
+  - 'Estimate derivatives and follow a gradient-descent update'
+  - 'Apply the chain rule through a small computation graph'
+objectives:
+  - 'Represent AI features as vectors and batches as matrices'
+  - 'Calculate a dot product and matrix-vector product by hand'
+  - 'Compare Euclidean distance and cosine similarity'
+  - 'Explain what rank, projection, eigenvectors, and singular value decomposition reveal'
+  - 'Calculate a derivative, partial derivative, and gradient in a small example'
+  - 'Trace the chain rule and identify the shape of a Jacobian'
+concepts:
+  - vector
+  - dot-product
+  - matrix-multiplication
+  - cosine-similarity
+  - gradient
+  - chain-rule
+  - jacobian
+diagrams:
+  - VectorSimilarityMap
+  - GradientDescentLandscape
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 8
+exercises:
+  - prompt: 'Calculate the dot product of `[2, -1, 3]` and `[4, 5, 2]`. Then explain what the single output number represents.'
+    difficulty: warmup
+    solution: '`2×4 + (-1)×5 + 3×2 = 8 - 5 + 6 = 9`. The dot product combines pairwise feature interactions into one alignment or weighted-sum score. Its exact meaning depends on what the two vectors represent.'
+  - prompt: 'A matrix has shape `(4, 3)` and another has shape `(3, 2)`. Can they be multiplied in that order, and what is the output shape? What about reversing the order?'
+    difficulty: core
+    solution: '`(4, 3) × (3, 2)` is valid because the inner dimensions are both 3; the output shape is `(4, 2)`. Reversing gives `(3, 2) × (4, 3)`, which is invalid because 2 does not equal 4. Matrix multiplication is generally not commutative.'
+  - prompt: 'For `loss(w, b) = (w + 2b - 7)²`, calculate the gradient at `w=1, b=1` and perform one gradient-descent step with learning rate `0.1`.'
+    difficulty: stretch
+    solution: 'Let `error = w + 2b - 7 = -4`. The partial derivative with respect to `w` is `2×error = -8`; with respect to `b` it is `2×error×2 = -16`. The gradient is `[-8, -16]`. Subtracting `0.1×gradient` gives `w=1.8, b=2.6`. The prediction moves from 3 to 7, reaching zero loss in this particular step.'
+resources:
+  - title: '3Blue1Brown — Essence of linear algebra'
+    url: 'https://www.3blue1brown.com/topics/linear-algebra'
+    type: course
+    note: 'Visual explanations of vectors, transformations, determinants, eigenvectors, and change of basis.'
+  - title: '3Blue1Brown — Essence of calculus'
+    url: 'https://www.3blue1brown.com/topics/calculus'
+    type: course
+    note: 'Visual intuition for derivatives, integrals, the chain rule, and gradients.'
+  - title: 'NumPy — Linear algebra'
+    url: 'https://numpy.org/doc/stable/reference/routines.linalg.html'
+    type: docs
+    note: 'The practical API reference for norms, matrix products, decompositions, ranks, and numerical linear algebra.'
+  - title: 'The Matrix Calculus You Need For Deep Learning'
+    url: 'https://arxiv.org/abs/1802.01528'
+    type: paper
+    note: 'A deeper reference for learners who want the formal rules after building intuition.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import VectorSimilarityMap from '../../../components/diagrams/VectorSimilarityMap.astro';
+import GradientDescentLandscape from '../../../components/diagrams/GradientDescentLandscape.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+AI mathematics starts with two practical questions:
+
+1. How can we represent many related numbers?
+2. How should those numbers change when the model is wrong?
+
+Linear algebra answers the first question with vectors and matrices. Calculus answers the second with derivatives and gradients.
+
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="7 · Maths I: linear algebra & calculus"
+  difficulty="Beginner"
+  duration="55 minutes"
+  prerequisites={[
+    "Python lists, loops, and functions",
+    "Comfort with multiplication and square roots",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Embeddings are vectors. Neural-network weights are matrices. Attention uses matrix multiplication and dot products. Training uses gradients and the chain rule.
+
+You do not need to become a mathematician before building AI systems. You do need a dependable mental model for shapes, similarity, transformations, and change.
+
+<MainIdea>
+  A vector packages related numbers. A matrix transforms vectors. Dot products
+  measure weighted alignment. Calculus measures how an output changes, and the
+  gradient tells learning algorithms which local direction changes loss most.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## The intuition
+
+<AnalogyCard
+  title="A model is a mixing desk on a landscape"
+  limitation="Real models use millions or billions of dimensions, nonlinear operations, noisy batches, and complicated loss surfaces. The desk and landscape remain useful local pictures, but they hide that scale."
+>
+  A vector is one row of slider positions. A matrix is the wiring that mixes
+  every input slider into every output channel. A dot product is one channel's
+  weighted mix.
+
+  Training places those settings on a landscape whose height is error. A
+  gradient is a local uphill arrow. To reduce error, move a small step in the
+  opposite direction.
+</AnalogyCard>
+
+## Part 1 — Vectors package related numbers
+
+A <Term id="vector">vector</Term> is an ordered list of numbers.
+
+```text
+ticket features = [message_length, number_of_replies, customer_age_days]
+                = [120,            3,                 45]
+```
+
+Order matters. `[120, 3, 45]` is useful only when every position has an agreed meaning.
+
+The **dimension** of a vector is its number of entries. This ticket vector has dimension 3.
+
+A vector can be understood in several compatible ways:
+
+- a list of features;
+- a point in a coordinate space;
+- an arrow from the origin to that point;
+- a direction and a magnitude.
+
+In code, shape records how many values exist along each axis. A vector with three entries has shape `(3,)`.
+
+### Add and scale vectors
+
+Vectors of the same dimension add entry by entry:
+
+```text
+[2, 1] + [3, 4] = [5, 5]
+```
+
+Multiplying by a **scalar**—one ordinary number—scales every entry:
+
+```text
+3 × [2, 1] = [6, 3]
+```
+
+Geometrically, positive scaling changes arrow length without changing its direction. A negative scale reverses direction.
+
+### Norms measure size
+
+A **norm** turns a vector into a non-negative measure of size. The most familiar is the Euclidean, or L2, norm:
+
+```text
+norm([3, 4]) = square_root(3² + 4²) = 5
+```
+
+That is the Pythagorean distance from the origin.
+
+Other norms answer different questions:
+
+- L1 norm adds absolute values: `|3| + |4| = 7`.
+- L2 norm uses the square root of squared values: `5`.
+- Maximum norm uses the largest absolute entry: `4`.
+
+The “right” norm depends on the problem. In AI, L2 norms appear in distance, normalisation, regularisation, and gradient clipping.
+
+## Part 2 — Dot products produce one alignment score
+
+The <Term id="dot-product">dot product</Term> multiplies corresponding entries and adds the results.
+
+```text
+[2, 1, 3] · [4, -2, 5]
+= 2×4 + 1×(-2) + 3×5
+= 8 - 2 + 15
+= 21
+```
+
+The input is two vectors of equal dimension. The output is one scalar.
+
+<CodeNotebook title="Calculate a dot product without a library">
+
+```python
+def dot(left: list[float], right: list[float]) -> float:
+    if len(left) != len(right):
+        raise ValueError("vectors must have the same dimension")
+
+    products = [a * b for a, b in zip(left, right)]
+    return sum(products)
+
+
+score = dot([2, 1, 3], [4, -2, 5])
+print(score)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+21
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "len(left) != len(right)",
+      explanation: "Rejects mismatched dimensions before zip can silently ignore extra entries.",
+    },
+    {
+      line: "zip(left, right)",
+      explanation: "Pairs entries in the same position.",
+    },
+    {
+      line: "a * b",
+      explanation: "Measures one pair's contribution to alignment.",
+    },
+    {
+      line: "sum(products)",
+      explanation: "Combines all pairwise contributions into one score.",
+    },
+  ]}
+/>
+
+Why is this useful? Suppose `features = [urgency, customer_value, age]` and `weights = [2.0, 0.5, -0.1]`. Their dot product is a weighted score. Positive weights increase the output; negative weights reduce it.
+
+Geometrically:
+
+```text
+a · b = norm(a) × norm(b) × cosine(angle)
+```
+
+The dot product grows when vectors are long and point in similar directions. It is zero for perpendicular non-zero vectors and negative when they point more oppositely than similarly.
+
+## Part 3 — Cosine similarity compares direction
+
+<Term id="cosine-similarity">Cosine similarity</Term> divides the dot product by both vector lengths:
+
+```text
+cosine_similarity(a, b) = (a · b) / (norm(a) × norm(b))
+```
+
+For non-zero real vectors, the result lies between `-1` and `1`:
+
+- `1`: same direction;
+- `0`: perpendicular directions;
+- `-1`: opposite directions.
+
+<Figure id="00-07.1" label="EMBEDDING DIRECTION AS A MEANING COMPARISON" caption="— reset password and forgot login point in similar directions, giving high cosine similarity. Delivery tracking points elsewhere, giving lower similarity. The dashed line shows a projection: how much one vector lies along another direction.">
+  <VectorSimilarityMap />
+</Figure>
+
+Cosine similarity ignores overall scale. `[1, 2]` and `[10, 20]` have similarity 1 because they point in the same direction.
+
+That can be useful for embeddings, where direction often carries more semantic information than length. It can also discard meaningful magnitude. If vector length represents confidence or quantity, cosine similarity may hide an important difference.
+
+Never calculate cosine similarity with a zero vector. Its norm is zero, so the denominator is zero and the angle has no defined direction.
+
+<PyRunner
+  client:idle
+  id="00-07.A"
+  label="DOT PRODUCT, NORM, AND COSINE SIMILARITY"
+  code={`from math import sqrt
+
+def dot(a, b):
+    if len(a) != len(b):
+        raise ValueError("dimensions must match")
+    return sum(x * y for x, y in zip(a, b))
+
+def norm(vector):
+    return sqrt(dot(vector, vector))
+
+def cosine_similarity(a, b):
+    denominator = norm(a) * norm(b)
+    if denominator == 0:
+        raise ValueError("cosine similarity needs non-zero vectors")
+    return dot(a, b) / denominator
+
+reset_password = [0.9, 0.8, 0.1]
+forgot_login = [0.8, 0.7, 0.2]
+delivery_tracking = [0.1, 0.2, 0.95]
+
+print("login similarity:   ", round(cosine_similarity(reset_password, forgot_login), 3))
+print("delivery similarity:", round(cosine_similarity(reset_password, delivery_tracking), 3))
+
+# Try: multiply forgot_login by 10. Cosine similarity stays the same.
+# Then compare Euclidean distance before and after scaling.`}
+/>
+
+Expected output:
+
+```text
+login similarity:    0.995
+delivery similarity: 0.293
+```
+
+## Part 4 — Matrices organise transformations
+
+A **matrix** is a rectangular grid of numbers.
+
+```text
+A = [[1, 2, 0],
+     [0, 1, 3]]
+```
+
+This matrix has 2 rows and 3 columns, so its shape is `(2, 3)`.
+
+A matrix can represent:
+
+- a batch of row vectors;
+- a table of features;
+- the weights of a neural layer;
+- a linear transformation from one vector space to another.
+
+The same numbers can have different meanings depending on the convention. Always state shape and axis meaning.
+
+### Matrix-vector multiplication
+
+Multiply each matrix row by the vector using a dot product:
+
+```text
+[[1, 2, 0],    [4]    [1×4 + 2×5 + 0×6]    [14]
+ [0, 1, 3]] ×  [5] =  [0×4 + 1×5 + 3×6] =  [23]
+                [6]
+```
+
+A `(2, 3)` matrix maps a dimension-3 input to a dimension-2 output.
+
+This is the core of a neural layer:
+
+```text
+output = weights × input + bias
+```
+
+The layer mixes input features according to learned weights, then adds one bias per output feature.
+
+### Matrix-matrix multiplication
+
+<Term id="matrix-multiplication">Matrix multiplication</Term> applies the same idea to every row-column pair.
+
+Shapes make the rule visible:
+
+```text
+(m, n) × (n, p) → (m, p)
+```
+
+The inner dimensions must match because each dot product needs equal-length vectors. The outer dimensions become the output shape.
+
+Matrix multiplication is not entry-by-entry multiplication. It is also usually not commutative:
+
+```text
+A × B is generally different from B × A
+```
+
+Sometimes the reverse product is not even shape-compatible.
+
+<PyRunner
+  client:idle
+  id="00-07.B"
+  label="TRACE EVERY DOT PRODUCT IN MATRIX MULTIPLICATION"
+  code={`def transpose(matrix):
+    return [list(column) for column in zip(*matrix)]
+
+def dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+def matmul(left, right):
+    if len(left[0]) != len(right):
+        raise ValueError("inner dimensions must match")
+
+    right_columns = transpose(right)
+    result = []
+    for row_number, row in enumerate(left):
+        output_row = []
+        for column_number, column in enumerate(right_columns):
+            value = dot(row, column)
+            print(f"row {row_number} · column {column_number} = {value}")
+            output_row.append(value)
+        result.append(output_row)
+    return result
+
+A = [[1, 2, 0],
+     [0, 1, 3]]
+B = [[4, 1],
+     [5, 0],
+     [6, 2]]
+
+print("result:", matmul(A, B))
+
+# Shapes: (2, 3) × (3, 2) → (2, 2)
+# Try: remove one row from B and read the dimension error.`}
+/>
+
+Expected output:
+
+```text
+row 0 · column 0 = 14
+row 0 · column 1 = 1
+row 1 · column 0 = 23
+row 1 · column 1 = 6
+result: [[14, 1], [23, 6]]
+```
+
+## Part 5 — Projection, rank, eigenvectors, and SVD
+
+These ideas sound abstract because their names arrive before their jobs. Start with the jobs.
+
+### Projection asks “how much lies in this direction?”
+
+Projecting vector `a` onto non-zero vector `b` produces the part of `a` that points along `b`.
+
+```text
+projection_of_a_onto_b = ((a · b) / (b · b)) × b
+```
+
+The dot-product ratio decides how much of direction `b` is present. Projection appears in least squares, dimensionality reduction, and decomposing gradients.
+
+Example:
+
+```text
+a = [3, 4]
+b = [1, 0]
+
+projection = 3 × [1, 0] = [3, 0]
+```
+
+The projection keeps the horizontal part and discards the vertical part.
+
+### Rank asks “how many independent directions survive?”
+
+The **rank** of a matrix is the number of linearly independent directions in its rows or columns.
+
+**Linearly independent** means no direction can be built by scaling and adding the others.
+
+```text
+[[1, 2],
+ [2, 4]]
+```
+
+The second row is exactly twice the first. Although the matrix has two rows, it carries only one independent row direction. Its rank is 1.
+
+Rank tells you how much information a linear transformation can preserve. A low-rank transformation compresses many input possibilities into fewer independent output directions.
+
+### Eigenvectors ask “which directions keep their direction?”
+
+For a square matrix `A`, an **eigenvector** `v` is a non-zero direction that the matrix only scales:
+
+```text
+A × v = λ × v
+```
+
+The Greek letter lambda, `λ`, is the **eigenvalue**: the scale factor.
+
+Most vectors rotate or change direction under a transformation. Eigenvectors reveal the special directions that do not.
+
+They help analyse repeated transformations, covariance, dynamics, and principal components. Not every real matrix has a full set of real eigenvectors, so treat this as a specific tool rather than a universal decomposition.
+
+### SVD asks “what are the main input and output directions?”
+
+**Singular value decomposition**, shortened to **SVD**, factorises any real matrix:
+
+```text
+A = U × Σ × Vᵀ
+```
+
+Read it as three stages:
+
+1. `Vᵀ` rotates input into important input directions.
+2. `Σ` scales those directions by singular values.
+3. `U` rotates them into output directions.
+
+Large singular values identify directions the transformation preserves strongly. Small values identify weak directions. Keeping only the largest values gives a lower-rank approximation.
+
+This supports compression, denoising, latent semantic analysis, principal component analysis, and low-rank model adaptation.
+
+Optional advanced note: for a symmetric positive-semidefinite matrix such as a covariance matrix, the SVD and eigendecomposition are closely related. You do not need that result yet.
+
+## Part 6 — Derivatives measure local change
+
+A **function** maps inputs to outputs. A **derivative** measures how quickly one scalar output changes as one scalar input changes.
+
+For:
+
+```text
+f(x) = x²
+```
+
+the derivative is:
+
+```text
+f′(x) = 2x
+```
+
+At `x = 3`, the derivative is `6`. Near 3, increasing `x` by a small amount such as `0.01` increases `x²` by roughly `6 × 0.01 = 0.06`.
+
+The derivative is local. It describes the tangent slope at one point, not the whole curve.
+
+### Estimate a derivative numerically
+
+The finite-difference approximation is:
+
+```text
+f′(x) ≈ (f(x + h) - f(x)) / h
+```
+
+where `h` is a small positive step.
+
+```python
+def derivative(function, x: float, h: float = 0.0001) -> float:
+    return (function(x + h) - function(x)) / h
+
+
+print(round(derivative(lambda x: x**2, 3.0), 3))
+```
+
+Expected output is approximately `6.0`.
+
+If `h` is too large, the estimate is not local enough. If `h` is extremely small, floating-point rounding can dominate. Automatic differentiation avoids choosing `h`; later deep-learning lessons explain it.
+
+## Part 7 — Partial derivatives and gradients
+
+When a function has several inputs, a **partial derivative** changes one input while holding the others fixed.
+
+For:
+
+```text
+loss(w, b) = (w + b - 5)²
+```
+
+at `w=1, b=1`, the error is `-3`.
+
+```text
+partial loss / partial w = 2(w + b - 5) = -6
+partial loss / partial b = 2(w + b - 5) = -6
+```
+
+The <Term id="gradient">gradient</Term> collects these partial derivatives:
+
+```text
+gradient = [-6, -6]
+```
+
+It has the same shape as the inputs `[w, b]`. The gradient points toward the steepest local increase. To reduce loss, gradient descent subtracts it:
+
+```text
+new_parameter = old_parameter - learning_rate × gradient
+```
+
+<Figure id="00-07.2" label="GRADIENT DESCENT MOVES OPPOSITE THE LOCAL UPHILL DIRECTION" caption="— the tangent shows local slope at the starting parameter. Repeated updates subtract a learning-rate-scaled gradient and move down the loss curve towards a minimum. The diagram shows one dimension; a real gradient contains one partial derivative per parameter.">
+  <GradientDescentLandscape />
+</Figure>
+
+The **learning rate** controls step size:
+
+- Too small: learning may be extremely slow.
+- Too large: updates may overshoot or diverge.
+- Appropriate: loss usually decreases, though noisy batches may not decrease every step.
+
+Gradient descent finds a local path, not a guaranteed global best solution for a neural network.
+
+<PyRunner
+  client:idle
+  id="00-07.C"
+  label="WATCH ONE PARAMETER LEARN"
+  code={`def loss(weight):
+    return (weight - 4) ** 2
+
+def gradient(weight):
+    return 2 * (weight - 4)
+
+weight = -2.0
+learning_rate = 0.2
+
+for step in range(8):
+    current_loss = loss(weight)
+    current_gradient = gradient(weight)
+    print(
+        f"step {step}: weight={weight:6.3f} "
+        f"loss={current_loss:7.3f} gradient={current_gradient:7.3f}"
+    )
+    weight = weight - learning_rate * current_gradient
+
+# Try learning_rate = 0.01, then 1.1.
+# Compare slow progress with unstable overshooting.`}
+/>
+
+## Part 8 — The chain rule connects composed operations
+
+Models are compositions: one operation feeds the next.
+
+```text
+x → multiply by w → add b → square error → loss
+```
+
+The <Term id="chain-rule">chain rule</Term> says that the total rate of change is the product of local rates along the path.
+
+Worked example:
+
+```text
+prediction = w × x
+loss = (prediction - target)²
+```
+
+Use `x=3`, `w=2`, and `target=10`.
+
+Forward pass:
+
+```text
+prediction = 2 × 3 = 6
+error = 6 - 10 = -4
+loss = (-4)² = 16
+```
+
+Backward pass:
+
+```text
+change of loss with error      = 2 × error = -8
+change of error with prediction = 1
+change of prediction with w     = x = 3
+
+change of loss with w = -8 × 1 × 3 = -24
+```
+
+The negative derivative says increasing `w` locally reduces loss. With learning rate `0.01`:
+
+```text
+new w = 2 - 0.01 × (-24) = 2.24
+```
+
+New prediction is `2.24 × 3 = 6.72`, closer to 10.
+
+This local multiplication is the heart of backpropagation. Each operation needs the gradient arriving from later computation and its own local derivative.
+
+## Part 9 — Jacobians track several outputs
+
+A gradient covers one scalar output with respect to many inputs.
+
+A <Term id="jacobian">Jacobian</Term> covers many outputs with respect to many inputs. It is a matrix:
+
+```text
+inputs:  [x₁, x₂]       two inputs
+outputs: [y₁, y₂, y₃]   three outputs
+
+Jacobian shape: (3, 2)
+```
+
+Each row answers: “How does this output change with each input?”
+
+```text
+J = [[∂y₁/∂x₁, ∂y₁/∂x₂],
+     [∂y₂/∂x₁, ∂y₂/∂x₂],
+     [∂y₃/∂x₁, ∂y₃/∂x₂]]
+```
+
+Deep-learning libraries usually avoid constructing enormous full Jacobian matrices. Backpropagation efficiently computes a vector-Jacobian product: only the combined gradient needed for the scalar loss.
+
+That implementation detail is optional now. Remember the shape rule and the job: a Jacobian records every first-order input-output sensitivity for a vector-valued function.
+
+## Worked example — score two support tickets
+
+Suppose each ticket has a two-feature vector:
+
+```text
+ticket = [billing_words, urgency_words]
+```
+
+A classifier has two output categories, with weight matrix:
+
+```text
+weights = [[ 1.5, 0.2],   billing score
+           [-0.3, 1.2]]   urgent score
+```
+
+For ticket `[2, 3]`:
+
+```text
+billing score = [1.5, 0.2] · [2, 3] = 3.0 + 0.6 = 3.6
+urgent score  = [-0.3, 1.2] · [2, 3] = -0.6 + 3.6 = 3.0
+```
+
+The matrix maps two input features to two output scores.
+
+If the correct category is urgent but billing scores higher, a loss function measures the mistake. Calculus computes how that loss changes with each of the four weights. The gradient has the same shape as the weight matrix `(2, 2)`. Training subtracts a scaled gradient, slightly changing all four weights.
+
+This example links the whole lesson:
+
+```text
+vector input
+→ matrix multiplication made of dot products
+→ vector scores
+→ scalar loss
+→ gradient through the chain rule
+→ updated matrix
+```
+
+## In a real AI system
+
+<RealWorldExample
+  title="Semantic search followed by a learned classifier"
+  steps={[
+    "An embedding model turns the query into a vector",
+    "Norms and dot products produce cosine similarity",
+    "The system retrieves nearby document vectors",
+    "A weight matrix maps retrieved features to output scores",
+    "A scalar loss compares training scores with labels",
+    "The chain rule produces gradients for every learned weight",
+  ]}
+>
+  Search and learning use the same small set of operations at different scales.
+  Vector search compares directions. A neural layer applies matrix
+  multiplication. Training changes matrices using gradients.
+
+The engineering job includes checking shapes, guarding zero norms, selecting a similarity measure that matches the data, and monitoring numerical behaviour.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Treating vectors as unlabeled bags of numbers.",
+      fix: "Record dimension and axis meaning. Swapping feature order changes the represented item even when the numbers stay the same.",
+    },
+    {
+      mistake: "Multiplying matrices without checking inner dimensions.",
+      fix: "Write shapes first: `(m, n) × (n, p) → (m, p)`. Matching inner dimensions are required for every row-column dot product.",
+    },
+    {
+      mistake: "Confusing matrix multiplication with entry-by-entry multiplication.",
+      fix: "Matrix multiplication uses dot products between rows and columns. Element-wise multiplication keeps corresponding positions separate.",
+    },
+    {
+      mistake: "Using cosine similarity when vector magnitude contains important information.",
+      fix: "Cosine compares direction and removes scale. Compare the metric's assumptions with what your vector length means.",
+    },
+    {
+      mistake: "Computing cosine similarity with a zero vector.",
+      fix: "Check norms before division. A zero vector has no direction, so cosine similarity is undefined.",
+    },
+    {
+      mistake: "Thinking the gradient points downhill.",
+      fix: "The gradient points toward steepest local increase. Gradient descent subtracts the gradient to move locally downhill.",
+    },
+    {
+      mistake: "Assuming one learning rate works for any loss landscape.",
+      fix: "Inspect training behaviour. A step can be too small, too large, noisy, or poorly scaled; later optimisation lessons cover adaptive methods.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "What does the dot product of two dimension-4 vectors produce?",
+      options: ["One scalar", "A dimension-8 vector", "A 4×4 matrix"],
+      answer: 0,
+      explanation: "It multiplies four corresponding pairs and sums them into one number.",
+    },
+    {
+      question: "What output shape results from `(5, 3) × (3, 2)`?",
+      options: ["(3, 3)", "(5, 2)", "(2, 5)"],
+      answer: 1,
+      explanation: "The matching inner dimension 3 is consumed; the outer dimensions 5 and 2 remain.",
+    },
+    {
+      question: "Which comparison ignores overall vector scale?",
+      options: ["Euclidean norm", "Cosine similarity", "Matrix rank"],
+      answer: 1,
+      explanation: "Dividing by both norms makes cosine similarity depend on direction rather than magnitude.",
+    },
+    {
+      question: "A gradient points towards steepest local increase. How does gradient descent reduce loss?",
+      options: [
+        "Adds the gradient",
+        "Subtracts a learning-rate-scaled gradient",
+        "Sets every parameter to zero",
+      ],
+      answer: 1,
+      explanation: "Subtracting moves in the opposite local direction. The learning rate controls the step size.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Build a tiny similarity search"
+  time="10–20 minutes"
+  goal="Rank three document vectors by cosine similarity to one query."
+  steps={[
+    "Implement dot and norm from the starter code.",
+    "Implement cosine similarity with a zero-norm guard.",
+    "Calculate one score per document.",
+    "Sort pairs of score and document name from highest to lowest.",
+    "Print the ranked names and scores to three decimal places.",
+  ]}
+  expected="Password help ranks first, followed by account settings, then delivery tracking."
+  challenge="Also calculate Euclidean distance and explain why its ordering can change after one vector is scaled."
+>
+
+```python
+from math import sqrt
+
+query = [0.9, 0.8, 0.1]
+documents = {
+    "Password help": [0.8, 0.7, 0.2],
+    "Account settings": [0.6, 0.5, 0.4],
+    "Delivery tracking": [0.1, 0.2, 0.95],
+}
+
+# Add dot, norm, cosine_similarity, and ranking.
+```
+
+```python
+from math import sqrt
+
+def dot(a, b):
+    if len(a) != len(b):
+        raise ValueError("dimensions must match")
+    return sum(x * y for x, y in zip(a, b))
+
+def norm(vector):
+    return sqrt(dot(vector, vector))
+
+def cosine_similarity(a, b):
+    denominator = norm(a) * norm(b)
+    if denominator == 0:
+        raise ValueError("zero vectors have no direction")
+    return dot(a, b) / denominator
+
+query = [0.9, 0.8, 0.1]
+documents = {
+    "Password help": [0.8, 0.7, 0.2],
+    "Account settings": [0.6, 0.5, 0.4],
+    "Delivery tracking": [0.1, 0.2, 0.95],
+}
+
+ranked = sorted(
+    (
+        (cosine_similarity(query, vector), name)
+        for name, vector in documents.items()
+    ),
+    reverse=True,
+)
+
+for score, name in ranked:
+    print(f"{score:.3f}  {name}")
+```
+
+Expected output:
+
+```text
+0.995  Password help
+0.924  Account settings
+0.293  Delivery tracking
+```
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "A vector is an ordered representation; dimension and position meaning are part of the data contract.",
+    "A dot product creates one weighted alignment score, and matrix multiplication arranges many row-column dot products.",
+    "Cosine similarity compares direction, while norms and Euclidean distance preserve magnitude information.",
+    "Projection measures the part along a direction; rank counts independent directions; eigenvectors and SVD reveal important transformation directions.",
+    "A derivative is local change, and a gradient collects one partial derivative per input parameter.",
+    "The chain rule multiplies local rates through composed operations, enabling backpropagation.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is a vector?",
+      back: "An ordered list of numbers representing features, a point, or a direction.",
+    },
+    {
+      front: "What does a dot product return?",
+      back: "One scalar formed by summing products of corresponding vector entries.",
+    },
+    {
+      front: "When is matrix multiplication shape-compatible?",
+      back: "When the left matrix's column count equals the right matrix's row count.",
+    },
+    {
+      front: "What does cosine similarity compare?",
+      back: "Vector direction, using the cosine of the angle between non-zero vectors.",
+    },
+    {
+      front: "What does matrix rank count?",
+      back: "The number of independent row or column directions.",
+    },
+    {
+      front: "What is an eigenvector?",
+      back: "A non-zero direction that a square matrix scales without changing its direction.",
+    },
+    {
+      front: "What does a gradient contain?",
+      back: "One partial derivative of a scalar output for each input variable.",
+    },
+    {
+      front: "What does the chain rule do?",
+      back: "Multiplies local rates of change along composed operations.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Calculate a matrix-vector product and explain every dot product involved.",
+    "Compare dot product, Euclidean distance, and cosine similarity.",
+    "Explain projection, rank, eigenvectors, and SVD without using a formula first.",
+    "Trace a forward and backward pass for `loss = (w×x - target)²`.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Maths I: linear algebra & calculus"
+  terms={[
+    "Vector — ordered numeric representation",
+    "Dot product — weighted alignment scalar",
+    "Matrix — organised linear transformation",
+    "Cosine — direction similarity",
+    "Gradient — local uphill vector",
+    "Chain rule — composed local changes",
+  ]}
+  mistakes={[
+    "Do not ignore vector order or shape",
+    "Do not confuse matmul with element-wise multiply",
+    "Do not use cosine with a zero vector",
+    "Do not assume magnitude never matters",
+    "Do not add the gradient when minimising",
+  ]}
+  takeaways={[
+    "Check shapes before calculations",
+    "Matmul is many dot products",
+    "Similarity metrics make assumptions",
+    "Derivatives are local",
+    "Subtract scaled gradients",
+  ]}
+  questions={[
+    "What are the input and output shapes?",
+    "Does direction or magnitude matter?",
+    "Which local derivatives form this gradient?",
+  ]}
+>
+  <p slot="main">
+    Linear algebra represents and transforms model information. Calculus
+    measures local change so learning can adjust those transformations.
+  </p>
+  <div slot="diagram">
+    <GradientDescentLandscape />
+  </div>
+  <pre slot="code">
+    <code>{`score = dot(features, weights)
+parameter -= learning_rate * gradient`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="maths-i-linear-algebra-calculus"
+  items={[
+    "I can label vector and matrix shapes.",
+    "I calculated a dot product.",
+    "I traced a matrix multiplication.",
+    "I can compare cosine similarity and magnitude-sensitive measures.",
+    "I can explain projection, rank, eigenvectors, and SVD.",
+    "I followed one gradient-descent update.",
+    "I traced the chain-rule worked example.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="maths-ii-probability-statistics-optimisation"
+  title="Maths II: probability, statistics & optimisation"
+  why="Vectors and gradients tell us how models represent information and change parameters. Next, quantify uncertainty, test evidence, measure information, and choose practical optimisation methods."
+/>

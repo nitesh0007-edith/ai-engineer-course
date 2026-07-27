@@ -1,0 +1,49 @@
+---
+/**
+ * VectorSimilarityMap — embeddings as arrows, with direction carrying semantic
+ * similarity and magnitude treated separately.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 360"
+  role="img"
+  aria-label="A two-dimensional coordinate plane shows three embedding vectors starting at the origin. The vectors for reset password and forgot login point in similar directions with a small angle, so their cosine similarity is high. The vector for delivery tracking points in a very different direction, so its cosine similarity with reset password is low. A dashed projection of forgot login onto reset password illustrates projection."
+>
+  <defs>
+    <marker id="vector-arrow-blue" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="var(--blueprint)" />
+    </marker>
+    <marker id="vector-arrow-green" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="var(--ch1)" />
+    </marker>
+    <marker id="vector-arrow-red" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="var(--ch2)" />
+    </marker>
+  </defs>
+
+  <line x1="92" y1="298" x2="708" y2="298" stroke="var(--ink-muted)" stroke-width="1.5" />
+  <line x1="92" y1="298" x2="92" y2="32" stroke="var(--ink-muted)" stroke-width="1.5" />
+  <text x="710" y="321" text-anchor="end" font-family="var(--font-hand)" font-size="18" fill="var(--ink-muted)">feature 1 →</text>
+  <text x="64" y="46" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink-muted)">feature 2</text>
+  <text x="78" y="318" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">origin</text>
+
+  <line x1="92" y1="298" x2="536" y2="98" stroke="var(--blueprint)" stroke-width="5" stroke-linecap="round" marker-end="url(#vector-arrow-blue)" />
+  <text x="548" y="91" font-family="var(--font-hand)" font-size="20" fill="var(--blueprint)">reset password</text>
+
+  <line x1="92" y1="298" x2="476" y2="86" stroke="var(--ch1)" stroke-width="5" stroke-linecap="round" marker-end="url(#vector-arrow-green)" />
+  <text x="382" y="61" font-family="var(--font-hand)" font-size="20" fill="var(--ch1)">forgot login</text>
+
+  <path d="M165 265 A80 80 0 0 0 163 258" fill="none" stroke="var(--ink)" stroke-width="3" />
+  <text x="194" y="244" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">small angle</text>
+  <text x="194" y="264" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">high cosine similarity</text>
+
+  <line x1="92" y1="298" x2="272" y2="326" stroke="var(--ch2)" stroke-width="5" stroke-linecap="round" marker-end="url(#vector-arrow-red)" />
+  <text x="289" y="339" font-family="var(--font-hand)" font-size="20" fill="var(--ch2)">delivery tracking</text>
+
+  <line x1="476" y1="86" x2="487" y2="120" stroke="var(--ink)" stroke-width="2" stroke-dasharray="6 4" />
+  <circle cx="487" cy="120" r="5" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="506" y="146" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">projection onto</text>
+  <text x="506" y="165" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">the blue direction</text>
+</svg>
