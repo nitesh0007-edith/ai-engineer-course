@@ -1,0 +1,67 @@
+---
+/**
+ * DataContractPipeline — the guarded path from changing sources to reproducible
+ * data, with contract checks and a privacy boundary.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 330"
+  role="img"
+  aria-label="Changing source data enters a data contract gate that checks column names, types, allowed values, null rules, and identifiers. Invalid rows are quarantined with a clear report. Valid rows are cleaned and de-identified, versioned with code and metadata, then used to build a reproducible dataset. A schema change must first update and test the contract. Raw personal data stays inside a restricted privacy boundary."
+>
+  <defs>
+    <marker id="contract-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+    <marker id="contract-alert" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--alert)" />
+    </marker>
+  </defs>
+
+  <rect x="18" y="102" width="112" height="75" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="74" y="130" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">source rows</text>
+  <text x="74" y="151" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">files · API · DB</text>
+  <text x="74" y="165" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">schema can change</text>
+
+  <path d="M130 140 H178" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#contract-arrow)" />
+
+  <polygon points="244,66 306,140 244,214 182,140" fill="var(--highlight)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="244" y="119" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">contract</text>
+  <text x="244" y="139" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">names · types</text>
+  <text x="244" y="154" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">nulls · ranges</text>
+  <text x="244" y="169" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">identity</text>
+
+  <path d="M306 140 H354" stroke="var(--ch1)" stroke-width="3" marker-end="url(#contract-arrow)" />
+  <text x="330" y="127" text-anchor="middle" font-family="var(--font-hand)" font-size="15" fill="var(--ch1)">valid</text>
+
+  <rect x="366" y="99" width="130" height="82" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="431" y="125" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">clean + protect</text>
+  <text x="431" y="146" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">normalise values</text>
+  <text x="431" y="161" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">remove / tokenise PII</text>
+
+  <path d="M496 140 H536" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#contract-arrow)" />
+  <rect x="548" y="99" width="104" height="82" rx="9" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="600" y="127" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">version</text>
+  <text x="600" y="148" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">data + code</text>
+  <text x="600" y="163" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">lineage + checks</text>
+
+  <path d="M652 140 H687" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#contract-arrow)" />
+  <rect x="699" y="99" width="65" height="82" rx="9" fill="var(--paper)" stroke="var(--ink)" stroke-width="2" />
+  <text x="731" y="126" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">dataset</text>
+  <text x="731" y="148" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">repeatable</text>
+  <text x="731" y="163" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">build</text>
+
+  <path d="M244 214 V258 H366" fill="none" stroke="var(--alert)" stroke-width="2.5" marker-end="url(#contract-alert)" />
+  <text x="276" y="246" font-family="var(--font-hand)" font-size="15" fill="var(--alert)">invalid</text>
+  <rect x="378" y="230" width="146" height="62" rx="9" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="2" />
+  <text x="451" y="255" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">quarantine + report</text>
+  <text x="451" y="275" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">do not silently guess</text>
+
+  <rect x="8" y="17" width="500" height="191" rx="14" fill="none" stroke="var(--alert)" stroke-width="1.5" stroke-dasharray="7 5" />
+  <text x="24" y="41" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">restricted privacy boundary · raw personal data</text>
+
+  <path d="M130 77 C222 20 319 26 366 84" fill="none" stroke="var(--blueprint)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#contract-arrow)" />
+  <text x="236" y="52" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--blueprint)">schema change? update + test contract first</text>
+</svg>

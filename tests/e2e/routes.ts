@@ -10,4 +10,5 @@ export const ROUTES = [
   'chapters/containers-git-and-ci/',
   'chapters/maths-i-linear-algebra-calculus/',
   'chapters/maths-ii-probability-statistics-optimisation/',
+  'chapters/data-foundations/',
 ];

@@ -1,0 +1,1083 @@
+---
+layer: 0
+order: 9
+title: 'Data foundations'
+slug: 'data-foundations'
+subtitle: 'Turn messy rows into trustworthy, leakage-safe, reproducible datasets for AI systems.'
+depth: build
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - maths-ii-probability-statistics-optimisation
+skillsGained:
+  - 'Choose between NumPy, pandas, and Polars for a data task'
+  - 'Clean missing, duplicate, inconsistent, and unusual values carefully'
+  - 'Split data without leaking future or target information'
+  - 'Build reproducible feature pipelines and exploratory checks'
+  - 'Version datasets and describe their lineage'
+  - 'Write data contracts and plan safe schema changes'
+  - 'Minimise and protect personal information'
+objectives:
+  - 'Explain arrays, DataFrames, vectorisation, expressions, and lazy execution'
+  - 'Inspect and clean missing values, duplicates, outliers, and inconsistent fields'
+  - 'Identify target, future, preprocessing, entity, and duplicate leakage'
+  - 'Create training, validation, and test sets with time or group boundaries when needed'
+  - 'Engineer features and perform EDA without teaching from holdout data'
+  - 'Compare DVC-style artefact versioning with Delta-style table versioning'
+  - 'Define data contracts, manage schema evolution, and reduce PII exposure'
+concepts:
+  - numpy-array
+  - dataframe
+  - missing-value
+  - data-leakage
+  - feature-engineering
+  - exploratory-data-analysis
+  - data-versioning
+  - data-contract
+  - schema-evolution
+  - personally-identifiable-information
+diagrams:
+  - LeakageBoundary
+  - DataContractPipeline
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 8
+exercises:
+  - prompt: 'A resume dataset stores years of experience as `5`, `"5 years"`, `null`, and `-1`. Describe a safe cleaning plan without silently inventing values.'
+    difficulty: warmup
+    solution: 'Preserve the raw field, parse valid numeric text into a nullable numeric field, treat `-1` as invalid unless the contract defines it, record a missing-or-invalid indicator, report counts by source, and choose deletion or imputation only after studying why values are missing. Fit any imputation value on training rows only.'
+  - prompt: 'A churn dataset contains `cancelled_at`, and the label says whether a customer cancelled. Explain the failure and name two other leakage checks.'
+    difficulty: core
+    solution: '`cancelled_at` directly reveals the target and would be unavailable before cancellation, so it is target and future leakage. Also check whether preprocessing was fitted before splitting, whether the same customer appears across splits, whether near-duplicate records cross splits, and whether identifiers or post-outcome fields act as proxies.'
+  - prompt: 'Design a minimal data contract for support tickets containing `ticket_id`, `created_at`, `channel`, and `message`. Include types, null rules, one allowed-value rule, and one privacy rule.'
+    difficulty: stretch
+    solution: '`ticket_id`: non-null unique string; `created_at`: non-null timestamp with timezone; `channel`: non-null enum of documented values such as email/chat/web; `message`: non-null string with a documented length bound. The contract can reject unknown channels, quarantine duplicate IDs, and require message text to remain in restricted storage or be de-identified before analytics. Ownership, freshness, and the schema version should also be recorded.'
+resources:
+  - title: 'NumPy user guide'
+    url: 'https://numpy.org/doc/stable/user/'
+    type: docs
+    note: 'Official guide to arrays, dtypes, broadcasting, indexing, and vectorised computation.'
+  - title: 'pandas user guide'
+    url: 'https://pandas.pydata.org/docs/user_guide/'
+    type: docs
+    note: 'Official task-oriented guide to DataFrames, missing data, joins, grouping, and time series.'
+  - title: 'Polars user guide'
+    url: 'https://docs.pola.rs/'
+    type: docs
+    note: 'Official explanation of expressions, eager and lazy queries, and the Polars execution model.'
+  - title: 'DVC documentation'
+    url: 'https://dvc.org/doc'
+    type: docs
+    note: 'Official workflow for versioning data artefacts and reproducible pipelines alongside Git.'
+  - title: 'Delta Lake documentation'
+    url: 'https://docs.delta.io/latest/index.html'
+    type: docs
+    note: 'Official documentation for transaction-log-backed tables, schema controls, and time travel.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import LeakageBoundary from '../../../components/diagrams/LeakageBoundary.astro';
+import DataContractPipeline from '../../../components/diagrams/DataContractPipeline.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Data is the evidence an AI system learns from.
+
+Good model code cannot rescue rows that contain the answer, mix future events into the past, identify the wrong person, or change meaning without warning.
+
+<LessonIdentity
+  module="AI engineering foundations"
+  lesson="9 · Data foundations"
+  difficulty="Beginner"
+  duration="65 minutes"
+  prerequisites={[
+    "Python collections, files, and functions",
+    "Samples, averages, and distributions",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+A production AI system might read resumes, support tickets, product events, or medical records.
+
+Before training or retrieval, an engineer must make those records consistent, protect personal data, preserve the correct time boundary, and make the result reproducible. Otherwise an impressive score can be evidence of a broken pipeline.
+
+<MainIdea>
+  A trustworthy dataset is not merely a table with no blank cells. It has a
+  known meaning, validated structure, protected history, explicit privacy
+  choices, and a split that imitates how future predictions will actually
+  happen. Fit every learned transformation on training data, then reuse it
+  unchanged on validation, test, and production inputs.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="A food-safety kitchen"
+  limitation="Data is not food: it can be copied, joined, inferred, and reused. Privacy, social bias, time, and model feedback create risks the kitchen analogy does not capture."
+>
+  Raw data is a delivery of ingredients. Arrays and DataFrames are workbenches.
+  Cleaning removes broken packaging and standardises labels. A data contract is
+  the receiving checklist. Dataset versions are labelled batches. The test set
+  is a sealed tasting plate: if the chef keeps tasting it while changing the
+  recipe, the final score is no longer independent.
+</AnalogyCard>
+
+## Part 1 — Rows need meaning before code
+
+A **row** usually represents one unit: one customer, ticket, message, visit, or event.
+
+A **column** represents one field about that unit.
+
+A **schema** describes fields and their types. A useful dataset description also states:
+
+- what one row represents;
+- how a row is uniquely identified;
+- when the event occurred;
+- where it came from;
+- which units are included or excluded;
+- how labels were produced;
+- which values can be missing;
+- which fields are personal or sensitive.
+
+Start with the prediction moment:
+
+> What information is genuinely available when this system must make its decision?
+
+That question prevents many forms of leakage later.
+
+## Part 2 — NumPy stores efficient numerical arrays
+
+A <Term id="numpy-array">NumPy array</Term> is a block of values with:
+
+- a **shape**: the length of each dimension;
+- a **dtype**: the stored data type, such as 64-bit float;
+- a number of **dimensions**, also called axes.
+
+For a matrix with 3 rows and 2 columns:
+
+```python
+scores.shape == (3, 2)
+```
+
+Unlike a Python list, one NumPy array normally uses one dtype. That regular layout enables fast numerical operations.
+
+**Vectorisation** means expressing an operation over a whole array instead of writing a Python loop for each element:
+
+<CodeNotebook title="NumPy: standardise one feature">
+
+```python
+import numpy as np
+
+lengths = np.array([10.0, 20.0, 30.0])
+mean = lengths.mean()
+standard_deviation = lengths.std()
+scaled = (lengths - mean) / standard_deviation
+
+print(scaled.round(3))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+[-1.225  0.     1.225]
+```
+
+</ExpectedOutput>
+
+<LineExplanation
+  items={[
+    {
+      line: "np.array([...])",
+      explanation: "Creates one one-dimensional floating-point array. Its shape is `(3,)`.",
+    },
+    {
+      line: "lengths.mean()",
+      explanation: "Reduces the array to its average, 20.",
+    },
+    {
+      line: "(lengths - mean)",
+      explanation: "NumPy broadcasts the scalar mean across all three positions.",
+    },
+    {
+      line: "/ standard_deviation",
+      explanation: "Scales every value in one vectorised expression. In a real ML pipeline, calculate these statistics from training rows only.",
+    },
+  ]}
+/>
+
+### Broadcasting, views, and copies
+
+**Broadcasting** lets compatible shapes interact without manually copying a value. A scalar can be subtracted from every array entry.
+
+Broadcasting is powerful, but a wrong shape can produce a plausible, incorrect result. Check shapes at boundaries.
+
+A **view** can share the original array's memory. A **copy** owns separate memory.
+
+```python
+subset = values[:3]         # often a view
+independent = values[:3].copy()
+```
+
+Changing a view may change the original. Use `.copy()` when independent data is intended.
+
+## Part 3 — pandas and Polars work with labelled tables
+
+A <Term id="dataframe">DataFrame</Term> is a labelled table.
+
+Use a DataFrame when column names, mixed field types, joins, grouping, dates, and missing values matter.
+
+### pandas
+
+**pandas** is a mature Python library with an eager API: most operations execute when called.
+
+```python
+import pandas as pd
+
+tickets = pd.DataFrame({
+    "channel": ["chat", "email", "chat"],
+    "minutes": [4, 20, 6],
+})
+
+summary = (
+    tickets
+    .groupby("channel", as_index=False)
+    .agg(mean_minutes=("minutes", "mean"))
+)
+```
+
+This reads as: group rows by channel, then calculate one mean for each group.
+
+### Polars
+
+**Polars** is a DataFrame library built around expressions. It supports:
+
+- **eager execution**: run each operation now;
+- **lazy execution**: build a query plan, optimise it, then execute with `collect()`.
+
+```python
+import polars as pl
+
+summary = (
+    pl.scan_parquet("tickets.parquet")
+    .filter(pl.col("minutes") >= 0)
+    .group_by("channel")
+    .agg(pl.col("minutes").mean().alias("mean_minutes"))
+    .collect()
+)
+```
+
+`scan_parquet` begins lazily. Polars can push the filter and selected columns towards the file read, avoiding unnecessary work.
+
+### Which tool?
+
+| Need | Good starting point |
+|---|---|
+| dense numerical tensors and linear algebra | NumPy |
+| familiar labelled-table analysis and broad ecosystem | pandas |
+| expression-based parallel table queries or lazy file scans | Polars |
+| more data than one machine should process | a database or distributed engine |
+
+This is not a winner-takes-all choice. Measure with representative data, include developer clarity, and avoid converting between libraries repeatedly.
+
+## Part 4 — Cleaning preserves meaning
+
+Cleaning is a set of explicit transformations, not a command that makes data “good”.
+
+A safe cleaning sequence:
+
+1. Preserve immutable raw input and source metadata.
+2. Validate the expected schema.
+3. Parse types explicitly.
+4. Standardise units and categorical spelling.
+5. Identify duplicates with a documented identity rule.
+6. Investigate missing and unusual values.
+7. Produce a quality report.
+8. Save the transformation code and resulting dataset version.
+
+### Duplicates are a definition problem
+
+Exact duplicate rows may be repeated ingestion.
+
+Two rows with the same person and timestamp may be retries. Two identical messages from different users may be legitimate.
+
+Define:
+
+- **primary key**: field or fields that identify one intended row;
+- **event identity**: what counts as the same real-world event;
+- **deduplication window**: whether repeated events within a time window count once.
+
+Never call `drop_duplicates()` without explaining which columns define sameness and which row should survive.
+
+## Part 5 — Missing values carry information
+
+A <Term id="missing-value">missing value</Term> means no usable value was recorded. It may mean:
+
+- the field was not applicable;
+- a sensor failed;
+- a user declined;
+- an older system did not collect it;
+- a join found no matching row;
+- a parsing rule rejected the input.
+
+Three common mechanisms are useful mental models:
+
+- **MCAR — missing completely at random:** missingness is unrelated to observed or hidden values.
+- **MAR — missing at random given observed data:** missingness relates to fields you observed.
+- **MNAR — missing not at random:** missingness still relates to the missing value after considering observed fields.
+
+These are assumptions, not labels a library can prove.
+
+Possible actions:
+
+- keep a native missing value;
+- add a missingness indicator;
+- impute with a training-set statistic;
+- use a model that handles missing values;
+- exclude a field or row with a documented reason;
+- fix the upstream collection problem.
+
+Do not replace every blank with zero. Zero may be a real measurement.
+
+## Part 6 — Outliers can be errors or important cases
+
+An **outlier** is unusually far from the main data pattern under a chosen definition.
+
+It might be:
+
+- a unit error, such as seconds stored as milliseconds;
+- a parsing error;
+- fraud or abuse;
+- a rare but valid customer;
+- the exact failure case the system must handle.
+
+Useful tools include quantiles, robust median-based summaries, scatter plots, domain limits, logarithmic transforms, and clipping.
+
+Do not remove a row merely because it is more than three standard deviations away. First ask whether it is valid and whether production will contain similar cases.
+
+If you cap, transform, or exclude values, fit thresholds on training data and record the rule.
+
+## Part 7 — Split before learning from the data
+
+A training workflow usually separates:
+
+- **training set:** fits feature and model parameters;
+- **validation set:** chooses models, prompts, thresholds, and settings;
+- **test set:** estimates final performance after choices are frozen.
+
+The test set is not a recurring dashboard for model development.
+
+<Figure id="00-09.1" label="SPLIT FIRST · FIT ON TRAIN ONLY" caption="— split labelled rows before fitting learned cleaning or feature state. Fit means learning values such as an imputation median, vocabulary, scaling mean, category map, or model weight. Reuse that frozen state to transform validation, test, and future production rows.">
+  <LeakageBoundary />
+</Figure>
+
+### Random, time, and group splits
+
+A random split is suitable only when rows are sufficiently independent and future deployment resembles a random draw.
+
+Use a **time split** when predicting future events:
+
+```text
+train: Jan–Sep → validation: Oct → test: Nov
+```
+
+Use a **group split** when several rows belong to one person, patient, document, device, company, or conversation. Entire groups must stay together.
+
+Sometimes both time and group boundaries matter.
+
+### What counts as “fit”?
+
+Any operation that learns from data:
+
+- mean or median imputation;
+- scaling statistics;
+- category vocabulary;
+- target encoding;
+- feature selection;
+- text vocabulary or tokenizer training;
+- dimensionality reduction;
+- outlier thresholds;
+- model parameters.
+
+Hard-coded parsing rules can be applied consistently, but even those should be versioned and tested.
+
+## Part 8 — Leakage creates fake performance
+
+<Term id="data-leakage">Data leakage</Term> occurs when training gains information unavailable at the real prediction moment, or when holdout data influences model choices.
+
+Common forms:
+
+1. **Target leakage:** a field directly or indirectly reveals the answer. `refund_issued_at` leaks whether a refund occurred.
+2. **Future leakage:** a future event appears in historical features.
+3. **Preprocessing leakage:** scaling, imputation, selection, or vocabulary is fitted before splitting.
+4. **Entity leakage:** the same user or document family appears in training and test.
+5. **Duplicate leakage:** exact or near duplicates cross the boundary.
+6. **Label leakage:** annotator notes or file paths contain the class.
+7. **Evaluation leakage:** test results repeatedly guide changes.
+
+### A practical leakage audit
+
+For every feature, write:
+
+```text
+available_at = timestamp when the value becomes knowable
+prediction_at = timestamp when the model must decide
+```
+
+Reject features where `available_at > prediction_at`.
+
+Also:
+
+- sort columns by suspiciously strong relationship with the target;
+- inspect feature names and lineage;
+- train a simple baseline to expose impossible accuracy;
+- check duplicate and nearest-neighbour overlap;
+- split by time and group;
+- compare offline feature availability with serving code.
+
+Leakage detection needs domain knowledge. A generic checker cannot know when a business event becomes available.
+
+<PyRunner
+  client:idle
+  id="00-09.A"
+  label="DETECT ENTITY AND FUTURE LEAKAGE"
+  code={`rows = [
+    {"case": "A", "customer": "u1", "event_day": 1, "split": "train", "prediction_day": 2},
+    {"case": "B", "customer": "u2", "event_day": 2, "split": "train", "prediction_day": 3},
+    {"case": "C", "customer": "u1", "event_day": 5, "split": "test",  "prediction_day": 4},
+    {"case": "D", "customer": "u3", "event_day": 4, "split": "test",  "prediction_day": 5},
+]
+
+train_customers = {
+    row["customer"] for row in rows if row["split"] == "train"
+}
+
+for row in rows:
+    problems = []
+    if row["split"] == "test" and row["customer"] in train_customers:
+        problems.append("customer crosses split")
+    if row["event_day"] > row["prediction_day"]:
+        problems.append("feature comes from future")
+    print(row["case"], problems or ["clean"])
+
+# Add another row and see whether your checks catch it.`}
+/>
+
+Expected output:
+
+```text
+A ['clean']
+B ['clean']
+C ['customer crosses split', 'feature comes from future']
+D ['clean']
+```
+
+## Part 9 — Feature engineering must be reproducible
+
+<Term id="feature-engineering">Feature engineering</Term> turns raw fields into model inputs.
+
+For a support ticket, raw fields might become:
+
+- message character count;
+- hour of day;
+- days since account creation;
+- known language;
+- count of previous contacts before the prediction time;
+- embedding of ticket text.
+
+Good features are available at prediction time, stable enough to serve, documented, privacy-aware, and calculated identically in training and production.
+
+### Fit and transform
+
+A useful interface separates:
+
+```python
+pipeline.fit(training_rows)
+pipeline.transform(any_rows)
+```
+
+`fit` learns state. `transform` reuses that state.
+
+<CodeNotebook title="Training-only imputation in pandas">
+
+```python
+train_median = train["age"].median()
+
+train["age_missing"] = train["age"].isna()
+valid["age_missing"] = valid["age"].isna()
+
+train["age"] = train["age"].fillna(train_median)
+valid["age"] = valid["age"].fillna(train_median)
+```
+
+</CodeNotebook>
+
+The validation median is never calculated. That keeps the validation set from teaching the pipeline.
+
+In production, package the median, missing-indicator rule, code version, and expected input schema with the model.
+
+## Part 10 — EDA asks questions before modelling
+
+<Term id="exploratory-data-analysis">Exploratory data analysis</Term>, shortened to **EDA**, uses summaries and visualisations to discover data shape and problems.
+
+Begin with:
+
+- row count, column count, types, and memory;
+- unique-key violations;
+- missingness by field, time, group, and source;
+- category frequencies and unknown values;
+- numeric range, quantiles, and unit checks;
+- label balance;
+- duplicate and near-duplicate rates;
+- time coverage and collection changes;
+- group coverage and representation.
+
+Then inspect relationships with the target using training data.
+
+### Protect the holdout during EDA
+
+Use the test set for final evaluation, not repeated plots and feature ideas.
+
+If you inspect test labels, the knowledge changes your decisions. The test set has become part of development. Create a fresh holdout if possible and record what happened.
+
+EDA can reveal association. It does not prove causation.
+
+## Worked example — prepare resume-match data
+
+Suppose one row is a resume–job pair. The target is whether a qualified recruiter approved the match.
+
+### 1. Define the prediction moment
+
+The system scores the pair immediately after the job is published.
+
+Interview outcome and later application status are unavailable, so they cannot be features.
+
+### 2. Define identity
+
+```text
+pair_id = hash(candidate_id, job_id, matching_policy_version)
+```
+
+Raw names and email addresses are not needed by the matching model.
+
+### 3. Split safely
+
+- keep all rows for one candidate in one split;
+- train on older jobs;
+- validate on a later period;
+- test on the newest untouched period.
+
+This tests new candidates and changing job language more honestly than a row-level random split.
+
+### 4. Fit transformations on training
+
+- learn skill vocabulary from training text;
+- fit missing-experience handling from training rows;
+- create text embeddings with one recorded model version;
+- choose similarity thresholds using validation.
+
+### 5. Audit
+
+Check for:
+
+- application-status or interview fields;
+- duplicate resumes across splits;
+- a source identifier that encodes recruiter decisions;
+- groups absent from training;
+- performance by relevant segments;
+- personal text accidentally written to logs.
+
+### 6. Freeze and evaluate
+
+After choices are fixed, run once on test data. Store dataset version, feature code commit, split rules, contract version, model version, and evaluation report.
+
+## Part 11 — Version data, code, and lineage together
+
+<Term id="data-versioning">Data versioning</Term> identifies the exact data used for an experiment.
+
+Git is excellent for small text and code, but large datasets do not fit ordinary Git history well.
+
+### DVC-style artefact versioning
+
+**DVC**, or Data Version Control, stores lightweight metadata in Git while large artefacts live in remote storage.
+
+A reproducible stage can declare:
+
+```text
+inputs + command + parameters → outputs + metrics
+```
+
+Checking out a Git commit and pulling matching artefacts recreates that version, assuming sources and environments remain available.
+
+### Delta-style table versioning
+
+**Delta Lake** adds a transaction log to files in object storage. It supports consistent table updates, schema controls, and reading earlier table versions.
+
+Use it when data is managed as a changing analytical table with concurrent readers and writers.
+
+### They solve related, different jobs
+
+| DVC-style | Delta-style |
+|---|---|
+| versions project artefacts with Git pointers | versions table transactions in a log |
+| natural for file-based ML experiments | natural for shared analytical tables |
+| tracks pipelines and outputs | supports atomic table updates and time travel |
+| remote object storage holds large files | table data and transaction log live in storage |
+
+Neither automatically guarantees semantic correctness, privacy, or reproducibility. Also record:
+
+- source snapshot and extraction query;
+- transformation code commit;
+- configuration and random seed;
+- environment and library versions;
+- schema and contract versions;
+- checksums and lineage;
+- access controls and retention.
+
+## Part 12 — Data contracts make assumptions executable
+
+A <Term id="data-contract">data contract</Term> is a machine-checkable agreement between producers and consumers.
+
+It can specify:
+
+- field names and types;
+- required, nullable, and defaulted fields;
+- units and timezone;
+- allowed categories and numeric ranges;
+- primary key and uniqueness;
+- freshness and expected volume;
+- ownership and support contact;
+- privacy classification;
+- compatibility and version policy.
+
+<Figure id="00-09.2" label="CONTRACTS TURN SURPRISE INTO A VISIBLE FAILURE" caption="— validate structure and meaning before cleaning. Quarantine invalid rows with a report instead of silently guessing. De-identify as early as practical, then version the data, code, checks, and lineage that produced a repeatable dataset.">
+  <DataContractPipeline />
+</Figure>
+
+A contract failure should say what failed, where, how many rows are affected, and what safe action occurred.
+
+Do not silently map every unknown category to a familiar one. `UNKNOWN` should mean unknown, not “the pipeline guessed”.
+
+## Part 13 — Schema evolution is a rollout
+
+<Term id="schema-evolution">Schema evolution</Term> is controlled change to a dataset structure.
+
+Changes can be:
+
+- additive: add nullable `language`;
+- restrictive: make `message` non-null;
+- representational: change `created_at` from local text to UTC timestamp;
+- semantic: change what `resolved` means;
+- destructive: rename or remove `customer_id`.
+
+Adding a nullable field is often backward compatible for readers that ignore unknown columns. A semantic change may be breaking even if the type stays identical.
+
+A safe rollout:
+
+1. Propose the new meaning and owner.
+2. Version and test the contract.
+3. Make consumers tolerant where appropriate.
+4. Deploy producers writing both forms if migration requires it.
+5. Backfill and verify.
+6. Migrate readers.
+7. Monitor unknown, null, and failure rates.
+8. Remove the old field after an agreed window.
+
+Never reuse a field name for a different meaning.
+
+## Part 14 — Minimise and protect personal data
+
+<Term id="personally-identifiable-information">Personally identifiable information</Term>, shortened to **PII**, identifies a person directly or through combination.
+
+Examples include names, email addresses, telephone numbers, precise locations, stable account IDs, and free text containing personal details.
+
+Sensitivity depends on context and jurisdiction. Work with your organisation's privacy and legal specialists.
+
+Engineering principles:
+
+- **minimise:** collect only fields needed for a stated purpose;
+- **separate:** keep direct identifiers away from modelling data;
+- **pseudonymise:** replace identifiers with controlled tokens where linkage is needed;
+- **encrypt:** protect data in transit and at rest;
+- **restrict:** grant least-privilege access and audit it;
+- **retain deliberately:** define deletion and expiry;
+- **redact logs:** do not copy raw records into errors, traces, or prompts;
+- **support rights and incidents:** maintain lineage so records can be found and removed where required.
+
+**Anonymisation** aims to prevent re-identification. Replacing a name with a stable hash is usually pseudonymisation, not guaranteed anonymisation: the same person remains linkable and source values may be guessable.
+
+Deleting a direct name does not remove all privacy risk. Rare combinations can still identify people.
+
+## In a real AI system
+
+<RealWorldExample
+  title="Support-ticket triage pipeline"
+  steps={[
+    "Ingest immutable raw events with source and event timestamps",
+    "Validate the versioned ticket contract",
+    "Quarantine malformed rows and publish a quality report",
+    "Remove direct identifiers and restrict raw message access",
+    "Split by customer and time before fitting features",
+    "Version cleaned data, feature code, and lineage",
+    "Train, validate, then evaluate once on the sealed test set",
+  ]}
+>
+  Offline and online features must share one definition. If training counts a
+  customer's contacts through Friday but production can only see contacts
+  through the current request time, the model experiences training–serving
+  skew. Use event-time cut-offs, shared transformations, and parity tests.
+
+The same pipeline should monitor contract failures, missingness, category drift, delayed labels, and privacy-safe operational metrics after deployment.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Filling every missing value with zero.",
+      fix: "Investigate why it is missing, preserve an indicator when useful, and fit any imputation rule on training data only.",
+    },
+    {
+      mistake: "Removing every statistical outlier.",
+      fix: "Validate units and source quality, then decide with domain knowledge whether the rare case is error or important production behaviour.",
+    },
+    {
+      mistake: "Calculating scaling, vocabulary, or feature selection before the split.",
+      fix: "Split first; fit learned transformations on training rows; transform other splits with frozen state.",
+    },
+    {
+      mistake: "Randomly splitting repeated rows from the same user.",
+      fix: "Group by the unit that can share information and keep each complete group in one split.",
+    },
+    {
+      mistake: "Using a post-outcome field because it improves validation accuracy.",
+      fix: "Write prediction and feature-availability timestamps. Remove anything not available at prediction time.",
+    },
+    {
+      mistake: "Exploring test labels after every model change.",
+      fix: "Use validation data for choices and open test data only after the development plan is frozen.",
+    },
+    {
+      mistake: "Versioning the data file but not its query or transformation code.",
+      fix: "Record source snapshot, code commit, configuration, environment, contract, lineage, and checksums together.",
+    },
+    {
+      mistake: "Calling hashed email addresses anonymous.",
+      fix: "Treat stable hashes as pseudonymous unless a rigorous re-identification assessment proves otherwise; minimise and restrict them.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "When should an imputation median be calculated?",
+      options: [
+        "From all rows before splitting",
+        "From training rows, then reused unchanged",
+        "Separately from each validation and test set",
+      ],
+      answer: 1,
+      explanation: "The median is learned state. Fitting it on holdout rows lets those rows influence the pipeline.",
+    },
+    {
+      question: "A customer has rows in both training and test. What is the main risk?",
+      options: [
+        "Entity leakage",
+        "A NumPy dtype error",
+        "Schema evolution",
+      ],
+      answer: 0,
+      explanation: "The model may recognise customer-specific patterns rather than generalise to unseen customers. Group splits keep one entity together.",
+    },
+    {
+      question: "Which statement best compares DVC and Delta Lake?",
+      options: [
+        "They are identical database engines",
+        "DVC versions project artefacts with Git metadata; Delta versions transactional analytical tables",
+        "Both make privacy checks unnecessary",
+      ],
+      answer: 1,
+      explanation: "They overlap around versioned data but centre different workflows. Neither supplies semantic or privacy correctness automatically.",
+    },
+    {
+      question: "Why is a stable hash of an email not automatically anonymous?",
+      options: [
+        "The hash cannot be stored",
+        "Records remain linkable and source values may be guessed",
+        "Hashes always contain the original plain text",
+      ],
+      answer: 1,
+      explanation: "Pseudonymisation reduces direct exposure but does not necessarily prevent linkage or re-identification.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Audit a tiny ticket dataset"
+  time="10–20 minutes"
+  goal="Find quality, leakage, split, and privacy problems before modelling."
+  steps={[
+    "Run or trace the starter code.",
+    "Add checks for duplicate ticket IDs and customers crossing splits.",
+    "Flag fields available after the prediction time.",
+    "Count missing message values.",
+    "List which fields should be removed or tokenised before modelling.",
+    "Write one contract rule that would stop each problem recurring.",
+  ]}
+  expected="The audit identifies duplicate `t1`, customer `u1` crossing the split, a post-prediction resolution timestamp, one missing message, and direct email addresses."
+  challenge="Change the data so every check passes while preserving three legitimate ticket events."
+>
+
+```python
+rows = [
+    {
+        "ticket_id": "t1",
+        "customer": "u1",
+        "email": "a@example.test",
+        "message": "Cannot sign in",
+        "prediction_day": 2,
+        "resolved_day": 4,
+        "split": "train",
+    },
+    {
+        "ticket_id": "t1",
+        "customer": "u2",
+        "email": "b@example.test",
+        "message": None,
+        "prediction_day": 3,
+        "resolved_day": 3,
+        "split": "train",
+    },
+    {
+        "ticket_id": "t3",
+        "customer": "u1",
+        "email": "a@example.test",
+        "message": "Still locked out",
+        "prediction_day": 5,
+        "resolved_day": 6,
+        "split": "test",
+    },
+]
+
+# Add audit checks here.
+```
+
+```python
+from collections import Counter
+
+ids = Counter(row["ticket_id"] for row in rows)
+duplicate_ids = sorted(key for key, count in ids.items() if count > 1)
+
+train_customers = {
+    row["customer"] for row in rows if row["split"] == "train"
+}
+test_customers = {
+    row["customer"] for row in rows if row["split"] == "test"
+}
+
+future_fields = [
+    row["ticket_id"]
+    for row in rows
+    if row["resolved_day"] > row["prediction_day"]
+]
+missing_messages = sum(row["message"] is None for row in rows)
+
+print("duplicate IDs:", duplicate_ids)
+print("customers crossing splits:", sorted(train_customers & test_customers))
+print("post-prediction resolution fields:", future_fields)
+print("missing messages:", missing_messages)
+print("direct identifier to remove/tokenise: email")
+```
+
+Expected output:
+
+```text
+duplicate IDs: ['t1']
+customers crossing splits: ['u1']
+post-prediction resolution fields: ['t1', 't3']
+missing messages: 1
+direct identifier to remove/tokenise: email
+```
+
+Contract fixes include unique non-null `ticket_id`, nullable-message policy, timestamp availability rules, a group-split assertion, and privacy classification for email.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "NumPy represents regular numerical arrays; pandas and Polars represent labelled tables with different execution models.",
+    "Cleaning must preserve meaning: missing values, duplicates, and outliers require reasons, not one universal deletion rule.",
+    "Split by the real prediction boundary before fitting any learned transformation.",
+    "Leakage can arrive through targets, time, preprocessing, repeated entities, duplicates, labels, or repeated test inspection.",
+    "Reproducibility requires versioned data, code, configuration, contracts, lineage, and environment—not a filename alone.",
+    "Data contracts make assumptions executable, while schema evolution manages producer and consumer change.",
+    "Minimise personal data and treat pseudonymisation as risk reduction, not automatic anonymity.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What does a NumPy array's shape describe?",
+      back: "The length of each dimension, such as `(100, 8)` for 100 rows and 8 columns.",
+    },
+    {
+      front: "What is a DataFrame?",
+      back: "A labelled table whose columns can have different data types.",
+    },
+    {
+      front: "What is vectorisation?",
+      back: "Applying an operation across an array through array operations instead of a Python loop over individual entries.",
+    },
+    {
+      front: "What is data leakage?",
+      back: "Training receives unavailable future or target information, or holdout data influences development choices.",
+    },
+    {
+      front: "What is the fit–transform rule?",
+      back: "Fit learned state on training data only; reuse that frozen state to transform validation, test, and production data.",
+    },
+    {
+      front: "When should a group split be used?",
+      back: "When multiple rows from one entity can share information, so the whole entity must remain in one split.",
+    },
+    {
+      front: "What is exploratory data analysis?",
+      back: "Using summaries and visualisations to find data shape, quality problems, patterns, and limitations before modelling.",
+    },
+    {
+      front: "What must a reproducible dataset version include?",
+      back: "The data snapshot plus source, transformation code, configuration, environment, contract, lineage, and checks.",
+    },
+    {
+      front: "What is a data contract?",
+      back: "A machine-checkable agreement about fields, types, validity, identity, freshness, ownership, and privacy.",
+    },
+    {
+      front: "Pseudonymisation versus anonymisation?",
+      back: "Pseudonymisation replaces direct identity but preserves controlled linkage; anonymisation aims to prevent re-identification.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Compare NumPy arrays, pandas DataFrames, and Polars DataFrames for three practical workloads.",
+    "Design a leakage-safe split and feature pipeline for a repeated-customer time series.",
+    "Explain how you would investigate missing values and outliers without blindly deleting information.",
+    "Compare DVC-style artefact versioning with Delta-style table versioning.",
+    "Write a data contract and schema-evolution plan for one AI application, including PII controls.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Data foundations"
+  terms={[
+    "Array — regular numerical block",
+    "DataFrame — labelled table",
+    "Leakage — forbidden information crossing",
+    "Feature — model-ready input",
+    "Contract — executable data agreement",
+    "Lineage — where data came from",
+  ]}
+  mistakes={[
+    "Do not impute before splitting",
+    "Do not random-split related entities",
+    "Do not delete every outlier",
+    "Do not repeatedly inspect test labels",
+    "Do not call stable hashes anonymous",
+  ]}
+  takeaways={[
+    "Define one row and prediction time",
+    "Split first · fit on train",
+    "Transform holdouts with frozen state",
+    "Version data and transformations",
+    "Validate contracts and minimise PII",
+  ]}
+  questions={[
+    "Could this field exist at prediction time?",
+    "Which data taught this transformation?",
+    "Can this exact dataset be reproduced?",
+  ]}
+>
+  <p slot="main">
+    Trustworthy AI data has explicit meaning, a realistic split, protected
+    holdouts, reproducible transformations, validated contracts, and the
+    minimum personal information needed for its stated job.
+  </p>
+  <div slot="diagram">
+    <LeakageBoundary />
+  </div>
+  <pre slot="code">
+    <code>{`train, valid, test = split(raw)
+pipeline.fit(train)
+X_train = pipeline.transform(train)
+X_valid = pipeline.transform(valid)
+X_test  = pipeline.transform(test)`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="data-foundations"
+  items={[
+    "I can choose between NumPy, pandas, and Polars.",
+    "I can investigate missing values, duplicates, and outliers.",
+    "I traced the split-first diagram.",
+    "I can identify major leakage types.",
+    "I can explain fit versus transform.",
+    "I can protect test data during EDA.",
+    "I can compare DVC and Delta Lake.",
+    "I can write contract, schema, and PII rules.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="what-learning-from-data-means"
+  title="What learning from data means"
+  why="You can now create trustworthy train, validation, and test evidence. Next, follow the fitting loop and compare supervised, unsupervised, and reinforcement learning while asking whether a model generalises beyond its training rows."
+/>

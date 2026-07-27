@@ -1,0 +1,73 @@
+---
+/**
+ * LeakageBoundary — a safe train/validation/test workflow. The holdout data
+ * crosses the boundary only for final evaluation; learned cleaning and feature
+ * state is fitted on training data and then reused unchanged.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 360"
+  role="img"
+  aria-label="Raw labelled rows are split first into training, validation, and test sets. Only training rows fit the cleaning and feature pipeline. The fitted pipeline transforms all three sets without learning from validation or test rows. Training fits the model, validation guides choices, and the test set is opened once for the final unbiased check. A crossed-out arrow shows that fitting preprocessing on all data causes leakage."
+>
+  <defs>
+    <marker id="leak-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+    <marker id="leak-alert-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--alert)" />
+    </marker>
+  </defs>
+
+  <rect x="24" y="135" width="112" height="66" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="80" y="162" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">labelled rows</text>
+  <text x="80" y="182" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">split first</text>
+
+  <path d="M136 168 H184" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#leak-arrow)" />
+  <circle cx="202" cy="168" r="18" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="202" y="174" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">Y</text>
+
+  <path d="M220 158 C248 120 260 82 292 69" fill="none" stroke="var(--blueprint)" stroke-width="2.5" marker-end="url(#leak-arrow)" />
+  <path d="M220 168 H292" fill="none" stroke="var(--blueprint)" stroke-width="2.5" marker-end="url(#leak-arrow)" />
+  <path d="M220 178 C248 216 260 254 292 267" fill="none" stroke="var(--blueprint)" stroke-width="2.5" marker-end="url(#leak-arrow)" />
+
+  <rect x="304" y="34" width="142" height="70" rx="9" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="375" y="63" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">training set</text>
+  <text x="375" y="84" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">learn parameters</text>
+
+  <rect x="304" y="133" width="142" height="70" rx="9" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="375" y="162" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">validation set</text>
+  <text x="375" y="183" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">choose settings</text>
+
+  <rect x="304" y="232" width="142" height="70" rx="9" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="375" y="261" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">test set</text>
+  <text x="375" y="282" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">final check once</text>
+
+  <path d="M446 69 H500" stroke="var(--ch1)" stroke-width="3" marker-end="url(#leak-arrow)" />
+  <rect x="512" y="34" width="152" height="70" rx="9" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="588" y="60" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">fit pipeline</text>
+  <text x="588" y="80" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">training rows only</text>
+
+  <path d="M588 104 V137" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#leak-arrow)" />
+  <rect x="512" y="148" width="152" height="80" rx="9" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="2" />
+  <text x="588" y="176" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">transform all sets</text>
+  <text x="588" y="197" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">reuse frozen state</text>
+  <text x="588" y="213" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">never refit</text>
+
+  <path d="M446 168 H500" stroke="var(--blueprint)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#leak-arrow)" />
+  <path d="M446 267 C478 267 488 228 512 211" fill="none" stroke="var(--blueprint)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#leak-arrow)" />
+
+  <rect x="688" y="121" width="72" height="132" rx="9" fill="var(--paper)" stroke="var(--ink)" stroke-width="2" />
+  <text x="724" y="158" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">model</text>
+  <text x="724" y="182" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">fit</text>
+  <text x="724" y="199" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">tune</text>
+  <text x="724" y="216" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">test</text>
+  <path d="M664 188 H684" stroke="var(--blueprint)" stroke-width="2.5" marker-end="url(#leak-arrow)" />
+
+  <path d="M446 267 C550 332 616 329 673 244" fill="none" stroke="var(--alert)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#leak-alert-arrow)" />
+  <line x1="548" y1="294" x2="572" y2="318" stroke="var(--alert)" stroke-width="4" />
+  <line x1="572" y1="294" x2="548" y2="318" stroke="var(--alert)" stroke-width="4" />
+  <text x="462" y="343" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">test data must not teach the pipeline!</text>
+</svg>
