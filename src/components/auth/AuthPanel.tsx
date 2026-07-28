@@ -36,15 +36,15 @@ export default function AuthPanel() {
       return;
     }
     setStep('code');
-    setMessage('If this address can receive sign-in codes, a six-digit code is on its way.');
+    setMessage('If this address can receive sign-in codes, a verification code is on its way.');
   }
 
   async function verifyCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setMessage('');
-    if (!supabase || !/^\d{6}$/.test(code)) {
-      setError('Enter the six-digit code from your email.');
+    if (!supabase || !/^\d{6,10}$/.test(code)) {
+      setError('Enter the verification code from your email.');
       return;
     }
     setBusy(true);
@@ -98,22 +98,23 @@ export default function AuthPanel() {
         </form>
       ) : (
         <form onSubmit={verifyCode} noValidate>
-          <label htmlFor="otp">Six-digit code</label>
+          <label htmlFor="otp">Verification code</label>
           <input
             id="otp"
             name="otp"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            placeholder="000000"
+            pattern="[0-9]{6,10}"
+            minLength={6}
+            maxLength={10}
+            placeholder="00000000"
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
             disabled={busy}
             required
           />
-          <button className="auth-submit" type="submit" disabled={busy || code.length !== 6}>
+          <button className="auth-submit" type="submit" disabled={busy || !/^\d{6,10}$/.test(code)}>
             {busy ? 'Checking code…' : 'Sign in securely'}
           </button>
           <button className="auth-text-button" type="button" disabled={busy} onClick={() => { setStep('email'); setCode(''); setMessage(''); setError(''); }}>
