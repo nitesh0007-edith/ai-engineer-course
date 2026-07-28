@@ -21,7 +21,8 @@
         "http://localhost:4321/ai-engineer-course/chapters/trees-and-ensembles/",
         "http://localhost:4321/ai-engineer-course/chapters/other-core-algorithms/",
         "http://localhost:4321/ai-engineer-course/chapters/unsupervised-learning/",
-        "http://localhost:4321/ai-engineer-course/chapters/evaluation-done-properly/"
+        "http://localhost:4321/ai-engineer-course/chapters/evaluation-done-properly/",
+        "http://localhost:4321/ai-engineer-course/chapters/bias-variance-and-regularisation/"
       ],
       "numberOfRuns": 3,
       "settings": {

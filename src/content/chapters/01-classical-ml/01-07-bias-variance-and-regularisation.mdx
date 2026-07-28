@@ -1,0 +1,301 @@
+---
+layer: 1
+order: 7
+title: 'Bias–variance trade-off & regularisation'
+slug: 'bias-variance-and-regularisation'
+subtitle: 'Recognise overfitting, constrain models honestly, and tune imbalance treatments without leaking evidence.'
+depth: build
+difficulty: beginner
+readingTime: 70
+prerequisites:
+  - evaluation-done-properly
+skillsGained:
+  - 'Diagnose underfitting and overfitting from training and validation evidence'
+  - 'Explain bias and variance without confusing them with social bias'
+  - 'Apply L1, L2, and elastic-net regularisation in a validation-safe pipeline'
+  - 'Compare class weights, threshold tuning, and SMOTE for imbalanced data'
+  - 'Run a bounded, reproducible hyperparameter search'
+objectives:
+  - 'Interpret training and validation curves for underfit and overfit patterns'
+  - 'Calculate L1 and L2 penalty contributions for a tiny weight vector'
+  - 'Choose a regularisation strategy using held-out evidence'
+  - 'Explain why class imbalance changes metrics and threshold choices'
+  - 'Place SMOTE and preprocessing inside training folds'
+  - 'Compare grid, random, and Bayesian hyperparameter searches'
+concepts:
+  - bias
+  - variance
+  - overfitting
+  - underfitting
+  - regularisation
+  - l1-regularisation
+  - l2-regularisation
+  - elastic-net
+  - class-imbalance
+  - smote
+  - hyperparameter-tuning
+diagrams:
+  - BiasVarianceBalance
+  - ImbalanceTuning
+interactives:
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 4
+exercises:
+  - prompt: 'A model has training error 0.03 and validation error 0.25. A simpler model has training error 0.13 and validation error 0.15. Which shows stronger evidence of overfitting, and what would you try next?'
+    difficulty: warmup
+    solution: 'The first model has a large train-validation gap, so it shows stronger evidence of overfitting. Try simpler features or model settings, regularisation, more representative data, and validate each change.'
+  - prompt: 'Weights are [3, -1, 2]. Calculate L1 and L2 penalty sums before multiplying by a regularisation strength.'
+    difficulty: core
+    solution: 'L1 is 6. L2 is 14. Libraries may include scaling factors or different conventions, so compare the documented objective and tune strength on validation data.'
+  - prompt: 'Describe a leakage-safe five-fold evaluation for SMOTE and regularisation strength selection on an imbalanced dataset.'
+    difficulty: stretch
+    solution: 'For each training fold, fit imputation, scaling, and SMOTE only on that fold’s training portion, then score untouched fold rows. Aggregate fold evidence, refit on permitted training data, and test once on untouched real rows.'
+resources:
+  - title: 'scikit-learn — linear models'
+    url: 'https://scikit-learn.org/stable/modules/linear_model.html'
+    type: docs
+    note: 'Official guide to ridge, lasso, elastic net, logistic regression, and regularisation parameters.'
+  - title: 'imbalanced-learn documentation'
+    url: 'https://imbalanced-learn.org/stable/'
+    type: docs
+    note: 'Official documentation for resampling methods and safe pipeline integration.'
+  - title: 'scikit-learn — model selection'
+    url: 'https://scikit-learn.org/stable/model_selection.html'
+    type: docs
+    note: 'Official documentation for validation, cross-validation, learning curves, and parameter search.'
+status: published
+updated: 2026-07-28
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import BiasVarianceBalance from '../../../components/diagrams/BiasVarianceBalance.astro';
+import ImbalanceTuning from '../../../components/diagrams/ImbalanceTuning.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Generalisation means performing well on useful unseen cases, not memorising last month’s rows.
+
+Some models are too simple to learn the pattern. Others are flexible enough to learn noise. Regularisation is one controlled way to prefer patterns that survive new data.
+
+<LessonIdentity module="Classical machine learning" lesson="7 · Bias–variance & regularisation" difficulty="Beginner" duration="70 minutes" prerequisites={["Training, validation, testing, metrics, and cross-validation", "Linear-model weights, features, loss, and class thresholds"]} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+The same problem appears in classical ML, deep learning, prompts, retrieval, and agents: a system looks good on examples it has already influenced, then fails on new work.
+
+<MainIdea>
+  <Term id="underfitting">Underfitting</Term> misses useful patterns. <Term id="overfitting">Overfitting</Term> learns accidental training detail. The <Term id="bias">bias</Term>–<Term id="variance">variance</Term> trade-off is a mental model for this tension. <Term id="regularisation">Regularisation</Term> constrains fitting, but its strength must be chosen with held-out evidence.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="A map versus a tracing" limitation="A real dataset can shift, have missing regions, or encode harmful past decisions. Better held-out performance is necessary but does not prove fairness, safety, or causality.">
+  A child can trace every crack in a pavement, making a detailed drawing that is
+  useless for navigating another street. A good map keeps stable roads and drops
+  accidental detail. An underfit map has only one straight line. An overfit map
+  records every crack. Regularisation is a rule against needless wiggles.
+</AnalogyCard>
+
+## Step 1 — Read training and validation evidence together
+
+<Figure id="01-07.1" label="ERROR CURVES REVEAL A GAP" caption="— as flexibility increases, training error usually falls. Validation error can fall then rise when the model begins fitting noise. The useful region is selected using validation evidence, not where training error is lowest.">
+  <BiasVarianceBalance />
+</Figure>
+
+**Underfitting** often shows high training and validation error. The representation or model cannot express a useful relationship.
+
+**Overfitting** often shows low training error but noticeably worse validation error. The model is sensitive to the particular training sample.
+
+<Term id="bias">Bias</Term> means systematic approximation error from overly restrictive assumptions. <Term id="variance">Variance</Term> means sensitivity to training data. These technical terms are distinct from social bias, which must be assessed separately.
+
+## Step 2 — Regularisation adds a cost for unnecessary complexity
+
+Objective:
+
+```text
+objective = data_loss + strength × penalty(weights)
+```
+
+Strength is often called alpha, lambda, or C. Conventions differ: in many APIs a larger C means less regularisation. Read documentation and tune safely.
+
+### L1 and L2
+
+<Term id="l1-regularisation">L1 regularisation</Term> adds absolute values:
+
+```text
+L1 penalty = Σ |weight_j|
+```
+
+It can make some weights exactly zero. Correlated features can swap importance, so zero weight is not proof that a feature is irrelevant.
+
+<Term id="l2-regularisation">L2 regularisation</Term> adds squares:
+
+```text
+L2 penalty = Σ weight_j²
+```
+
+It discourages large individual weights and is commonly called ridge regularisation. <Term id="elastic-net">Elastic net</Term> combines L1 and L2; tune its overall strength and mix on held-out evidence.
+
+<CodeNotebook title="Calculate two penalty contributions">
+
+```python
+weights = [3.0, -1.0, 2.0]
+strength = 0.1
+
+l1 = sum(abs(weight) for weight in weights)
+l2 = sum(weight ** 2 for weight in weights)
+
+print("L1 sum:", l1)
+print("L2 sum:", l2)
+print("L1 contribution:", strength * l1)
+print("L2 contribution:", strength * l2)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+L1 sum: 6.0
+L2 sum: 14.0
+L1 contribution: 0.6
+L2 contribution: 1.4
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: "sum(abs(weight) ...)", explanation: "L1 grows linearly with weight magnitude." }, { line: "sum(weight ** 2 ...)", explanation: "L2 grows faster for a large weight, so it penalises extreme values more." }, { line: "strength * penalty", explanation: "Strength trades fit against simplicity. Its scale depends on library and loss." }]} />
+
+## Step 3 — Class imbalance is a decision problem
+
+<Term id="class-imbalance">Class imbalance</Term> means positives are much rarer than negatives. A 99% accurate model can predict negative for every row and still miss every positive.
+
+Start by checking whether rarity reflects reality, labels, collection gaps, or a changing policy. Use grouped/time-aware splits and inspect prevalence in every split.
+
+<Figure id="01-07.2" label="RESAMPLE ONLY THE TRAINING FOLD" caption="— class weights, oversampling, and SMOTE belong inside each training fold. Validation and test rows must remain real, untouched evidence. Thresholds turn learned scores into workload and should be selected on validation data.">
+  <ImbalanceTuning />
+</Figure>
+
+- **class weights:** increase loss for errors on rare classes;
+- **threshold tuning:** choose action volume and error trade-off on validation;
+- **undersampling:** remove majority rows and potentially lose information;
+- **oversampling:** repeat minority rows and potentially overfit;
+- **SMOTE:** create synthetic minority rows between nearby minority examples.
+
+<Term id="smote">SMOTE</Term> must run only inside each training fold. Creating synthetic rows before splitting lets related rows enter validation or test data and falsely improve measurements. It can also create implausible examples across categorical or constrained features.
+
+## Step 4 — Tune with a declared budget and one objective
+
+<Term id="hyperparameter-tuning">Hyperparameter tuning</Term> searches choices such as regularisation strength, tree depth, neighbours, or class weights.
+
+- **Grid search:** planned combinations; clear but wasteful in many dimensions.
+- **Random search:** samples ranges; often covers influential dimensions better within a budget.
+- **Bayesian optimisation:** selects later trials using earlier results; it can be efficient but still overfits validation.
+- **Optuna:** a Python library that can run and prune declared searches; it does not replace sound splits or a final test.
+
+Declare metric, folds, budget, seed policy, ranges, and stopping rule before examining results. Record every trial. If many people repeatedly tune against one validation set, use nested cross-validation or a new validation period.
+
+## Worked system example — rare incident escalation
+
+An operations team wants to escalate rare infrastructure incidents.
+
+1. Train on earlier weeks; preserve whole incidents and later weeks for validation and test.
+2. Compare a simple baseline, class-weighted model, and threshold policy.
+3. Measure PR-AUC plus precision and recall at the human team’s daily capacity.
+4. Fit scalers and resampling inside each training fold.
+5. Review misses and false alarms with operators, including service and region slices.
+6. Select a documented threshold on validation, then test once on a later period.
+
+The aim is not the lowest average loss. It is a safe operational policy with an honest fallback.
+
+<RealWorldExample title="Regularise an AI feature pipeline, not just a model" steps={["Version feature definitions and fit transforms only on allowed historical data", "Use validation curves and fold variation to identify instability", "Compare simpler baselines before adding a complex model", "Choose resampling, weights, and threshold within training and validation boundaries", "Log selected settings, data version, metric slices, and capacity assumptions", "Monitor drift and revisit policy when workload or prevalence changes"]}>
+  In AI applications, regularisation has cousins: shorter prompts, retrieval limits,
+  output constraints, and tool budgets. The shared habit is to constrain
+  flexibility and measure whether the constraint improves unseen work.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: "Calling any train–validation gap overfitting without checking split quality.", fix: "Inspect leakage, time drift, grouping, label noise, and sample size, then compare a controlled change on held-out evidence." }, { mistake: "Using a stronger penalty because it feels safer.", fix: "Tune strength and capacity with validation. Too much regularisation underfits." }, { mistake: "Interpreting L1 zero weights as causal feature selection.", fix: "Correlated features and preprocessing change selections. Use domain review and stability checks." }, { mistake: "Oversampling before cross-validation.", fix: "Put SMOTE and all resampling inside each training fold only." }, { mistake: "Treating class weights as a complete imbalance solution.", fix: "Still choose metrics, threshold, capacity, calibration, and fallback rules using validation data." }, { mistake: "Searching endlessly until validation improves.", fix: "Declare a search budget, log trials, and protect final test evidence." }]} />
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: "What pattern most strongly suggests overfitting?", options: ["Low training error and much worse validation error", "High training and high validation error", "Equal class counts"], answer: 0, explanation: "The model fits particular training rows well but does not generalise as well to unseen validation rows." }, { question: "What does L2 regularisation penalise?", options: ["Sum of squared weights", "Number of test rows", "Only negative examples"], answer: 0, explanation: "L2 adds squared parameter magnitudes to the fitting objective, shrinking large weights." }, { question: "Where must SMOTE run during cross-validation?", options: ["Inside each training fold", "Once before splitting", "On the final test set"], answer: 0, explanation: "Resampling before a split can create related synthetic rows in held-out data and leak evidence." }, { question: "What is the honest role of a hyperparameter search?", options: ["Compare declared candidate settings on validation evidence", "Keep changing settings until test results look good", "Replace a final test set"], answer: 0, explanation: "Search is a controlled validation procedure. It cannot replace protected final evidence." }]} />
+
+## Practice activity
+
+<PracticeActivity title="Diagnose a validation gap and choose a safe next experiment" time="10–20 minutes" goal="Use train/validation evidence and an operational constraint to choose a controlled next step." steps={["Run the starter code and compare two candidates.", "Identify the likely underfit or overfit pattern.", "Choose one regularisation or capacity experiment and state what evidence would change your mind.", "Explain why resampling remains inside training folds.", "Choose a threshold based on capacity instead of assuming 0.5."]} expected="Candidate B has a much larger training-validation gap and is the stronger overfitting candidate. A valid next experiment changes one constraint, then compares the same validation protocol." challenge="Write a tiny trial table with seed, split, strength, metric, capacity, and decision notes.">
+
+```python
+candidates = {
+    "A simpler": {"train_error": 0.16, "validation_error": 0.17},
+    "B flexible": {"train_error": 0.03, "validation_error": 0.25},
+}
+
+for name, result in candidates.items():
+    gap = result["validation_error"] - result["train_error"]
+    print(name, "gap:", round(gap, 2))
+
+print("review capacity:", 25, "alerts per day")
+```
+
+Expected output:
+
+```text
+A simpler gap: 0.01
+B flexible gap: 0.22
+review capacity: 25 alerts per day
+```
+
+Candidate B fits training rows extremely well but loses much more on validation,
+which is evidence of high variance or a split/data issue worth investigating.
+Try a simpler setting or stronger regularisation, keeping the same split and
+metric. Do not run SMOTE across all rows: it would leak synthetic relationships
+into validation. Select alert threshold after seeing validation scores and real
+review capacity.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways points={["Bias and variance describe different sources of generalisation error; both are measured on unseen evidence.", "Underfitting misses useful patterns; overfitting learns training-specific noise.", "L1 can encourage sparse weights, L2 shrinks weights, and elastic net combines them.", "Imbalance changes what metrics and thresholds mean; accuracy alone is often unhelpful.", "SMOTE, scaling, and selection must live inside training folds.", "Hyperparameter search needs a fixed budget, reproducible trials, and a protected final test set."]} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: "What is underfitting?", back: "A model too limited to capture useful patterns, giving poor training and validation performance." }, { front: "What is overfitting?", back: "Fitting training-specific noise so unseen-data performance is worse." }, { front: "What does L1 encourage?", back: "Sparse linear weights; some can become exactly zero." }, { front: "What does L2 encourage?", back: "Smoothly shrunk weights, especially discouraging very large values." }, { front: "Why is imbalance difficult?", back: "A dominant class can make accuracy look high while important rare positives are missed." }, { front: "Where does SMOTE belong?", back: "Inside each training fold, never before a split or on validation/test data." }, { front: "What is threshold tuning?", back: "Choosing a score cutoff based on validation consequences and capacity." }, { front: "What must a tuning search preserve?", back: "Fixed evaluation boundaries, declared budget and metric, reproducibility, and a locked final test set." }]} />
+
+<RevisionQuestions questions={["Explain bias, variance, underfitting, and overfitting using training and validation curves.", "Calculate L1 and L2 penalties and explain why their effects differ.", "Design a leakage-safe class-imbalance evaluation with weights, SMOTE, metrics, and threshold selection.", "Compare grid, random, and Bayesian search under a fixed trial budget.", "Explain why a validation set can itself be overfit and how to respond."]} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="Bias–variance & regularisation" terms={["Bias — systematic simplification error", "Variance — training-sample sensitivity", "L1 — absolute-weight penalty", "L2 — squared-weight penalty", "SMOTE — training-fold-only synthetic rows", "Tuning — validation-based settings search"]} mistakes={["Do not trust training error alone", "Do not oversample before splitting", "Do not assume a larger penalty is safer", "Do not use accuracy alone for rare events", "Do not tune on test results"]} takeaways={["Fit stable patterns, not noise", "Regularise with validation evidence", "Weights and thresholds are different tools", "Keep synthetic data out of held-out evidence", "Bound and record tuning"]} questions={["Is this gap a data problem or variance?", "Which error matters at capacity?", "Where can synthetic rows safely exist?"]}>
+  <p slot="main">Generalisation needs the right amount of flexibility. Constrain models, handle rare cases safely, and select every setting within protected evaluation boundaries.</p>
+  <div slot="diagram"><ImbalanceTuning /></div>
+  <pre slot="code"><code>objective = loss + strength × penalty · fit training folds · choose validation settings · report once on test</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="bias-variance-and-regularisation" items={["I can identify underfitting and overfitting patterns.", "I can explain bias and variance carefully.", "I can compare L1, L2, and elastic net.", "I can handle imbalance without leaking evidence.", "I can explain where SMOTE belongs.", "I can choose a threshold from capacity and harm.", "I can run a bounded reproducible tuning search.", "I completed the quiz, practice, and flashcards."]} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="pipelines-interpretability-and-adjacent-problems" title="Pipelines, interpretability & adjacent problems" why="You can now control complexity and evaluate choices. Next, keep transformations reproducible in pipelines, inspect model behaviour carefully, and distinguish time-series, recommender, and causal questions from ordinary tabular prediction." />

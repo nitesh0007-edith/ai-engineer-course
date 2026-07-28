@@ -1,0 +1,17 @@
+---
+/** BiasVarianceBalance — training/validation behaviour across model complexity. */
+---
+<svg class="diagram-svg" viewBox="0 0 780 380" role="img" aria-label="A graph plots training and validation error against model complexity. Training error falls steadily. Validation error falls then rises, marking an underfit region, a useful middle region, and an overfit region. A second row shows that more data, regularisation, and simpler features can reduce variance, while an overly simple model has bias. A note says the balance is measured with held-out evidence, not guessed from training error.">
+ <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">fit the pattern, not the noise</text>
+ <rect x="24" y="55" width="505" height="258" rx="14" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2"/>
+ <line x1="81" y1="264" x2="495" y2="264" stroke="var(--ink)" stroke-width="2"/><line x1="81" y1="264" x2="81" y2="88" stroke="var(--ink)" stroke-width="2"/>
+ <text x="495" y="288" text-anchor="end" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">model flexibility →</text><text x="54" y="98" transform="rotate(-90 54 98)" text-anchor="end" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">error</text>
+ <path d="M98 116 C170 147 252 189 477 245" fill="none" stroke="var(--blueprint)" stroke-width="4"/><text x="435" y="232" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">training error</text>
+ <path d="M98 124 C163 158 211 210 278 218 C344 228 407 188 477 112" fill="none" stroke="var(--alert)" stroke-width="4"/><text x="419" y="103" font-family="var(--font-mono)" font-size="10" fill="var(--alert)">validation error</text>
+ <line x1="245" y1="84" x2="245" y2="270" stroke="var(--ch1)" stroke-width="2" stroke-dasharray="6 5"/><text x="245" y="107" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">choose here with validation</text>
+ <text x="121" y="245" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">underfit</text><text x="390" y="245" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">overfit</text>
+ <rect x="556" y="55" width="202" height="258" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3"/>
+ <text x="657" y="86" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">variance controls</text>
+ <text x="580" y="122" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">more representative data</text><text x="580" y="157" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">L1 / L2 penalties</text><text x="580" y="192" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">simpler features/model</text><text x="580" y="227" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">early stopping</text><text x="580" y="270" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">validate every trade-off</text>
+ <text x="390" y="355" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">training fit is not generalisation — compare unseen data across seeds, folds, and time</text>
+</svg>
