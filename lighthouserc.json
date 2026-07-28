@@ -17,7 +17,8 @@
         "http://localhost:4321/ai-engineer-course/chapters/maths-ii-probability-statistics-optimisation/",
         "http://localhost:4321/ai-engineer-course/chapters/data-foundations/",
         "http://localhost:4321/ai-engineer-course/chapters/what-learning-from-data-means/",
-        "http://localhost:4321/ai-engineer-course/chapters/linear-and-logistic-regression/"
+        "http://localhost:4321/ai-engineer-course/chapters/linear-and-logistic-regression/",
+        "http://localhost:4321/ai-engineer-course/chapters/trees-and-ensembles/"
       ],
       "numberOfRuns": 3,
       "settings": {

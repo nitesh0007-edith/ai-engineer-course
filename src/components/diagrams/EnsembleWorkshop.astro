@@ -1,0 +1,75 @@
+---
+/**
+ * EnsembleWorkshop — contrasts parallel bagging, sequential boosting, and
+ * out-of-fold stacking.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 430"
+  role="img"
+  aria-label="Three ensemble patterns are compared. Bagging trains several trees independently on bootstrap samples, often with random feature subsets, then averages or votes to reduce variance. Boosting trains shallow trees sequentially, each new tree correcting current residuals or gradients, then adds their weighted outputs. Stacking creates out-of-fold predictions from different base models, uses those predictions as inputs to a meta-model, and must avoid training the meta-model on in-sample base predictions. The patterns have different training dependencies and leakage risks."
+>
+  <defs>
+    <marker id="ensemble-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <rect x="14" y="30" width="236" height="365" rx="13" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="132" y="64" text-anchor="middle" font-family="var(--font-hand)" font-size="25" fill="var(--ink)">bagging</text>
+  <text x="132" y="85" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">parallel · reduce variance</text>
+  <rect x="71" y="106" width="122" height="43" rx="7" fill="var(--paper)" stroke="var(--ink)" />
+  <text x="132" y="132" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">training rows</text>
+  <path d="M132 149 V178 M132 165 H63 V178 M132 165 H201 V178" stroke="var(--blueprint)" stroke-width="2" />
+  <g fill="var(--highlight)" stroke="var(--ink)" stroke-width="1.5">
+    <rect x="31" y="182" width="64" height="55" rx="6" />
+    <rect x="100" y="182" width="64" height="55" rx="6" />
+    <rect x="169" y="182" width="64" height="55" rx="6" />
+  </g>
+  <g font-family="var(--font-hand)" font-size="17" fill="var(--ink)" text-anchor="middle">
+    <text x="63" y="214">tree A</text><text x="132" y="214">tree B</text><text x="201" y="214">tree C</text>
+  </g>
+  <path d="M63 237 V267 H132 M132 237 V284 M201 237 V267 H132" fill="none" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#ensemble-arrow)" />
+  <rect x="71" y="293" width="122" height="53" rx="7" fill="var(--paper)" stroke="var(--ch1)" stroke-width="2" />
+  <text x="132" y="315" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">average / vote</text>
+  <text x="132" y="334" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">independent errors cancel</text>
+  <text x="132" y="374" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">random forest adds feature randomness</text>
+
+  <rect x="272" y="30" width="236" height="365" rx="13" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="390" y="64" text-anchor="middle" font-family="var(--font-hand)" font-size="25" fill="var(--ink)">boosting</text>
+  <text x="390" y="85" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">sequential · correct current error</text>
+  <rect x="300" y="118" width="69" height="50" rx="7" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="334" y="148" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">tree 1</text>
+  <path d="M369 143 H402" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#ensemble-arrow)" />
+  <rect x="414" y="118" width="69" height="50" rx="7" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="448" y="148" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">tree 2</text>
+  <text x="390" y="194" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--alert)">tree 2 learns residual / gradient</text>
+  <path d="M334 168 C334 225 376 235 390 248" fill="none" stroke="var(--blueprint)" stroke-width="2" />
+  <path d="M448 168 C448 225 405 235 390 248" fill="none" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#ensemble-arrow)" />
+  <rect x="326" y="260" width="128" height="57" rx="7" fill="var(--paper)" stroke="var(--ch2)" stroke-width="2" />
+  <text x="390" y="284" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">weighted sum</text>
+  <text x="390" y="303" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">small learning steps</text>
+  <text x="390" y="348" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch2)">later trees depend on earlier trees</text>
+  <text x="390" y="374" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">XGBoost · LightGBM · CatBoost</text>
+
+  <rect x="530" y="30" width="236" height="365" rx="13" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="648" y="64" text-anchor="middle" font-family="var(--font-hand)" font-size="25" fill="var(--ink)">stacking</text>
+  <text x="648" y="85" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">models become meta-features</text>
+  <g fill="var(--highlight)" stroke="var(--ink)" stroke-width="1.5">
+    <rect x="551" y="117" width="62" height="47" rx="6" />
+    <rect x="617" y="117" width="62" height="47" rx="6" />
+    <rect x="683" y="117" width="62" height="47" rx="6" />
+  </g>
+  <g font-family="var(--font-hand)" font-size="16" fill="var(--ink)" text-anchor="middle">
+    <text x="582" y="145">linear</text><text x="648" y="145">forest</text><text x="714" y="145">boost</text>
+  </g>
+  <path d="M582 164 V213 H648 M648 164 V230 M714 164 V213 H648" fill="none" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#ensemble-arrow)" />
+  <text x="648" y="197" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ch1)">out-of-fold predictions</text>
+  <rect x="583" y="242" width="130" height="57" rx="7" fill="var(--paper)" stroke="var(--blueprint)" stroke-width="2" />
+  <text x="648" y="266" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">meta-model</text>
+  <text x="648" y="285" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">learns combination</text>
+  <text x="648" y="330" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">in-sample predictions leak!</text>
+  <text x="648" y="354" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">fit meta-model on held-out folds</text>
+</svg>

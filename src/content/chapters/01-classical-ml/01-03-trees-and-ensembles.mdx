@@ -1,0 +1,887 @@
+---
+layer: 1
+order: 3
+title: 'Trees & ensembles'
+slug: 'trees-and-ensembles'
+subtitle: 'Learn branching rules, measure cleaner splits, and combine many trees through bagging, boosting, and stacking.'
+depth: build
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - linear-and-logistic-regression
+skillsGained:
+  - 'Trace a prediction from a tree root to a leaf'
+  - 'Calculate Gini impurity, entropy, and information gain'
+  - 'Control tree depth and leaf size to reduce overfitting'
+  - 'Explain bootstrap sampling, bagging, and random forests'
+  - 'Trace residual correction in gradient boosting'
+  - 'Compare XGBoost, LightGBM, and CatBoost without treating one as universally best'
+  - 'Design leakage-safe stacking with out-of-fold predictions'
+objectives:
+  - 'Build and interpret classification and regression tree predictions'
+  - 'Compare candidate splits using weighted Gini or entropy'
+  - 'Identify why deep trees have high variance'
+  - 'Explain how bagging and random feature subsets create a random forest'
+  - 'Explain boosting as sequential additive error correction'
+  - 'Compare key engineering choices in XGBoost, LightGBM, and CatBoost'
+  - 'Create a correct stacking plan using out-of-fold predictions'
+concepts:
+  - decision-tree
+  - impurity
+  - gini-impurity
+  - information-gain
+  - bootstrap-sample
+  - bagging
+  - random-forest
+  - boosting
+  - gradient-boosting
+  - stacking
+diagrams:
+  - DecisionTreeJourney
+  - EnsembleWorkshop
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 8
+exercises:
+  - prompt: 'A node contains six positive and four negative rows. Calculate its Gini impurity.'
+    difficulty: warmup
+    solution: 'The proportions are 0.6 and 0.4. Gini is `1 - 0.6² - 0.4² = 1 - 0.36 - 0.16 = 0.48`.'
+  - prompt: 'A parent node has Gini 0.5 and 20 rows. A split creates a 12-row child with Gini 0.25 and an 8-row child with Gini 0.375. Calculate weighted child impurity and gain.'
+    difficulty: core
+    solution: 'Weighted child impurity is `(12/20)×0.25 + (8/20)×0.375 = 0.15 + 0.15 = 0.30`. Gain is `0.50 - 0.30 = 0.20`.'
+  - prompt: 'Explain why training a stacking meta-model on base-model predictions from the same rows those base models fitted is leakage. Describe the correction.'
+    difficulty: stretch
+    solution: 'In-sample base predictions are unrealistically strong because each base model has already seen those targets. The meta-model learns from a signal unavailable for truly unseen rows. Create out-of-fold predictions: for each fold, fit every base model on the other folds and predict the held-out fold. Concatenate those held-out predictions to train the meta-model, then refit base models on all training data for deployment.'
+resources:
+  - title: 'scikit-learn — decision trees'
+    url: 'https://scikit-learn.org/stable/modules/tree.html'
+    type: docs
+    note: 'Official guide to classification and regression trees, complexity, and implementation considerations.'
+  - title: 'scikit-learn — ensemble methods'
+    url: 'https://scikit-learn.org/stable/modules/ensemble.html'
+    type: docs
+    note: 'Official overview of forests, bagging, gradient boosting, and stacking.'
+  - title: 'XGBoost documentation'
+    url: 'https://xgboost.readthedocs.io/'
+    type: docs
+    note: 'Official API and algorithm documentation for regularised gradient-boosted trees.'
+  - title: 'LightGBM documentation'
+    url: 'https://lightgbm.readthedocs.io/'
+    type: docs
+    note: 'Official documentation for histogram learning, leaf-wise growth, and categorical features.'
+  - title: 'CatBoost documentation'
+    url: 'https://catboost.ai/docs/'
+    type: docs
+    note: 'Official documentation for ordered boosting and native categorical-feature handling.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import DecisionTreeJourney from '../../../components/diagrams/DecisionTreeJourney.astro';
+import EnsembleWorkshop from '../../../components/diagrams/EnsembleWorkshop.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+A decision tree predicts by asking a sequence of questions.
+
+An ensemble combines several models so their different strengths and mistakes can produce a better final prediction.
+
+<LessonIdentity
+  module="Classical machine learning"
+  lesson="3 · Trees & ensembles"
+  difficulty="Beginner"
+  duration="65 minutes"
+  prerequisites={[
+    "Features, targets, classification, regression, and validation",
+    "Probabilities, entropy, residuals, and gradients",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Tabular business data often contains thresholds and interactions: an account may be risky only when it is both new and experiencing repeated failures.
+
+Trees discover such branching patterns without requiring every interaction to be written manually. Ensembles make individual trees more stable or more accurate.
+
+<MainIdea>
+  A <Term id="decision-tree">decision tree</Term> recursively divides training
+  examples with feature questions, then predicts from the targets in a leaf.
+  One deep tree is flexible but unstable. <Term id="bagging">Bagging</Term>
+  averages independently varied trees, while <Term id="boosting">boosting</Term>
+  adds trees sequentially to correct the current ensemble. <Term
+  id="stacking">Stacking</Term> learns how to combine different models using
+  leakage-safe out-of-fold predictions.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="A panel of question-asking detectives"
+  limitation="Trees optimise numerical split criteria, not human understanding. Their questions can exploit leakage, biased labels, unstable coincidences, or proxies. A larger panel does not make bad evidence fair or causal."
+>
+  One decision tree is a detective following a branching interview: “three
+  failures?” then “new account?” Bagging asks many independently trained
+  detectives and votes. Boosting sends detectives one after another, telling
+  each what the current team still gets wrong. Stacking hires a coordinator who
+  learns when to trust different kinds of detective.
+</AnalogyCard>
+
+## Part 1 — Anatomy of a decision tree
+
+A tree contains:
+
+- **root node:** the first question;
+- **internal node:** another feature question;
+- **branch:** one answer path;
+- **leaf:** terminal prediction;
+- **depth:** number of splits along a longest root-to-leaf path.
+
+For a numeric feature, a question is commonly:
+
+```text
+failed_attempts < 2.5?
+```
+
+Thresholds between observed values are considered during training.
+
+For classification, a leaf stores training class counts or proportions. For regression, it commonly predicts the mean target of training rows in that leaf.
+
+<Figure id="01-03.1" label="ONE ROW FOLLOWS ONE PATH" caption="— a ticket with four failed attempts and a two-day-old account follows yes then yes to a leaf containing eight urgent rows out of ten. The leaf estimate is 0.8 on its training evidence; calibration and future validity still need held-out evaluation.">
+  <DecisionTreeJourney />
+</Figure>
+
+### Prediction is deterministic traversal
+
+<CodeNotebook title="Trace one hand-written tree">
+
+```python
+def predict_urgency(failed_attempts, account_age_days):
+    if failed_attempts < 3:
+        return 0.10
+    if account_age_days < 7:
+        return 0.80
+    return 0.375
+
+print(predict_urgency(4, 2))
+print(predict_urgency(1, 100))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+0.8
+0.1
+```
+
+</ExpectedOutput>
+
+This code represents a fitted tree. Training is the process that selected features, thresholds, and leaf values.
+
+## Part 2 — Trees search for cleaner children
+
+A classification node is **pure** when every row has the same class.
+
+<Term id="impurity">Impurity</Term> measures class mixing.
+
+### Gini impurity
+
+<Term id="gini-impurity">Gini impurity</Term> is:
+
+```text
+Gini = 1 - Σ p_k²
+```
+
+For 6 urgent and 4 not urgent:
+
+```text
+p_urgent = 0.6
+p_not = 0.4
+Gini = 1 - 0.6² - 0.4² = 0.48
+```
+
+A pure binary node has Gini 0. A perfectly balanced binary node has Gini 0.5.
+
+### Entropy
+
+Entropy is:
+
+```text
+entropy = -Σ p_k log₂(p_k)
+```
+
+A pure node has entropy 0. A balanced binary node has entropy 1 bit.
+
+Gini and entropy often select similar trees, but not always. Neither is a guarantee of product value.
+
+## Part 3 — Information gain scores a split
+
+Children of different sizes must be weighted:
+
+```text
+weighted child impurity
+= (n_left/n_parent)×impurity_left
++ (n_right/n_parent)×impurity_right
+```
+
+<Term id="information-gain">Information gain</Term> is:
+
+```text
+gain = parent impurity - weighted child impurity
+```
+
+Higher gain means the split reduced impurity more.
+
+<PyRunner
+  client:idle
+  id="01-03.A"
+  label="SEARCH ONE-FEATURE GINI SPLITS"
+  code={`rows = [
+    # (failed attempts, urgent label)
+    (0, 0), (1, 0), (2, 0),
+    (3, 1), (4, 1), (5, 1),
+]
+
+def gini(labels):
+    if not labels:
+        return 0.0
+    positive = sum(labels) / len(labels)
+    negative = 1 - positive
+    return 1 - positive ** 2 - negative ** 2
+
+parent_labels = [label for _, label in rows]
+parent_impurity = gini(parent_labels)
+
+for threshold in (0.5, 1.5, 2.5, 3.5, 4.5):
+    left = [label for value, label in rows if value < threshold]
+    right = [label for value, label in rows if value >= threshold]
+    weighted = (
+        len(left) / len(rows) * gini(left)
+        + len(right) / len(rows) * gini(right)
+    )
+    gain = parent_impurity - weighted
+    print(threshold, round(gain, 3))
+
+# Threshold 2.5 perfectly separates these teaching labels.`}
+/>
+
+Expected output:
+
+```text
+0.5 0.1
+1.5 0.25
+2.5 0.5
+3.5 0.25
+4.5 0.1
+```
+
+<LineExplanation
+  items={[
+    {
+      line: "gini(labels)",
+      explanation: "Converts class proportions into one mixing score.",
+    },
+    {
+      line: "value < threshold",
+      explanation: "Sends each row to exactly one candidate child.",
+    },
+    {
+      line: "len(child) / len(rows)",
+      explanation: "Weights child impurity by the number of rows it represents.",
+    },
+    {
+      line: "parent_impurity - weighted",
+      explanation: "Measures improvement from this split. Training chooses the best permitted candidate, then repeats recursively.",
+    },
+  ]}
+/>
+
+## Part 4 — Regression trees reduce numerical error
+
+A regression tree asks the same feature questions but works with numerical targets.
+
+Common leaf prediction:
+
+```text
+leaf prediction = mean target in leaf
+```
+
+Candidate splits can minimise weighted squared error or variance.
+
+Example targets:
+
+```text
+left child:  [10, 12, 14] → prediction 12
+right child: [40, 45]     → prediction 42.5
+```
+
+Regression-tree predictions are piecewise constant. They do not extrapolate a trend beyond observed leaves the way a line can.
+
+## Part 5 — Why one deep tree overfits
+
+A tree can keep splitting until leaves contain one row.
+
+Training error may become zero, but tiny data changes can produce a different upper split and a very different tree. This is **high variance**.
+
+Control complexity with:
+
+- maximum depth;
+- minimum rows required to split;
+- minimum rows per leaf;
+- maximum number of leaves;
+- minimum impurity decrease;
+- pruning after growth.
+
+Choose these with validation or cross-validation, not test data.
+
+Shallow trees may underfit. Deep trees may memorise. There is no universal ideal depth.
+
+## Part 6 — Trees handle features differently from linear models
+
+Advantages:
+
+- capture thresholds and interactions;
+- usually do not require standardisation;
+- can mix nonlinear feature effects;
+- paths can be inspected;
+- support classification and regression.
+
+Limitations:
+
+- greedy splitting does not guarantee the globally best tree;
+- small data changes can alter structure;
+- axis-aligned splits may approximate smooth diagonal boundaries inefficiently;
+- leaf probabilities can be poorly calibrated;
+- standard implementations vary in missing and categorical handling;
+- feature importance can mislead.
+
+Never encode a nominal category such as red/green/blue as `1/2/3` unless the implementation treats it categorically; otherwise numeric thresholds invent an order.
+
+## Part 7 — Bootstrap sampling creates varied training sets
+
+A <Term id="bootstrap-sample">bootstrap sample</Term> draws `n` rows from `n` training rows **with replacement**.
+
+Some rows appear multiple times. Others are absent.
+
+<PyRunner
+  client:idle
+  id="01-03.B"
+  label="SEE BOOTSTRAP VARIATION"
+  code={`import random
+
+random.seed(4)
+rows = ["A", "B", "C", "D", "E"]
+
+for model_number in range(3):
+    sample = random.choices(rows, k=len(rows))
+    omitted = sorted(set(rows) - set(sample))
+    print(model_number + 1, sample, "omitted:", omitted)
+
+# Each model receives a different resampled view of the same training set.`}
+/>
+
+Expected output:
+
+```text
+1 ['B', 'A', 'B', 'A', 'A'] omitted: ['C', 'D', 'E']
+2 ['C', 'E', 'E', 'D', 'B'] omitted: ['A']
+3 ['C', 'B', 'A', 'A', 'B'] omitted: ['D', 'E']
+```
+
+Rows omitted from one tree's bootstrap sample are **out-of-bag** for that tree and can support an internal performance estimate. Keep a genuine final test set.
+
+## Part 8 — Bagging averages unstable models
+
+<Term id="bagging">Bootstrap aggregating</Term>, shortened to bagging:
+
+1. Draw many bootstrap samples.
+2. Fit one base model independently to each sample.
+3. Average regression predictions or vote/average classification probabilities.
+
+If models make partly independent errors, averaging reduces variance.
+
+Bagging helps unstable learners such as deep trees. Bagging nearly identical models with perfectly correlated errors provides little benefit.
+
+## Part 9 — Random forests decorrelate trees
+
+A <Term id="random-forest">random forest</Term> adds another source of variation:
+
+- bootstrap rows for each tree;
+- consider only a random subset of features at each split.
+
+Why random features?
+
+If one strong feature dominates, every bagged tree may choose it at the root and become similar. Random feature subsets force alternative useful structures. Averaging diverse trees can be more stable.
+
+Important settings:
+
+- number of trees;
+- features considered per split;
+- maximum depth;
+- minimum leaf size;
+- class weights;
+- bootstrap choice.
+
+More trees generally stabilise the average but increase compute and memory. They do not fix biased data or an overfitting split protocol.
+
+## Part 10 — Feature importance needs caution
+
+Common tree importance methods:
+
+- **impurity importance:** total weighted impurity reduction attributed to a feature;
+- **permutation importance:** measure validation-score decrease after shuffling one feature.
+
+Impurity importance can favour continuous or high-cardinality features with more split opportunities.
+
+Permutation importance can understate correlated features because a partner still supplies similar information. It must be calculated on held-out data with a meaningful metric.
+
+Importance means the model used a feature for prediction under this data—not that the feature causes the outcome.
+
+## Part 11 — Boosting learns sequential corrections
+
+<Term id="boosting">Boosting</Term> combines weak learners sequentially.
+
+For squared-error <Term id="gradient-boosting">gradient boosting</Term>:
+
+1. Start with a baseline, often mean target.
+2. Calculate residuals.
+3. Fit a small tree to those residuals.
+4. Add a shrunken version of its prediction.
+5. Recalculate residuals.
+6. Repeat.
+
+```text
+new_prediction
+= old_prediction + learning_rate × new_tree_prediction
+```
+
+For other differentiable losses, each tree fits the negative gradient—often called a pseudo-residual.
+
+<Figure id="01-03.2" label="ENSEMBLES DIFFER IN TRAINING DEPENDENCIES" caption="— bagging trains varied trees independently and averages them. Boosting adds learners sequentially to correct the current ensemble. Stacking trains a meta-model on out-of-fold base predictions; in-sample base predictions would leak memorisation into the meta-model.">
+  <EnsembleWorkshop />
+</Figure>
+
+### Worked residual correction
+
+Targets:
+
+```text
+[10, 20, 30]
+```
+
+Initial prediction is mean `20`:
+
+```text
+predictions = [20, 20, 20]
+residuals   = [-10, 0, 10]
+```
+
+Suppose a stump predicts residual corrections `[-8, 0, 8]` and learning rate is `0.5`:
+
+```text
+new predictions = [16, 20, 24]
+new residuals   = [-6, 0, 6]
+```
+
+The next tree focuses on what remains.
+
+Small trees and learning rates regularise the sequence. Too many boosting rounds can overfit.
+
+## Part 12 — XGBoost, LightGBM, and CatBoost
+
+These are optimised gradient-boosted tree libraries, not three completely different learning paradigms.
+
+### XGBoost
+
+**XGBoost** provides a regularised gradient-boosting objective, second-order gradient information, sparsity-aware processing, column sampling, and efficient parallel systems.
+
+It is a mature general-purpose baseline with extensive tooling.
+
+### LightGBM
+
+**LightGBM** uses histogram-based splits and commonly grows trees leaf-wise by expanding the leaf with greatest gain.
+
+Leaf-wise growth can reduce loss quickly but may overfit small datasets unless leaf count, depth, and minimum leaf data are controlled.
+
+It also includes optimisations such as gradient-based one-side sampling and exclusive feature bundling.
+
+### CatBoost
+
+**CatBoost** is designed for strong handling of categorical features. Ordered target statistics and ordered boosting reduce leakage and prediction shift that naive target encoding can introduce.
+
+Do not precompute category target means using all rows; that leaks labels regardless of library.
+
+### Choose by evidence
+
+Compare:
+
+- data size and sparsity;
+- categorical feature needs;
+- missing-value semantics;
+- training and inference constraints;
+- validation quality;
+- probability calibration;
+- reproducibility and deployment environment.
+
+Tune equivalent capacity, not just default settings. No library wins every dataset.
+
+## Part 13 — Stacking learns how to combine models
+
+<Term id="stacking">Stacking</Term> uses predictions from base models as inputs to a meta-model.
+
+Example base models:
+
+- logistic regression;
+- random forest;
+- gradient boosting.
+
+Correct training:
+
+1. Divide training data into folds.
+2. For each fold, fit base models on other folds.
+3. Predict the held-out fold.
+4. Concatenate out-of-fold predictions.
+5. Fit the meta-model on those predictions and targets.
+6. Refit each base model on all training data.
+7. At inference, send base predictions into the meta-model.
+
+If the meta-model sees in-sample base predictions, it learns from base-model memorisation and fails on unseen inputs.
+
+Stacking adds latency, operational dependencies, and debugging complexity. It must beat the best single model meaningfully.
+
+## Worked example — triage ticket urgency
+
+### 1. Evidence
+
+Split by customer and time. Features must exist at ticket creation. Keep latest months sealed for test.
+
+### 2. Single tree
+
+Fit a shallow classification tree. Inspect paths and minimum leaf counts. It exposes candidate interactions but may vary across folds.
+
+### 3. Random forest
+
+Fit many bootstrapped trees with random feature subsets. Compare validation recall, precision, calibration, latency, and group slices.
+
+### 4. Gradient boosting
+
+Fit shallow boosted trees with a small learning rate and early stopping on validation data. Avoid using the test set for the stopping round.
+
+### 5. Select
+
+If boosting improves the declared metric but is poorly calibrated, calibrate with separate validation evidence. If the forest is nearly as good and easier to operate, simpler may win.
+
+### 6. Explain honestly
+
+Show validated feature dependence and representative paths, but do not claim one tree explains the entire ensemble or proves causality.
+
+## In a real AI system
+
+<RealWorldExample
+  title="Tabular risk model with safe fallbacks"
+  steps={[
+    "A contract validates feature types and category vocabularies",
+    "A time-and-customer split protects evaluation",
+    "A majority and logistic baseline establish reference performance",
+    "A tree ensemble estimates risk probability",
+    "A validation-chosen threshold routes cases to human review",
+    "Monitoring checks missingness, drift, calibration, latency, and overrides",
+  ]}
+>
+  The model artefact must include feature order, category handling, missing-value
+  semantics, library version, parameters, threshold, and training lineage.
+
+If required features are invalid, use a documented fallback rather than allowing a tree library's default missing branch to define product policy accidentally.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Growing a tree until every training leaf is pure.",
+      fix: "Use validation-selected depth, leaf size, pruning, and minimum gain; inspect variance across folds.",
+    },
+    {
+      mistake: "Comparing child impurity without weighting by child size.",
+      fix: "Multiply each child impurity by its fraction of parent rows before calculating gain.",
+    },
+    {
+      mistake: "Encoding unordered categories as arbitrary integers.",
+      fix: "Use explicit categorical handling or a leakage-safe encoding fitted inside training folds.",
+    },
+    {
+      mistake: "Assuming hundreds of nearly identical trees remove variance.",
+      fix: "Bagging needs diversity; bootstrap rows and random feature subsets help decorrelate tree errors.",
+    },
+    {
+      mistake: "Calling boosted trees parallel bagging.",
+      fix: "Boosting is sequential: each learner depends on the current ensemble's residuals or gradients.",
+    },
+    {
+      mistake: "Treating default XGBoost, LightGBM, or CatBoost as a universal winner.",
+      fix: "Compare tuned capacity, data handling, calibration, latency, and deployment constraints on valid splits.",
+    },
+    {
+      mistake: "Training a stacking meta-model on in-sample base predictions.",
+      fix: "Create out-of-fold predictions so each meta-training row was predicted by base models that did not fit that row.",
+    },
+    {
+      mistake: "Reading feature importance as causal impact.",
+      fix: "Describe model reliance under this dataset; inspect bias, correlation, stability, and causal assumptions separately.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "A node contains only one class. What are its Gini impurity and entropy?",
+      options: ["Both zero", "Both one", "They depend on tree depth"],
+      answer: 0,
+      explanation: "There is no class uncertainty in a pure node, so both impurity measures are zero.",
+    },
+    {
+      question: "What extra randomness distinguishes a random forest from ordinary bagged trees?",
+      options: [
+        "Random target labels",
+        "Random feature subsets at candidate splits",
+        "A random final threshold only",
+      ],
+      answer: 1,
+      explanation: "Feature subsampling discourages every tree from relying on the same dominant predictors, increasing useful diversity.",
+    },
+    {
+      question: "In squared-error gradient boosting, what does the next tree fit?",
+      options: [
+        "Current residuals or negative loss gradients",
+        "A fresh random target",
+        "Only the original mean forever",
+      ],
+      answer: 0,
+      explanation: "Each new learner estimates a correction to the current additive ensemble.",
+    },
+    {
+      question: "Why must stacking use out-of-fold base predictions?",
+      options: [
+        "To make every model identical",
+        "To prevent the meta-model learning from base-model in-sample memorisation",
+        "To avoid having a target",
+      ],
+      answer: 1,
+      explanation: "Each meta-training prediction must imitate unseen inference by coming from a base model that did not train on that row.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Choose the best first split"
+  time="10–20 minutes"
+  goal="Calculate weighted Gini gain for candidate thresholds and turn the winner into a decision stump."
+  steps={[
+    "Run the starter data through the supplied Gini helper.",
+    "Generate thresholds halfway between adjacent unique feature values.",
+    "Split labels at each threshold.",
+    "Calculate weighted child impurity and gain.",
+    "Select the highest-gain threshold.",
+    "Calculate each leaf's positive-class probability.",
+    "Write a prediction function and state one limitation.",
+  ]}
+  expected="For the supplied ordered data, threshold 2.5 has gain 0.5 and produces pure leaves with probabilities 0 and 1."
+  challenge="Change one label, recalculate all gains, and explain why the best split or leaf probabilities changed."
+>
+
+```python
+rows = [(0, 0), (1, 0), (2, 0), (3, 1), (4, 1), (5, 1)]
+
+def gini(labels):
+    positive = sum(labels) / len(labels)
+    return 1 - positive ** 2 - (1 - positive) ** 2
+
+# Generate midpoint thresholds and calculate gain.
+```
+
+```python
+rows = sorted(rows)
+labels = [label for _, label in rows]
+parent = gini(labels)
+thresholds = [
+    (left[0] + right[0]) / 2
+    for left, right in zip(rows, rows[1:])
+    if left[0] != right[0]
+]
+
+best = None
+for threshold in thresholds:
+    left = [label for value, label in rows if value < threshold]
+    right = [label for value, label in rows if value >= threshold]
+    weighted = (
+        len(left) / len(rows) * gini(left)
+        + len(right) / len(rows) * gini(right)
+    )
+    gain = parent - weighted
+    candidate = (gain, threshold, sum(left) / len(left), sum(right) / len(right))
+    if best is None or candidate > best:
+        best = candidate
+
+gain, threshold, left_probability, right_probability = best
+print("threshold:", threshold)
+print("gain:", gain)
+print("leaf probabilities:", left_probability, right_probability)
+```
+
+Expected output:
+
+```text
+threshold: 2.5
+gain: 0.5
+leaf probabilities: 0.0 1.0
+```
+
+Limitation: this perfect separation is based on only six training rows. It needs protected validation evidence and minimum-leaf safeguards.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "A tree routes one row through feature questions to a leaf prediction.",
+    "Gini and entropy measure class mixing; information gain compares a parent with size-weighted children.",
+    "Deep trees are flexible but unstable, so depth and leaf size need validation control.",
+    "Bagging averages independently varied models; random forests also randomise candidate features.",
+    "Boosting adds learners sequentially to correct current residuals or loss gradients.",
+    "XGBoost, LightGBM, and CatBoost make different engineering trade-offs; evidence chooses among them.",
+    "Stacking requires out-of-fold base predictions to prevent leakage.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    { front: "What is a tree leaf?", back: "A terminal node that returns a prediction based on training targets reaching it." },
+    { front: "What does Gini impurity measure?", back: "How mixed class proportions are inside a node." },
+    { front: "What is information gain?", back: "Parent impurity minus size-weighted child impurity." },
+    { front: "Why can one deep tree overfit?", back: "It can create tiny leaves that memorise training-specific noise and change sharply with small data changes." },
+    { front: "What is a bootstrap sample?", back: "A same-size sample drawn with replacement, repeating some rows and omitting others." },
+    { front: "What does bagging mainly reduce?", back: "Variance, by averaging base models with partly different errors." },
+    { front: "Why does a random forest sample features?", back: "To decorrelate trees and make averaging more effective." },
+    { front: "What does gradient boosting add?", back: "Sequential weak learners fitted to current negative loss gradients." },
+    { front: "What is special about CatBoost?", back: "Ordered methods designed to handle categorical features while reducing target leakage and prediction shift." },
+    { front: "What makes stacking leakage-safe?", back: "The meta-model trains on out-of-fold predictions from base models that did not fit those rows." },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Calculate Gini, entropy, weighted child impurity, and gain for a proposed split.",
+    "Compare one tree, bagged trees, and a random forest in terms of bias, variance, and diversity.",
+    "Trace two rounds of squared-error gradient boosting from baseline through residual corrections.",
+    "Compare XGBoost, LightGBM, and CatBoost without claiming a universal winner.",
+    "Design an out-of-fold stacking pipeline and identify its latency and leakage risks.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Trees & ensembles"
+  terms={[
+    "Node — feature question",
+    "Leaf — terminal prediction",
+    "Gini/entropy — class mixing",
+    "Bagging — parallel averaging",
+    "Boosting — sequential correction",
+    "Stacking — learned model combination",
+  ]}
+  mistakes={[
+    "Do not grow pure singleton leaves blindly",
+    "Do not forget child-size weights",
+    "Do not ordinal-encode nominal categories",
+    "Do not call importance causal",
+    "Do not stack in-sample predictions",
+  ]}
+  takeaways={[
+    "One row follows one path",
+    "Choose splits by impurity reduction",
+    "Average diverse trees for stability",
+    "Boost residuals in small steps",
+    "Use out-of-fold meta-features",
+  ]}
+  questions={[
+    "How many rows reach this leaf?",
+    "Are these ensemble errors diverse?",
+    "Was this meta-feature out of fold?",
+  ]}
+>
+  <p slot="main">
+    Trees learn nonlinear branching rules. Bagging stabilises varied trees,
+    boosting adds corrections sequentially, and stacking learns a combination
+    from predictions that must be generated out of fold.
+  </p>
+  <div slot="diagram">
+    <EnsembleWorkshop />
+  </div>
+  <pre slot="code">
+    <code>{`gain = impurity(parent) - weighted_impurity(children)
+forest = average(independent_tree_predictions)
+boosted += learning_rate * next_correction
+meta.fit(out_of_fold_predictions, targets)`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="trees-and-ensembles"
+  items={[
+    "I can trace a root-to-leaf prediction.",
+    "I can calculate Gini and information gain.",
+    "I can control tree complexity.",
+    "I can explain bootstrap samples and bagging.",
+    "I can explain random feature subsets.",
+    "I can trace boosting residual corrections.",
+    "I can compare the three boosting libraries.",
+    "I can design out-of-fold stacking.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="other-core-algorithms"
+  title="Other core algorithms"
+  why="You can now learn axis-aligned rules and combine many trees. Next, compare three different ideas: predict from nearby examples with k-NN, maximise a separating margin with SVMs and kernels, and combine conditional evidence with Naive Bayes."
+/>
