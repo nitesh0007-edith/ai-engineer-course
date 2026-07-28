@@ -1,0 +1,39 @@
+---
+/** ProjectionMap — dimensionality reduction as variance-preserving projection,
+ * with warnings for t-SNE/UMAP visual interpretation. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 380"
+  role="img"
+  aria-label="A high-dimensional customer feature table is centred and projected onto two principal-component arrows, creating a two-dimensional map. The map preserves a useful amount of global variance for PCA. A separate note warns that t-SNE and UMAP maps preserve local neighbourhoods differently, so apparent cluster size and distance should not be read as measured global truth."
+>
+  <rect x="18" y="50" width="226" height="256" rx="14" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="131" y="81" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">many features</text>
+  <text x="131" y="103" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">customers × columns</text>
+  <g font-family="var(--font-mono)" font-size="10" fill="var(--ink)">
+    <text x="41" y="140">age</text><text x="91" y="140">visits</text><text x="151" y="140">spend</text>
+    <text x="41" y="166">24</text><text x="91" y="166">3</text><text x="151" y="166">42</text>
+    <text x="41" y="192">51</text><text x="91" y="192">18</text><text x="151" y="192">210</text>
+    <text x="41" y="218">37</text><text x="91" y="218">8</text><text x="151" y="218">95</text>
+    <text x="41" y="244">…</text><text x="91" y="244">…</text><text x="151" y="244">…</text>
+  </g>
+  <path d="M267 176 H350" stroke="var(--ch1)" stroke-width="4" marker-end="url(#arrow)" />
+  <text x="308" y="158" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ch1)">centre + scale</text>
+  <text x="308" y="202" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">PCA finds directions</text>
+  <rect x="367" y="50" width="193" height="256" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="463" y="81" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">principal axes</text>
+  <line x1="395" y1="247" x2="525" y2="115" stroke="var(--ch1)" stroke-width="4" />
+  <line x1="422" y1="109" x2="502" y2="274" stroke="var(--blueprint)" stroke-width="3" />
+  <g fill="var(--ink)"><circle cx="420" cy="229" r="6"/><circle cx="440" cy="209" r="6"/><circle cx="458" cy="190" r="6"/><circle cx="478" cy="168" r="6"/><circle cx="500" cy="146" r="6"/></g>
+  <text x="508" y="113" font-family="var(--font-mono)" font-size="10" fill="var(--ch1)">PC1: most variance</text>
+  <text x="495" y="286" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">PC2: next independent</text>
+  <path d="M580 176 H652" stroke="var(--ch1)" stroke-width="4" marker-end="url(#arrow)" />
+  <rect x="668" y="50" width="94" height="256" rx="14" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="715" y="81" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">2D map</text>
+  <g fill="var(--blueprint)"><circle cx="691" cy="150" r="7"/><circle cx="712" cy="171" r="7"/><circle cx="727" cy="143" r="7"/></g>
+  <g fill="var(--alert)"><circle cx="701" cy="234" r="7"/><circle cx="729" cy="249" r="7"/><circle cx="741" cy="219" r="7"/></g>
+  <text x="390" y="346" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">PCA: variance-preserving projection. t-SNE / UMAP: local-neighbourhood views, not a distance ruler.</text>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="var(--ch1)" /></marker></defs>
+</svg>

@@ -1,0 +1,51 @@
+---
+/** ClusteringChoices — how k-means, hierarchical clustering, and DBSCAN group
+ * unlabeled points using different rules. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 390"
+  role="img"
+  aria-label="Three panels compare clustering methods. K-means assigns each point to its closest moving centre and produces two round groups. Hierarchical clustering joins nearby points into a branching tree that can be cut at different heights. DBSCAN identifies two dense groups and labels two isolated points as noise. A note says clusters are patterns to investigate, not automatically real-world truth."
+>
+  <text x="390" y="32" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">one cloud · three grouping rules</text>
+
+  <g transform="translate(14 55)">
+    <rect width="238" height="278" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+    <text x="119" y="30" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">k-means</text>
+    <text x="119" y="48" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">closest centre · choose k first</text>
+    <ellipse cx="70" cy="145" rx="49" ry="66" fill="none" stroke="var(--blueprint)" stroke-width="2" stroke-dasharray="5 4" />
+    <ellipse cx="174" cy="140" rx="48" ry="65" fill="none" stroke="var(--alert)" stroke-width="2" stroke-dasharray="5 4" />
+    <g fill="var(--blueprint)"><circle cx="46" cy="122" r="7"/><circle cx="67" cy="150" r="7"/><circle cx="93" cy="115" r="7"/><circle cx="77" cy="190" r="7"/><circle cx="39" cy="174" r="7"/></g>
+    <g fill="var(--alert)"><circle cx="151" cy="117" r="7"/><circle cx="183" cy="146" r="7"/><circle cx="198" cy="105" r="7"/><circle cx="161" cy="183" r="7"/><circle cx="207" cy="178" r="7"/></g>
+    <path d="M68 126 l6 12 13 2 -10 9 3 13 -12 -7 -12 7 3 -13 -10 -9 13 -2z" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+    <path d="M177 121 l6 12 13 2 -10 9 3 13 -12 -7 -12 7 3 -13 -10 -9 13 -2z" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+    <text x="119" y="250" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">centres move → assign → repeat</text>
+  </g>
+
+  <g transform="translate(271 55)">
+    <rect width="238" height="278" rx="14" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+    <text x="119" y="30" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">hierarchical</text>
+    <text x="119" y="48" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">a tree of possible cuts</text>
+    <path d="M34 230 V183 H72 V138 H116 V92 M72 183 H159 V138 H197 V92 M116 138 H159" fill="none" stroke="var(--ink)" stroke-width="2" />
+    <g fill="var(--blueprint)"><circle cx="34" cy="239" r="8"/><circle cx="72" cy="239" r="8"/><circle cx="116" cy="239" r="8"/></g>
+    <g fill="var(--alert)"><circle cx="159" cy="239" r="8"/><circle cx="197" cy="239" r="8"/></g>
+    <line x1="18" y1="154" x2="220" y2="154" stroke="var(--ch1)" stroke-width="3" stroke-dasharray="8 5" />
+    <text x="119" y="174" text-anchor="middle" font-family="var(--font-hand)" font-size="15" fill="var(--ch1)">cut here → 2 groups</text>
+    <text x="119" y="264" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ink-muted)">merge nearest groups step by step</text>
+  </g>
+
+  <g transform="translate(528 55)">
+    <rect width="238" height="278" rx="14" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+    <text x="119" y="30" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">DBSCAN</text>
+    <text x="119" y="48" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">dense regions · noise allowed</text>
+    <path d="M24 124 C42 77 111 70 122 123 C130 177 55 198 24 151z" fill="color-mix(in oklch, var(--blueprint) 15%, transparent)" stroke="var(--blueprint)" stroke-width="2" />
+    <path d="M137 130 C153 80 221 91 220 143 C216 193 156 190 137 154z" fill="color-mix(in oklch, var(--alert) 14%, transparent)" stroke="var(--alert)" stroke-width="2" />
+    <g fill="var(--blueprint)"><circle cx="54" cy="111" r="7"/><circle cx="80" cy="136" r="7"/><circle cx="92" cy="106" r="7"/><circle cx="65" cy="161" r="7"/></g>
+    <g fill="var(--alert)"><circle cx="163" cy="116" r="7"/><circle cx="192" cy="140" r="7"/><circle cx="181" cy="164" r="7"/><circle cx="207" cy="111" r="7"/></g>
+    <g fill="var(--ink-muted)"><circle cx="28" cy="225" r="6"/><circle cx="216" cy="224" r="6"/></g>
+    <text x="119" y="250" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">isolated points → noise</text>
+  </g>
+  <text x="390" y="371" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--alert)">a cluster is a hypothesis about structure — inspect and validate it</text>
+</svg>

@@ -1,0 +1,595 @@
+---
+layer: 1
+order: 5
+title: 'Unsupervised learning'
+slug: 'unsupervised-learning'
+subtitle: 'Find useful structure without labels: groups, dense regions, and smaller views of many features.'
+depth: build
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - other-core-algorithms
+skillsGained:
+  - 'Prepare an unlabeled dataset for clustering without leaking future information'
+  - 'Explain and trace k-means assignments and centroid updates'
+  - 'Compare k-means, hierarchical clustering, and DBSCAN'
+  - 'Choose evidence for a cluster count without treating it as truth'
+  - 'Explain PCA as a fitted linear projection and interpret explained variance'
+  - 'Use t-SNE and UMAP maps carefully for exploration rather than measurement'
+objectives:
+  - 'Distinguish clustering, dimensionality reduction, anomaly detection, and supervised prediction'
+  - 'Calculate one k-means assignment and centroid update'
+  - 'Explain the assumptions, parameters, and failure modes of three clustering methods'
+  - 'Evaluate a proposed clustering with stability, domain review, and task evidence'
+  - 'Fit PCA on training data and explain components and explained variance'
+  - 'Identify misleading interpretations of t-SNE and UMAP plots'
+concepts:
+  - unsupervised-learning
+  - clustering
+  - k-means
+  - centroid
+  - inertia
+  - silhouette-score
+  - hierarchical-clustering
+  - dbscan
+  - principal-component-analysis
+  - explained-variance
+  - tsne
+  - umap
+diagrams:
+  - ClusteringChoices
+  - ProjectionMap
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 6
+exercises:
+  - prompt: 'Points `(0,0)`, `(1,0)`, `(8,0)`, `(9,0)` start with centroids `(0,0)` and `(9,0)`. Assign each point to a nearest centroid, then calculate both updated centroids.'
+    difficulty: warmup
+    solution: 'The first two points join the left centre and the last two join the right centre. Their means are `(0.5, 0)` and `(8.5, 0)`. If assignment no longer changes after another update, k-means has converged to this local solution.'
+  - prompt: 'A DBSCAN run labels 18% of orders as noise. Give three checks before deciding these are anomalous orders.'
+    difficulty: core
+    solution: 'Check units and scaling, inspect the epsilon and minimum-samples sensitivity, and sample records with domain experts. Also compare time periods, missing-value patterns, and a held-out downstream task. Noise is a density result, not automatically fraud or a bad record.'
+  - prompt: 'A two-dimensional t-SNE map has one large island and three small islands. Explain why you cannot conclude that the large island is more common or farther from the others than the small islands.'
+    difficulty: stretch
+    solution: 't-SNE prioritises local-neighbourhood similarity. Its apparent area, empty space, and long-range distances are not faithful global measurements. Check original counts separately and inspect neighbour preservation, parameters, seeds, and the original feature space.'
+resources:
+  - title: 'scikit-learn — clustering'
+    url: 'https://scikit-learn.org/stable/modules/clustering.html'
+    type: docs
+    note: 'Official guide to k-means, hierarchical clustering, DBSCAN, evaluation, and practical comparisons.'
+  - title: 'scikit-learn — decomposition'
+    url: 'https://scikit-learn.org/stable/modules/decomposition.html'
+    type: docs
+    note: 'Official guide to PCA, explained variance, scaling, and incremental decomposition.'
+  - title: 'scikit-learn — manifold learning'
+    url: 'https://scikit-learn.org/stable/modules/manifold.html'
+    type: docs
+    note: 'Official cautions and parameters for t-SNE and related nonlinear visualisation methods.'
+  - title: 'UMAP documentation'
+    url: 'https://umap-learn.readthedocs.io/'
+    type: docs
+    note: 'Official documentation for UMAP parameters, supervised variants, transforms, and reproducibility.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import ClusteringChoices from '../../../components/diagrams/ClusteringChoices.astro';
+import ProjectionMap from '../../../components/diagrams/ProjectionMap.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Unsupervised learning looks for patterns when no column contains the right answer.
+
+That can reveal useful groups and simpler views. It cannot tell you what a group means, whether it is fair, or what action to take.
+
+<LessonIdentity
+  module="Classical machine learning"
+  lesson="5 · Unsupervised learning"
+  difficulty="Beginner"
+  duration="65 minutes"
+  prerequisites={[
+    "Features, vectors, distance, scaling, validation, and data leakage",
+    "Supervised learning and why test evidence must stay separate",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Real datasets often arrive without an answer column. A support team may not have ticket topics. A product team may want to explore behaviour patterns. An engineer may need a compact representation before a downstream model.
+
+<Term id="unsupervised-learning">Unsupervised learning</Term> helps explore that structure. The responsible next step is investigation and evaluation, not automatically naming a discovered group “a customer type”.
+
+<MainIdea>
+  <Term id="clustering">Clustering</Term> groups examples under a chosen notion of similarity. <Term id="principal-component-analysis">Principal component analysis</Term>, or **PCA**, creates fewer linear coordinates that preserve as much fitted-data variation as possible. Both depend on representation, scaling, parameters, and human interpretation.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="Sorting an unlabelled box of buttons"
+  limitation="A sorting rule can make a very tidy box while grouping objects for an unhelpful reason. Algorithms see supplied features and geometry, not purpose, identity, fairness, or causes."
+>
+  Imagine tipping an unlabelled box of buttons onto a table. You might group by
+  colour, size, number of holes, or material. Every grouping can be internally
+  consistent, yet only some are useful for sewing. Clustering chooses a rule
+  for “similar” and proposes piles. PCA rotates the table view so the biggest
+  directions of variation are easier to see.
+</AnalogyCard>
+
+## Step 1 — Know what problem you have
+
+Use unsupervised methods when no reliable **target** answer is available during fitting.
+
+- **Clustering:** propose groups of similar rows.
+- **Dimensionality reduction:** represent many columns with fewer coordinates.
+- **Anomaly detection:** find unusual rows under a fitted normality rule.
+- **Supervised prediction:** learn a known target; this is different.
+
+Clusters are not labels. If you manually label clusters and later predict that label, you have created a supervised task with all the usual split, leakage, and fairness requirements.
+
+## Step 2 — Prepare the representation before searching for groups
+
+Distance-based methods treat numeric units literally.
+
+If one feature is yearly spend in pounds and another is number of visits, raw spend can dominate Euclidean distance. Fit scaling on the data allowed at fit time, then apply the frozen transform consistently.
+
+Decide deliberately how to encode:
+
+- numeric measurements;
+- categories;
+- missing values;
+- dates and seasonality;
+- text, images, or embeddings;
+- sensitive features and proxies.
+
+Do not silently include an outcome, future field, account identifier, or timestamp that leaks the answer you hope to investigate.
+
+<Figure id="01-05.1" label="THREE CLUSTERING RULES MAKE DIFFERENT PROMISES" caption="— k-means allocates every point to a closest centre and prefers round, similarly sized groups. Hierarchical clustering supplies a tree of possible cuts. DBSCAN connects dense regions and can call isolated points noise. None discovers ground truth by itself.">
+  <ClusteringChoices />
+</Figure>
+
+## Step 3 — k-means: assign, average, repeat
+
+<Term id="k-means">k-means</Term> needs a chosen number of clusters, `k`.
+
+1. Start with `k` <Term id="centroid">centroids</Term>, which are centre positions.
+2. Assign each row to its closest centroid.
+3. Move each centroid to the arithmetic mean of its assigned rows.
+4. Repeat until assignments or centres stop changing enough.
+
+The objective is <Term id="inertia">inertia</Term>: the sum of squared distances to assigned centres. Squaring makes far points count more.
+
+```text
+inertia = Σ ||row - assigned_centroid||²
+```
+
+### Worked example — two small piles
+
+Rows are positions on one line: `0, 1, 8, 9`. Start centres at `0` and `9`.
+
+| Row | Distance to 0 | Distance to 9 | Assignment |
+|---:|---:|---:|---|
+| 0 | 0 | 9 | left |
+| 1 | 1 | 8 | left |
+| 8 | 8 | 1 | right |
+| 9 | 9 | 0 | right |
+
+Update centres:
+
+```text
+left centre  = mean(0, 1) = 0.5
+right centre = mean(8, 9) = 8.5
+```
+
+One more assignment gives the same groups. That is convergence for this start, not proof of globally best or meaningful clusters.
+
+<PyRunner
+  client:idle
+  id="01-05.A"
+  label="TRACE TINY K-MEANS"
+  code={`points = [0.0, 1.0, 8.0, 9.0]
+centres = [0.0, 9.0]
+
+groups = {0: [], 1: []}
+for point in points:
+    closest = min(range(len(centres)), key=lambda i: abs(point - centres[i]))
+    groups[closest].append(point)
+
+updated = [sum(groups[i]) / len(groups[i]) for i in range(len(centres))]
+
+print("assignments:", groups)
+print("updated centres:", updated)
+
+# Try a different initial centre pair and compare the result.`}
+/>
+
+Expected output:
+
+```text
+assignments: {0: [0.0, 1.0], 1: [8.0, 9.0]}
+updated centres: [0.5, 8.5]
+```
+
+<LineExplanation
+  items={[
+    { line: "min(..., key=lambda i: abs(...))", explanation: "Chooses the index of the closest current centre. Real k-means usually compares multidimensional squared Euclidean distances." },
+    { line: "groups[closest].append(point)", explanation: "This is the assignment step. Every point is forced into one group." },
+    { line: "sum(...) / len(...) ", explanation: "This moves each centre to its cluster mean. Empty clusters need a deliberate recovery policy in production." },
+  ]}
+/>
+
+### k-means assumptions and limitations
+
+k-means is a useful baseline when compact, roughly round groups with similar scale are plausible after sensible preprocessing.
+
+It struggles with:
+
+- long, curved, or nested shapes;
+- very different densities and sizes;
+- outliers, because means move toward them;
+- categorical variables treated as arbitrary numbers;
+- high-dimensional noisy data;
+- a `k` chosen only because a plot looked tidy.
+
+Use multiple starts. Its objective has local optima: different initial centroids can lead to different final partitions.
+
+## Step 4 — Select k using evidence, not certainty
+
+Inertia always falls as `k` increases. At `k = number of rows`, every row can get its own centroid and inertia is zero. So inertia alone cannot select a useful count.
+
+The **elbow** heuristic looks for diminishing improvement. It is a prompt to investigate, not a mathematical answer.
+
+A <Term id="silhouette-score">silhouette score</Term> compares within-cluster closeness to nearest-other-cluster closeness. Higher can suggest better separated geometry, but it also inherits your metric and representation.
+
+Better evidence combines:
+
+1. stability across seeds, samples, and nearby parameters;
+2. inspection of representative rows and feature summaries;
+3. domain review of whether the distinction can support a real decision;
+4. a held-out downstream task, when clustering is used as a feature or workflow;
+5. monitoring for drift after deployment.
+
+## Step 5 — Hierarchical clustering keeps the alternatives
+
+<Term id="hierarchical-clustering">Hierarchical clustering</Term> creates a **dendrogram**, a tree of nested merges.
+
+Agglomerative clustering starts with one row per cluster, then repeatedly merges the closest clusters. A horizontal cut at one height gives a small number of broad groups; a lower cut gives more groups.
+
+The outcome depends on a **linkage** rule:
+
+- single linkage: nearest pair across two groups; can chain;
+- complete linkage: farthest pair; favours compact groups;
+- average linkage: average cross-group distance;
+- Ward linkage: merges that increase within-group variance least, usually with Euclidean distance.
+
+It is valuable for exploration because it does not require choosing a final count before fitting. It can be memory- and time-intensive for large row counts.
+
+## Step 6 — DBSCAN finds density and permits noise
+
+<Term id="dbscan">DBSCAN</Term> means **Density-Based Spatial Clustering of Applications with Noise**.
+
+It needs two important settings:
+
+- `eps`: radius considered close;
+- `min_samples`: enough nearby points to form a dense core.
+
+Core points connect into dense clusters. Border points can join a core. Isolated points become noise label `-1` rather than being forced into a group.
+
+This can discover irregular shapes and handle outliers better than k-means. It is highly sensitive to feature scale and `eps`, and one global density setting struggles when real groups have very different densities.
+
+## Step 7 — PCA makes a smaller linear coordinate system
+
+<Term id="principal-component-analysis">PCA</Term> finds new orthogonal axes:
+
+- first principal component: direction with most fitted-data variation;
+- second: next most variation, perpendicular to the first;
+- later components: remaining independent directions.
+
+Projecting from many columns to two components makes a plot. Keeping enough components can compress data before a downstream model.
+
+<Term id="explained-variance">Explained variance</Term> is how much fitted-data variation retained components capture. It does **not** mean feature importance, prediction quality, causal importance, or business value.
+
+<Figure id="01-05.2" label="PCA PROJECTS ONTO VARIATION AXES" caption="— PCA fits a linear rotation on training data, then projects rows onto leading components. t-SNE and UMAP are nonlinear local-neighbourhood visualisations: their spacing and island size are not global measurements.">
+  <ProjectionMap />
+</Figure>
+
+### PCA workflow
+
+1. Split first when a later supervised evaluation exists.
+2. Fit imputation and scaling on training rows only.
+3. Fit PCA on those transformed training rows.
+4. Transform validation, test, and future rows with the frozen fit.
+5. Inspect reconstruction, explained variance, stability, and downstream effect.
+
+PCA can be distorted by unscaled units and outliers. Component signs can flip with no change in meaning. A component mixes original features, so explain it by inspecting loadings and examples, cautiously.
+
+<CodeNotebook title="A leakage-safe scikit-learn pipeline">
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+
+pipeline = Pipeline([
+    ("scale", StandardScaler()),
+    ("pca", PCA(n_components=0.90, random_state=0)),
+    ("cluster", KMeans(n_clusters=4, n_init=20, random_state=0)),
+])
+
+pipeline.fit(training_rows)
+cluster_ids = pipeline.predict(new_rows)
+
+print(pipeline.named_steps["pca"].n_components_)
+print(cluster_ids.tolist())
+```
+
+</CodeNotebook>
+
+Expected output has a data-dependent number of retained components and one cluster ID per new row:
+
+```text
+3
+[1, 0, 1, 3]
+```
+
+The code is copyable but needs installed scikit-learn and a real numeric table. `n_components=0.90` asks PCA to retain at least 90% of the training variance; it does not promise 90% task performance.
+
+## Step 8 — Use t-SNE and UMAP as maps, not rulers
+
+<Term id="tsne">t-SNE</Term> and <Term id="umap">UMAP</Term> make nonlinear low-dimensional views. They are often useful for exploring embedding neighbourhoods, checking possible label problems, or deciding what to inspect next.
+
+They can mislead when treated as an objective map:
+
+- local neighbours are more trustworthy than long-range distance;
+- island size and empty space are not counts or density measurements;
+- different seeds and parameters can change appearance;
+- preprocessing and distance metric matter;
+- plots do not validate a downstream classifier.
+
+For t-SNE, perplexity controls a neighbourhood scale. For UMAP, `n_neighbors` and `min_dist` influence the local-to-broader structure trade-off and point compactness. Run more than one setting; compare to original-space neighbours and known metadata.
+
+## Worked system example — exploring support tickets responsibly
+
+A support team has 200,000 ticket embeddings and no reliable topic label.
+
+1. Remove identifiers and protect raw text access.
+2. Sample a time slice and compute documented embeddings.
+3. Inspect nearest neighbours for a small sample first.
+4. Compare PCA for compression and UMAP only as an exploration view.
+5. Cluster candidate representations with several seeds and settings.
+6. Summarise clusters using representative, access-controlled tickets.
+7. Ask support specialists whether a group suggests a useful workflow.
+8. Validate an actual action: for example, whether a proposed routing rule reduces hand-offs on a later period.
+
+The cluster is an investigation tool. The deployment decision needs an explicit outcome and evaluation.
+
+<RealWorldExample
+  title="A product-data discovery loop"
+  steps={[
+    "A governed pipeline cleans, scales, and versions allowed behavioural features",
+    "A batch job creates candidate clusters and stability reports",
+    "Analysts inspect aggregate profiles and approved representative samples",
+    "Domain owners name only actionable, non-stigmatising segments",
+    "A later A/B test evaluates a proposed experience rather than cluster prettiness",
+    "Monitoring checks data drift, segment sizes, and harmful proxy effects",
+  ]}
+>
+  Never use a discovered cluster to silently make high-impact decisions about a
+  person. The model has grouped observed data under a chosen geometry; it has
+  not discovered a person's intent, merit, or protected identity.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    { mistake: "Calling clusters ground-truth customer types.", fix: "Treat them as hypotheses. Inspect examples, test stability, seek domain review, and validate the intended action separately." },
+    { mistake: "Using raw mixed-scale features with Euclidean k-means or DBSCAN.", fix: "Choose a representation and fit scaling on allowed training or historical data; document units and transforms." },
+    { mistake: "Choosing k from an elbow plot alone.", fix: "Combine geometry scores with stability, representative-row review, and downstream usefulness." },
+    { mistake: "Assuming every point must belong to a meaningful cluster.", fix: "Allow noise, small groups, ambiguity, and an explicit no-action outcome. DBSCAN can label sparse points as noise." },
+    { mistake: "Fitting PCA before a train/test split for a later prediction task.", fix: "Split first, then fit scaling and PCA only on training rows and transform held-out rows with that frozen fit." },
+    { mistake: "Reading t-SNE or UMAP island size and spacing as measured truth.", fix: "Use maps to generate inspection questions. Check original-space neighbours, counts, parameters, seeds, and task evidence." },
+    { mistake: "Forgetting time drift.", fix: "Evaluate cluster stability across time and avoid letting future behaviour define an earlier cohort." },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    { question: "Why can inertia not choose a final k by itself?", options: ["It always falls or stays equal as k grows", "It only works on labelled data", "It is a probability"], answer: 0, explanation: "More centroids can fit points more closely. At one centroid per point, inertia is zero, which is rarely a useful segmentation." },
+    { question: "What does DBSCAN allow that k-means does not?", options: ["It can label isolated rows as noise", "It always finds the true number of groups", "It ignores feature scale"], answer: 0, explanation: "DBSCAN can assign noise label -1 instead of forcing every row into a cluster. It remains sensitive to scale and parameters." },
+    { question: "What does 90% explained variance in PCA mean?", options: ["Retained components capture 90% of variation in fitted data", "The model is 90% accurate", "The components cause 90% of outcomes"], answer: 0, explanation: "Explained variance describes variation in the fitted feature matrix. It is not accuracy, importance, or causality." },
+    { question: "A UMAP plot shows two far-apart islands. What is the safest conclusion?", options: ["Investigate whether local neighbourhoods differ", "They must be exactly far apart in original space", "The bigger island has more important people"], answer: 0, explanation: "UMAP is a useful exploratory local-neighbourhood view. Verify counts, original-space distances, and stability before making stronger claims." },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Cluster a tiny dataset, then challenge the story"
+  time="10–20 minutes"
+  goal="Perform one k-means update and practise separating a geometric grouping from an operational claim."
+  steps={[
+    "Run the starter code and write down the two centroids after one update.",
+    "Run a second update and check whether assignments changed.",
+    "Change the first point to `(0, 20)` and describe how an outlier moves a mean.",
+    "Choose one feature-scaling step you would need for age and annual spend.",
+    "Write one question for a domain expert before naming either group.",
+  ]}
+  expected="The first update groups the first two and last two points, then moves their centres to `(0.5, 0.0)` and `(8.5, 0.0)`. The outlier demonstrates that means are sensitive to extreme values."
+  challenge="Run several initial centre choices and explain why a stable-looking partition still needs a downstream usefulness check."
+>
+
+```python
+from math import dist
+
+points = [(0.0, 0.0), (1.0, 0.0), (8.0, 0.0), (9.0, 0.0)]
+centres = [(0.0, 0.0), (9.0, 0.0)]
+
+groups = {0: [], 1: []}
+for point in points:
+    nearest = min(range(2), key=lambda i: dist(point, centres[i]))
+    groups[nearest].append(point)
+
+updated = []
+for index in range(2):
+    xs = [point[0] for point in groups[index]]
+    ys = [point[1] for point in groups[index]]
+    updated.append((sum(xs) / len(xs), sum(ys) / len(ys)))
+
+print(groups)
+print(updated)
+```
+
+Expected output:
+
+```text
+{0: [(0.0, 0.0), (1.0, 0.0)], 1: [(8.0, 0.0), (9.0, 0.0)]}
+[(0.5, 0.0), (8.5, 0.0)]
+```
+
+<details>
+  <summary>Reveal solution and reasoning</summary>
+
+  Each early point is closer to the left start and each late point is closer to
+  the right start. A centroid is a mean, so it moves halfway between each pair.
+  If `(0, 20)` replaces `(0, 0)`, the left mean moves upward sharply even though
+  only one row changed. That is why outliers and scaling matter. A good domain
+  question is: “Do these feature patterns correspond to a distinct support need
+  that our team can serve differently and safely?”
+</details>
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "Unsupervised methods propose structure; they do not provide an answer column or a causal explanation.",
+    "Representation, scaling, metric, missing-data handling, and time boundaries define the groups an algorithm can see.",
+    "k-means alternates assignment and mean updates, but assumes geometry that may not fit the data.",
+    "Hierarchical clustering shows nested choices; DBSCAN can find dense shapes and label sparse rows as noise.",
+    "PCA is a fitted linear projection; explained variance is not prediction accuracy or importance.",
+    "t-SNE and UMAP are exploratory neighbourhood maps, not rulers for global distance, island size, or business truth.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    { front: "What is clustering?", back: "Grouping unlabeled examples under a chosen representation and similarity rule; groups still require interpretation." },
+    { front: "What are k-means' two repeated steps?", back: "Assign each point to its closest centroid, then replace each centroid with the mean of its assigned points." },
+    { front: "Why does k-means need multiple starts?", back: "Different initial centroids can converge to different local solutions." },
+    { front: "Why can’t inertia choose k alone?", back: "It always improves as more clusters are added, even when extra clusters are not useful." },
+    { front: "What does DBSCAN label -1 mean?", back: "A point not assigned to a dense connected cluster under the chosen epsilon and minimum-samples settings." },
+    { front: "What is PCA’s first principal component?", back: "The direction of greatest variation in the fitted transformed data." },
+    { front: "What does explained variance not tell you?", back: "It does not directly tell you accuracy, causal effect, fairness, or business usefulness." },
+    { front: "How should you read a t-SNE or UMAP plot?", back: "As an exploratory local-neighbourhood view whose global distances, island sizes, and gaps need separate verification." },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Trace one iteration of k-means and explain its objective, assumptions, and local-optimum risk.",
+    "Compare k-means, hierarchical clustering, and DBSCAN for shape, noise, parameters, scale, and computational trade-offs.",
+    "Design evidence for selecting and validating a cluster solution without confusing it with ground truth.",
+    "Explain a leakage-safe PCA workflow and distinguish explained variance from model usefulness.",
+    "Explain why t-SNE and UMAP maps can generate hypotheses but cannot prove global separation or segment size.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Unsupervised learning"
+  terms={[
+    "Cluster — proposed similarity group",
+    "Centroid — mean centre",
+    "Inertia — squared within-group distance",
+    "DBSCAN — dense groups + noise",
+    "PCA — linear projection axes",
+    "Explained variance — retained variation",
+  ]}
+  mistakes={[
+    "Do not call clusters ground truth",
+    "Do not skip scaling and representation choices",
+    "Do not choose k from inertia alone",
+    "Do not fit PCA across a protected test split",
+    "Do not use t-SNE / UMAP as global maps",
+  ]}
+  takeaways={[
+    "Geometry starts with preprocessing",
+    "k-means assigns then averages",
+    "Density can leave noise unclustered",
+    "PCA preserves variation, not answers",
+    "Explore → inspect → validate action",
+  ]}
+  questions={[
+    "What made two rows similar?",
+    "Would this grouping survive another seed?",
+    "What real decision would this improve?",
+  ]}
+>
+  <p slot="main">
+    Unsupervised learning searches for patterns in a chosen representation.
+    Clusters and maps are starting points for inspection; trustworthy systems
+    validate the later decision on protected, meaningful evidence.
+  </p>
+  <div slot="diagram"><ClusteringChoices /></div>
+  <pre slot="code"><code>{`assign = nearest_centroid(rows, centres)
+centres = mean_each_group(assign)
+components = fit_pca(training_rows)
+map = transform(future_rows, components)`}</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="unsupervised-learning"
+  items={[
+    "I can distinguish an exploratory cluster from a target label.",
+    "I can trace an assignment and centroid update.",
+    "I can explain why scaling and representation change distance.",
+    "I can compare k-means, hierarchical clustering, and DBSCAN.",
+    "I can choose evidence for k without claiming certainty.",
+    "I can describe leakage-safe PCA and explained variance.",
+    "I can read t-SNE and UMAP maps cautiously.",
+    "I completed the quiz, practice activity, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="evaluation-done-properly"
+  title="Evaluation done properly"
+  why="You have now seen several ways to fit or explore data. Next, build the measurement discipline that decides whether any model, cluster-informed workflow, or threshold is actually useful on data it did not fit."
+/>

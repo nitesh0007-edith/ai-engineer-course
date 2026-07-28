@@ -15,4 +15,5 @@ export const ROUTES = [
   'chapters/linear-and-logistic-regression/',
   'chapters/trees-and-ensembles/',
   'chapters/other-core-algorithms/',
+  'chapters/unsupervised-learning/',
 ];
