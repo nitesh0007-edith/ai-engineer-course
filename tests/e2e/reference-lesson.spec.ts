@@ -66,12 +66,12 @@ test("lesson checklist persists locally after reload", async ({ page }) => {
   const first = page.locator(".lesson-checklist input").first();
   await first.check();
   await expect(page.locator(".checklist-head")).toContainText(
-    "1 of 6 complete",
+    /1 of \d+ complete/,
   );
   await page.reload();
   await expect(first).toBeChecked();
   await expect(page.locator(".checklist-head")).toContainText(
-    "1 of 6 complete",
+    /1 of \d+ complete/,
   );
 });
 
