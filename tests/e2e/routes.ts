@@ -18,4 +18,5 @@ export const ROUTES = [
   'chapters/unsupervised-learning/',
   'chapters/evaluation-done-properly/',
   'chapters/bias-variance-and-regularisation/',
+  'chapters/from-neurons-to-networks/',
 ];

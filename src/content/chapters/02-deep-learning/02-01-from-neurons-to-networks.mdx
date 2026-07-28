@@ -1,0 +1,309 @@
+---
+layer: 2
+order: 1
+title: 'From neurons to networks'
+slug: 'from-neurons-to-networks'
+subtitle: 'Build a reliable mental model for neural networks: weighted sums, activation functions, layers, and one forward pass.'
+depth: build
+difficulty: beginner
+readingTime: 55
+prerequisites:
+  - bias-variance-and-regularisation
+skillsGained:
+  - 'Calculate a perceptron output from inputs, weights, a bias, and ReLU'
+  - 'Explain why activation functions make neural networks more expressive'
+  - 'Trace a small forward pass through a hidden layer'
+  - 'Describe the purpose of ReLU, GELU, and SwiGLU without overstating their differences'
+  - 'Recognise why parameter initialisation matters before training'
+objectives:
+  - 'Identify the inputs, weights, bias, activation, and output in a perceptron'
+  - 'Calculate a weighted sum and ReLU activation by hand'
+  - 'Compare a linear model with a network containing a non-linear activation'
+  - 'Trace values through a two-layer network during a forward pass'
+  - 'Explain the useful but limited intuition behind universal approximation'
+concepts:
+  - perceptron
+  - neural-network
+  - weight
+  - bias
+  - forward-pass
+  - activation-function
+  - relu
+  - gelu
+  - swiglu
+  - hidden-layer
+  - initialisation
+  - universal-approximation
+diagrams:
+  - NeuronForwardPass
+  - ActivationChoices
+interactives:
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 2
+exercises:
+  - prompt: 'A perceptron has x₁=3, x₂=2, weights 0.5 and -1.0, and bias 0.5. Calculate z and ReLU(z).'
+    difficulty: warmup
+    solution: 'z = 0.5×3 + (-1.0)×2 + 0.5 = 0. ReLU(0) is 0.'
+  - prompt: 'Why can a stack of weighted sums with no activation functions still represent only a linear transformation?'
+    difficulty: core
+    solution: 'Composing linear or affine transformations produces another affine transformation. Extra layers change the parameterisation but not the kind of boundary the model can represent. Non-linear activations add the bends.'
+  - prompt: 'A hidden unit receives z=-0.7 with ReLU. State its output, one possible risk if this happens for nearly every example, and one debugging observation you would log.'
+    difficulty: stretch
+    solution: 'Its output is 0. If it is negative for nearly all examples, the unit can remain inactive and contribute no useful signal. Log activation statistics such as the fraction of zero outputs by layer, alongside loss and gradient statistics.'
+resources:
+  - title: '3Blue1Brown — But what is a neural network?'
+    url: 'https://www.3blue1brown.com/lessons/neural-networks'
+    type: video
+    note: 'A visual companion for the weighted-sum and activation intuition; use this lesson for the precise engineering boundaries.'
+  - title: 'Deep Learning — activation functions chapter'
+    url: 'https://www.deeplearningbook.org/contents/mlp.html'
+    type: docs
+    note: 'Background reading on multilayer perceptrons and non-linear activation functions.'
+  - title: 'PyTorch — neural networks tutorial'
+    url: 'https://docs.pytorch.org/tutorials/beginner/basics/buildmodel_tutorial.html'
+    type: docs
+    note: 'Official introduction to defining a model; the next PyTorch lesson makes these parts runnable.'
+status: published
+updated: 2026-07-28
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import NeuronForwardPass from '../../../components/diagrams/NeuronForwardPass.astro';
+import ActivationChoices from '../../../components/diagrams/ActivationChoices.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+An app needs to spot support tickets that may lock a customer out. A single rule such as “three failed sign-ins means urgent” is easy to write. Real cases combine signals: recent account creation, location change, recovery attempts, and the pattern across them.
+
+A neural network is a way to learn combinations of numeric signals. It is not magic, a database, or a mind. It is many small calculations with adjustable numbers.
+
+<LessonIdentity module="Deep learning" lesson="1 · From neurons to networks" difficulty="Beginner" duration="55 minutes" prerequisites={['Vectors, dot products, loss, gradients, and basic generalisation', 'The train/validation/test discipline from Classical ML']} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+Neural networks power image recognition, speech systems, recommendation, and language models. Before using a framework, you need to know what a layer calculates. That makes model shapes, unexpected outputs, and later training failures less mysterious.
+
+<MainIdea>
+  A <Term id="perceptron">perceptron</Term> multiplies inputs by learned <Term id="weight">weights</Term>, adds a <Term id="bias">bias</Term>, then applies an <Term id="activation-function">activation function</Term>. A <Term id="neural-network">neural network</Term> stacks these calculations. Activations are the vital bend: without them, many layers still collapse into one linear rule.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="A mixing desk, not a tiny brain" limitation="A sound-mixing desk does not learn by itself, while a network changes its controls through training. A learned weight is also not a causal explanation: it can reflect correlations, data gaps, or historical bias.">
+  Imagine a sound engineer combining microphone channels. Each channel has a volume
+  knob. The engineer can boost failed sign-ins, reduce the influence of account age,
+  and add a baseline level. A perceptron is one tiny mixing desk: it combines numbers
+  into one new number. A network connects many desks, so early desks can make useful
+  intermediate signals for later desks.
+</AnalogyCard>
+
+## Step 1 — A perceptron makes a weighted decision
+
+An **input** is a number supplied to the model. For a ticket, it could be the number of failed sign-ins. A **weight** is a learned number that scales an input’s contribution. A **bias** is an extra learned baseline that lets the calculation shift before it reacts to inputs.
+
+First calculate the **weighted sum**, often written as `z`:
+
+```text
+z = x₁w₁ + x₂w₂ + ... + b
+```
+
+Here `x` means an input, `w` means its weight, and `b` means bias. This is a dot product plus a bias, which you met in the maths foundations.
+
+<Figure id="02-01.1" label="FOLLOW ONE FORWARD PASS" caption="— values flow from the ticket inputs through two hidden neurons to an urgency score. The weights stay fixed during this forward pass; training changes them later.">
+  <NeuronForwardPass />
+</Figure>
+
+**Small example:** use `x₁=4` failed sign-ins, `x₂=2` days of account age, weights `0.8` and `−0.4`, and bias `−1`.
+
+```text
+z = (4 × 0.8) + (2 × −0.4) − 1
+z = 3.2 − 0.8 − 1
+z = 1.4
+```
+
+The negative weight does not mean account age is “bad”. It means that, for the training objective and other available inputs, a higher value moves this unit’s calculation down. Do not turn one weight into a story about cause or policy.
+
+## Step 2 — An activation function adds a bend
+
+If we only stack weighted sums, the result is still one big linear calculation. A **linear** rule can draw a straight decision boundary. It cannot express many useful “if this pattern, then that pattern” shapes.
+
+An <Term id="activation-function">activation function</Term> transforms `z` after the weighted sum. It adds non-linearity: a bend or gate that lets stacked layers represent more varied relationships.
+
+The beginner-friendly example is <Term id="relu">ReLU</Term>, short for Rectified Linear Unit:
+
+```text
+ReLU(z) = max(0, z)
+```
+
+So `ReLU(1.4)` is `1.4`, while `ReLU(−0.7)` is `0`. This does not mean negative evidence is always useless. It is a design choice for that particular hidden value.
+
+<Figure id="02-01.2" label="THREE WAYS TO GATE A SIGNAL" caption="— ReLU makes a sharp zero-or-pass decision. GELU changes smoothly around zero. SwiGLU uses one learned path to gate another. All provide non-linearity; choosing one is an engineering choice, not a guarantee of quality.">
+  <ActivationChoices />
+</Figure>
+
+<Term id="gelu">GELU</Term> is a smooth gate used in many transformer networks. <Term id="swiglu">SwiGLU</Term> is a gated activation: one learned path produces values and another controls how much of those values pass through. You do not need to memorise their formulas yet. Remember the job: preserve useful signal while giving the network a non-linear way to combine it.
+
+## Step 3 — Layers create intermediate representations
+
+A <Term id="hidden-layer">hidden layer</Term> sits between the visible input and output. “Hidden” only means internal to the model. Its values can be inspected, although they may not have a simple human label such as “fraud risk”.
+
+For the ticket example, one hidden unit might react to a suspicious combination of failures and a young account. Another could react to a different combination. An output layer combines those intermediate values into a score.
+
+A <Term id="forward-pass">forward pass</Term> is one trip from input to output using the current values of all parameters. A **parameter** is any learned number in the model, including weights and biases. A forward pass predicts; it does not learn. The next lesson explains how backpropagation measures which parameters contributed to an error and how an optimiser updates them.
+
+## Worked example — two neurons, one output
+
+Suppose the first hidden unit has output `h₁ = ReLU(1.4) = 1.4`. A second unit receives a negative sum and has `h₂ = ReLU(−0.7) = 0`.
+
+The output layer uses weights `1.2` and `0.3`, with no output bias for this tiny example:
+
+```text
+score = (1.2 × h₁) + (0.3 × h₂)
+score = (1.2 × 1.4) + (0.3 × 0)
+score = 1.68
+```
+
+`1.68` is a **score**, not automatically a probability or an instruction. A real system decides how to transform a score, choose a threshold, request more evidence, or hand the case to a person. That policy must be validated for errors, workload, privacy, and fairness.
+
+## Try it — write one perceptron in Python
+
+<CodeNotebook title="A small forward pass with ReLU">
+
+```python
+def relu(value: float) -> float:
+    return max(0.0, value)
+
+
+failed_sign_ins = 4.0
+account_age_days = 2.0
+
+weighted_sum = (
+    failed_sign_ins * 0.8
+    + account_age_days * -0.4
+    - 1.0  # bias
+)
+
+hidden_value = relu(weighted_sum)
+urgency_score = hidden_value * 1.2
+
+print("weighted sum:", weighted_sum)
+print("hidden value:", hidden_value)
+print("urgency score:", urgency_score)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+weighted sum: 1.4000000000000004
+hidden value: 1.4000000000000004
+urgency score: 1.6800000000000004
+```
+
+</ExpectedOutput>
+
+The long decimal is normal floating-point representation, not evidence that the calculation is conceptually wrong. For display, use `round(value, 2)`. Do not round values during training just to make logs tidier.
+
+<LineExplanation items={[{ line: 'failed_sign_ins * 0.8', explanation: 'This input is scaled by a weight. During training, that weight can change.' }, { line: '+ account_age_days * -0.4', explanation: 'A second input contributes with its own weight. The meaning depends on all other inputs and training data.' }, { line: '- 1.0', explanation: 'This is the bias: an adjustable baseline before the activation.' }, { line: 'hidden_value = relu(...)', explanation: 'ReLU adds the non-linear gate. Without an activation, extra linear layers do not create a richer class of functions.' }]} />
+
+**Modification ideas:** change one input at a time; set `weighted_sum` negative; add a second hidden unit; then compare what changes. Do not claim the output is a calibrated risk probability unless the full model was trained and evaluated for that purpose.
+
+## Step 4 — Starting values matter before learning
+
+Training begins with <Term id="initialisation">initialisation</Term>: choosing starting parameter values. If every neuron starts with the same values, equivalent neurons can keep doing the same work. If values are wildly large or tiny, signals and later gradients can become unstable.
+
+Common initialisation methods choose small random values scaled for the layer shape. The important beginner rule is: use the framework default unless you have a measured reason to change it. Random starts mean training results can vary slightly, so record seeds and compare repeat runs when reliability matters.
+
+You may hear <Term id="universal-approximation">universal approximation</Term>: sufficiently large networks can approximate many functions over a bounded range. This is a possibility result, not a product plan. It does not promise enough data, easy training, generalisation, low cost, safety, or a good user experience.
+
+## Real-world AI engineering example — triaging support safely
+
+<RealWorldExample title="A neural score is one component, not the whole decision" steps={['Define permitted, privacy-reviewed inputs and a clear target outcome.', 'Train and validate on time-aware data; preserve a final evaluation period.', 'Turn the model score into a policy with threshold, human review, and fallback.', 'Log input quality, score distribution, latency, overrides, and outcome feedback.', 'Monitor drift and error slices; retrain only through a controlled release process.']}>
+  A support team might use a small network to rank incoming security-related tickets.
+  The model can help decide which cases appear first; it should not silently close a
+  customer’s account. The surrounding application owns authentication, rate limits,
+  explanation for operators, audit logs, and safe escalation paths.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: 'Calling a neural network an “AI brain” and assuming it understands the task.', fix: 'Describe the actual inputs, target, parameters, and evaluation. A learned score can be useful without understanding intent or consequences.' }, { mistake: 'Thinking more layers automatically make a model better.', fix: 'Start with a baseline and add capacity only when validation evidence supports it. More layers can raise cost, instability, and overfitting risk.' }, { mistake: 'Forgetting the activation function between layers.', fix: 'Check the model definition. A stack of affine calculations without non-linearity is still affine.' }, { mistake: 'Treating one weight as a causal explanation.', fix: 'Inspect data, feature design, correlated inputs, evaluation slices, and counterfactual limits. Use weights only as part of a wider investigation.' }, { mistake: 'Using a raw model score as an automatic high-stakes decision.', fix: 'Calibrate and validate the output, choose an explicit policy, add human review and a safe fallback, and monitor outcomes.' }, { mistake: 'Changing initialisation or activations because a blog says they are newer.', fix: 'Use framework defaults first. Change one measured variable at a time and compare validation quality, stability, latency, and cost.' }]} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: 'What does a perceptron calculate before its activation?', options: ['A weighted sum of inputs plus a bias', 'A perfect probability', 'A database lookup'], answer: 0, explanation: 'The pre-activation value combines each input with a learned weight and an added bias. The activation then transforms that value.' }, { question: 'Why are activation functions important between layers?', options: ['They add non-linearity so layers can represent more than one linear rule', 'They make every score a probability', 'They remove the need for training data'], answer: 0, explanation: 'Without activation functions, composing linear layers still gives a linear transformation. Activations add bends or gates.' }, { question: 'If z = -0.7, what is ReLU(z)?', options: ['0', '-0.7', '0.7'], answer: 0, explanation: 'ReLU returns the larger of zero and its input, so it produces zero for a negative input.' }, { question: 'Which statement about a forward pass is correct?', options: ['It calculates an output using current parameters without changing them', 'It updates weights using a loss', 'It proves a model will generalise'], answer: 0, explanation: 'A forward pass predicts. Backpropagation and an optimiser update parameters during training, and held-out evaluation estimates generalisation.' }]} />
+
+## Practice activity
+
+<PracticeActivity title="Trace and alter a tiny neural network" time="10–20 minutes" goal="Calculate a weighted sum, apply ReLU, and explain what changes when you alter an input or bias." steps={['Copy the starter code into a Python file or notebook.', 'Run it with the provided inputs and record z, hidden, and score.', 'Change failed sign-ins from 4 to 1. Predict the ReLU output before running it.', 'Change the bias from -1.0 to 0.5. Explain why this shifts the hidden unit.', 'Write one sentence explaining why the score is not yet a production decision.']} expected="With fewer failed sign-ins, z becomes negative and ReLU produces 0. Increasing the bias shifts z upward. Your explanation separates a learned score from a validated decision policy." challenge="Add a second hidden unit with different weights, then combine both hidden values into one score. Label which values are inputs, parameters, and activations.">
+
+```python
+def relu(value):
+    return max(0.0, value)
+
+
+failed_sign_ins = 4.0
+account_age_days = 2.0
+bias = -1.0
+
+z = failed_sign_ins * 0.8 + account_age_days * -0.4 + bias
+hidden = relu(z)
+score = hidden * 1.2
+
+print('z:', z)
+print('hidden:', hidden)
+print('score:', score)
+```
+
+**Solution:** with the original inputs, `z` is about `1.4`, `hidden` is about
+`1.4`, and `score` is about `1.68`. With `failed_sign_ins = 1`, `z` becomes
+`-1.0`, so ReLU makes `hidden = 0` and `score = 0`. With `bias = 0.5` and the
+original inputs, `z` becomes `2.9`; the bias shifts the unit’s baseline before
+the activation. Neither score tells a production system what it should do by
+itself: that needs a validated threshold or ranking policy, human workflow, and
+monitoring.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways points={['A perceptron is a weighted sum plus a bias, followed by an activation.', 'Weights and biases are learned parameters; a forward pass uses them but does not update them.', 'Activations add the non-linearity that makes stacked layers more expressive.', 'A hidden layer creates intermediate numeric representations, not guaranteed human concepts.', 'Good initialisation helps training start stably, while validation and monitoring determine whether a system is useful.']} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: 'What is a perceptron?', back: 'A weighted sum of inputs plus a bias, followed by an activation function.' }, { front: 'What is a weight?', back: 'A learned number that scales one contribution to the next calculation.' }, { front: 'What is a forward pass?', back: 'Calculating model outputs from inputs using current parameters, without updating them.' }, { front: 'Why use an activation function?', back: 'It adds non-linearity, so stacked layers can represent more than a single linear rule.' }, { front: 'What does ReLU do to -0.7?', back: 'It returns 0 because ReLU is max(0, input).' }, { front: 'What is universal approximation not a promise of?', back: 'Enough data, successful training, generalisation, low cost, safety, or the best model design.' }]} />
+
+<RevisionQuestions questions={['Draw and explain the calculation inside one perceptron. Define input, weight, bias, pre-activation, and activation.', 'Use a small numeric example to show why ReLU changes what a two-layer network can represent.', 'Trace a forward pass through two hidden units and one output unit. Which values can change during training?', 'Explain why a neural-network score must be paired with evaluation and an explicit decision policy before use in a support workflow.']} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="From neurons to networks" terms={['Perceptron — weighted sum + bias + activation', 'Weight — learned contribution scale', 'Bias — learned baseline shift', 'Forward pass — calculate, do not learn', 'ReLU — max(0, z)', 'Hidden layer — internal numeric representation']} mistakes={['More layers are not automatically better', 'No activations means still-linear layers', 'A weight is not a causal explanation', 'A score is not a decision policy']} takeaways={['Trace one unit before using a framework', 'Activations create useful bends', 'Parameters change during training, not prediction', 'Keep output policy separate from model score', 'Use defaults and validation before clever tuning']} questions={['What produces z?', 'What does an activation add?', 'When are weights updated?']}>
+  <p slot="main">A neural network is a stack of small adjustable calculations. Each unit mixes inputs with weights and a bias, then an activation gates the result. A forward pass creates a score; training and product policy are separate jobs.</p>
+  <div slot="diagram"><NeuronForwardPass /></div>
+  <pre slot="code"><code>z = Σ(input × weight) + bias
+hidden = ReLU(z)
+score = Σ(hidden × output_weight)</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="from-neurons-to-networks" items={['I can calculate a weighted sum and ReLU output.', 'I can name the parts of a perceptron.', 'I can explain why activations matter.', 'I can trace a small forward pass.', 'I can distinguish a score from a decision policy.', 'I can state the limitation of universal approximation.', 'I completed the knowledge check, practice, and flashcards.']} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="backpropagation-from-scratch" title="Backpropagation from scratch" why="You can now calculate a network’s forward pass. Next, follow an error backwards through the same calculation graph to see how training discovers which weights should change." />

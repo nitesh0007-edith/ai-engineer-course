@@ -590,6 +590,7 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.62;
@@ -1664,6 +1665,27 @@
   .line-explanations dl div {
     grid-template-columns: 1fr;
     gap: 5px;
+  }
+  .line-explanations,
+  .line-explanations dl,
+  .line-explanations dl div,
+  .line-explanations dt,
+  .practice-solution {
+    min-width: 0;
+  }
+  .line-explanations dt code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* Glossary cards are absolutely positioned. Align their right edge with the
+     term on narrow screens so an otherwise hidden tooltip cannot widen the
+     document or create horizontal scrolling. */
+  .term > .term-card {
+    left: auto;
+    right: 0;
+    width: min(280px, calc(100vw - 36px));
+    transform: none;
   }
   .sketch-card,
   .sketchnote-summary {

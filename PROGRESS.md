@@ -4,9 +4,9 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 17 / 90 |
+| Chapters published | 18 / 90 |
 | Layers complete | 1 / 11 |
-| Total diagrams | 36 |
+| Total diagrams | 38 |
 | Total interactive widgets | 4 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
@@ -52,3 +52,4 @@ Notes:
 | 01-05 | Unsupervised learning | 1 | published | 2 | 4 | 2026-07-28 |
 | 01-06 | Evaluation done properly | 1 | published | 2 | 4 | 2026-07-28 |
 | 01-07 | Bias–variance trade-off & regularisation | 1 | published | 2 | 3 | 2026-07-28 |
+| 02-01 | From neurons to networks | 2 | published | 2 | 3 | 2026-07-28 |

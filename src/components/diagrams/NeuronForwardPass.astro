@@ -1,0 +1,62 @@
+---
+/**
+ * NeuronForwardPass — a small, labelled network where every calculation is
+ * also explained in surrounding lesson text. The diagram shows information
+ * flowing left to right; learning is deliberately left for the next lesson.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 365"
+  role="img"
+  aria-label="A tiny neural network predicts whether a support ticket is urgent. Two input values, failed sign-ins four and account age two days, travel to two hidden neurons. Each connection has a learned weight. The first hidden neuron calculates 0.8 times four plus minus 0.4 times two plus a bias of minus one, giving 1.4, then ReLU keeps 1.4. The second hidden neuron calculates a negative value and ReLU produces zero. The output neuron combines the hidden values to produce an urgency score. The arrows show a forward pass: values move from input to output without changing weights."
+>
+  <defs>
+    <marker id="neuron-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <text x="90" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">inputs</text>
+  <text x="388" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">hidden layer</text>
+  <text x="660" y="34" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">output</text>
+
+  <rect x="22" y="80" width="140" height="74" rx="10" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="92" y="108" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">failed sign-ins</text>
+  <text x="92" y="133" text-anchor="middle" font-family="var(--font-mono)" font-size="13" fill="var(--blueprint)">x₁ = 4</text>
+  <rect x="22" y="225" width="140" height="74" rx="10" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="92" y="253" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">account age</text>
+  <text x="92" y="278" text-anchor="middle" font-family="var(--font-mono)" font-size="13" fill="var(--blueprint)">x₂ = 2 days</text>
+
+  <path d="M162 117 C235 105 252 105 302 125" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#neuron-arrow)" />
+  <text x="220" y="99" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">w = 0.8</text>
+  <path d="M162 262 C235 255 250 204 302 176" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#neuron-arrow)" />
+  <text x="229" y="244" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">w = −0.4</text>
+  <path d="M162 117 C235 120 250 224 302 243" fill="none" stroke="var(--frame)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#neuron-arrow)" />
+  <path d="M162 262 C238 259 253 277 302 270" fill="none" stroke="var(--frame)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#neuron-arrow)" />
+
+  <circle cx="365" cy="150" r="67" fill="var(--highlight)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="365" y="132" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">neuron A</text>
+  <text x="365" y="155" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">z = 0.8×4 − 0.4×2 − 1</text>
+  <text x="365" y="174" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--blueprint)">ReLU(z) = 1.4</text>
+  <circle cx="365" cy="258" r="53" fill="var(--paper-raise)" stroke="var(--ink-muted)" stroke-width="2" />
+  <text x="365" y="250" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">neuron B</text>
+  <text x="365" y="270" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">negative z</text>
+  <text x="365" y="287" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">ReLU(z) = 0</text>
+
+  <path d="M432 150 C490 150 506 145 552 162" fill="none" stroke="var(--ch1)" stroke-width="3.5" marker-end="url(#neuron-arrow)" />
+  <text x="492" y="139" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">w = 1.2</text>
+  <path d="M418 258 C490 255 510 212 552 190" fill="none" stroke="var(--frame)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#neuron-arrow)" />
+
+  <circle cx="618" cy="176" r="72" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="618" y="151" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">urgency score</text>
+  <text x="618" y="176" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">1.2×1.4 + 0.3×0</text>
+  <text x="618" y="196" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--alert)">score = 1.68</text>
+  <path d="M690 176 H744" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#neuron-arrow)" />
+  <text x="754" y="165" text-anchor="end" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">route</text>
+  <text x="754" y="185" text-anchor="end" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">with a policy</text>
+
+  <rect x="24" y="323" width="731" height="27" rx="7" fill="var(--paper-sink)" />
+  <text x="389" y="342" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">forward pass = calculate outputs using current weights · learning changes weights later</text>
+</svg>

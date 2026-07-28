@@ -54,6 +54,34 @@ test.describe('layout integrity', () => {
     expect(proseWidth).toBeGreaterThan(480);
     expect(overflows).toBeFalsy();
   });
+
+  test('new deep-learning diagrams fit tablet and mobile canvases', async ({ page }) => {
+    for (const width of [768, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('chapters/from-neurons-to-networks/', { waitUntil: 'load' });
+      const overflows = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      );
+      const diagramsFit = await page.locator('.diagram-svg').evaluateAll((diagrams) =>
+        diagrams.every((diagram) => diagram.getBoundingClientRect().width <= document.documentElement.clientWidth + 1),
+      );
+      const overflowItems = await page.evaluate(() => {
+        const viewport = document.documentElement.clientWidth;
+        return [...document.querySelectorAll('body *')]
+          .filter((element) => element.getBoundingClientRect().right > viewport + 1)
+          .slice(0, 8)
+          .map((element) => ({
+            tag: element.tagName,
+            className: element.className?.toString(),
+            text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 70),
+            right: Math.round(element.getBoundingClientRect().right),
+          }));
+      });
+
+      expect(overflows, JSON.stringify(overflowItems)).toBeFalsy();
+      expect(diagramsFit).toBeTruthy();
+    }
+  });
 });
 
 test('theme toggle is keyboard operable', async ({ page }) => {

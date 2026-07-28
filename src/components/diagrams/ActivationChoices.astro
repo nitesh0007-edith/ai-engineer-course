@@ -1,0 +1,38 @@
+---
+/** ActivationChoices — compares what activation functions do to a scalar. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 335"
+  role="img"
+  aria-label="Three activation-function sketches. ReLU outputs zero for negative inputs then rises as a straight line for positive inputs. GELU smoothly reduces small negative and small positive values then rises. SwiGLU is shown as a gated path: one transformed value is multiplied by a sigmoid-like gate. Captions say that activations add bends so stacked layers can represent curved relationships."
+>
+  <text x="390" y="30" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">activation functions add useful bends</text>
+  <line x1="35" y1="275" x2="244" y2="275" stroke="var(--frame)" stroke-width="2" />
+  <line x1="139" y1="86" x2="139" y2="294" stroke="var(--frame)" stroke-width="2" />
+  <text x="139" y="68" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">ReLU</text>
+  <path d="M52 275 H139 L225 105" fill="none" stroke="var(--blueprint)" stroke-width="4" />
+  <text x="139" y="315" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">max(0, z)</text>
+
+  <line x1="289" y1="275" x2="499" y2="275" stroke="var(--frame)" stroke-width="2" />
+  <line x1="393" y1="86" x2="393" y2="294" stroke="var(--frame)" stroke-width="2" />
+  <text x="393" y="68" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">GELU</text>
+  <path d="M305 272 C335 278 359 278 380 266 C398 255 402 227 414 202 C427 171 452 133 482 103" fill="none" stroke="var(--ch1)" stroke-width="4" />
+  <text x="393" y="315" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">smoothly gates z</text>
+
+  <rect x="548" y="97" width="102" height="52" rx="8" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="599" y="119" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">value path</text>
+  <text x="599" y="138" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">z × W</text>
+  <rect x="548" y="191" width="102" height="52" rx="8" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="599" y="213" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">gate path</text>
+  <text x="599" y="232" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">swish(z × V)</text>
+  <text x="599" y="68" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">SwiGLU</text>
+  <path d="M650 123 H689 V166" fill="none" stroke="var(--blueprint)" stroke-width="3" />
+  <path d="M650 217 H689 V180" fill="none" stroke="var(--ch2)" stroke-width="3" />
+  <circle cx="705" cy="173" r="19" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="705" y="179" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">×</text>
+  <path d="M724 173 H757" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="748" y="158" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">output</text>
+  <text x="599" y="281" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">value × learned gate</text>
+</svg>
