@@ -41,6 +41,13 @@ test("flashcards reveal and move with keyboard-operable buttons", async ({
 }) => {
   await page.goto(LESSON, { waitUntil: "load" });
   const card = page.locator(".flashcard");
+  // The server-rendered button is visible before its React island can handle
+  // keyboard input. Wait for Astro to remove the `ssr` hydration marker so the
+  // test exercises the interactive control rather than racing hydration.
+  await expect(card.locator("xpath=ancestor::astro-island")).not.toHaveAttribute(
+    "ssr",
+    "",
+  );
   await card.focus();
   await page.keyboard.press("Enter");
   await expect(card).toHaveAttribute("aria-expanded", "true");

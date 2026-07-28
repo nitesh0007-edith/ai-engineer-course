@@ -1,0 +1,1040 @@
+---
+layer: 1
+order: 2
+title: 'Linear & logistic regression'
+slug: 'linear-and-logistic-regression'
+subtitle: 'Fit a line for numerical prediction, then turn a linear score into a class probability through odds and logits.'
+depth: build
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - what-learning-from-data-means
+skillsGained:
+  - 'Calculate a linear prediction and residual'
+  - 'Explain why least squares squares errors'
+  - 'Perform one gradient-descent update by hand'
+  - 'Interpret a linear coefficient with appropriate cautions'
+  - 'Convert between probability, odds, log odds, and sigmoid output'
+  - 'Trace a logistic-regression classification decision'
+  - 'Separate probability estimation from threshold policy'
+objectives:
+  - 'Write and evaluate simple and multiple linear-regression equations'
+  - 'Calculate residuals, mean squared error, and a gradient update'
+  - 'Identify assumptions and diagnose residual patterns'
+  - 'Explain logistic regression as a linear model of log odds'
+  - 'Convert probabilities to odds and logits and back through sigmoid'
+  - 'Describe how a threshold creates a decision boundary'
+  - 'Build small linear and logistic models without hiding the mechanics'
+concepts:
+  - linear-regression
+  - residual
+  - least-squares
+  - logistic-regression
+  - odds
+  - logit
+  - sigmoid-function
+  - decision-boundary
+diagrams:
+  - RegressionResiduals
+  - LogisticProbabilityBridge
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 9
+exercises:
+  - prompt: 'A line predicts `y_hat = 2x + 1`. For `x=4` and observed `y=11`, calculate the prediction, residual using `observed - predicted`, and squared residual.'
+    difficulty: warmup
+    solution: 'Prediction is `2×4+1=9`. Residual is `11-9=2`. Squared residual is `2²=4`. A positive residual means this observation lies above the predicted line.'
+  - prompt: 'A binary model assigns probability 0.8. Calculate odds and log odds, then explain what a 0.7 decision threshold does.'
+    difficulty: core
+    solution: 'Odds are `0.8/(1-0.8)=4`, or 4:1. Log odds are `ln(4)≈1.386`. Because `0.8≥0.7`, the thresholded class is positive. The threshold changes the action/class decision, not the fitted probability itself.'
+  - prompt: 'A logistic model is `z = -3 + 0.8×failed_attempts`. Find the 0.5 decision boundary and explain why the coefficient is not an 80-percentage-point probability increase.'
+    difficulty: stretch
+    solution: 'At probability 0.5, `z=0`, so `-3+0.8x=0` and `x=3.75`. With integer counts, four attempts cross the boundary. The coefficient adds 0.8 to log odds per attempt, multiplying odds by `exp(0.8)≈2.23`; probability change depends on the starting probability and is not a constant 80 points.'
+resources:
+  - title: 'scikit-learn — linear models'
+    url: 'https://scikit-learn.org/stable/modules/linear_model.html'
+    type: docs
+    note: 'Official guide to ordinary least squares, logistic regression, and regularised linear estimators.'
+  - title: 'An Introduction to Statistical Learning — regression chapters'
+    url: 'https://www.statlearning.com/'
+    type: course
+    note: 'A freely available textbook connecting linear models, classification, assumptions, and practical evaluation.'
+  - title: 'Google ML Crash Course — linear regression'
+    url: 'https://developers.google.com/machine-learning/crash-course/linear-regression'
+    type: course
+    note: 'Interactive explanations of linear models, loss, gradient descent, and model behaviour.'
+  - title: 'Google ML Crash Course — logistic regression'
+    url: 'https://developers.google.com/machine-learning/crash-course/logistic-regression'
+    type: course
+    note: 'Beginner-friendly treatment of logits, sigmoid, log loss, and classification.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import RegressionResiduals from '../../../components/diagrams/RegressionResiduals.astro';
+import LogisticProbabilityBridge from '../../../components/diagrams/LogisticProbabilityBridge.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Linear regression predicts a number with a weighted sum.
+
+Logistic regression uses the same kind of weighted sum, but interprets it as log odds and converts it into a probability.
+
+<LessonIdentity
+  module="Classical machine learning"
+  lesson="2 · Linear & logistic regression"
+  difficulty="Beginner"
+  duration="65 minutes"
+  prerequisites={[
+    "Features, targets, parameters, loss, and generalisation",
+    "Lines, derivatives, logarithms, and probabilities",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Linear and logistic regression are strong baselines, fast to fit, inspectable, and widely used inside real systems.
+
+They also expose the mechanics that more complex models reuse: weighted features, a loss function, gradients, probabilities, thresholds, and honest evaluation.
+
+<MainIdea>
+  <Term id="linear-regression">Linear regression</Term> fits a weighted sum to a
+  numerical target, commonly by minimising squared residuals. <Term
+  id="logistic-regression">Logistic regression</Term> models the log odds of a
+  binary outcome as a weighted sum, then applies sigmoid to obtain a
+  probability. A separate threshold converts that probability into an action
+  or class.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="A ruler and a dimmer switch"
+  limitation="Real data may curve, interact, contain outliers, shift over time, or violate independence. Logistic probabilities also need calibration checks. A straight ruler is a useful model family, not proof that the world is linear."
+>
+  Linear regression lays a ruler through numerical observations and reads a
+  value from the line. Logistic regression first produces an unrestricted
+  linear score, then passes it through a dimmer switch that stays between 0 and
+  1. The dimmer gives a probability; a policy threshold decides when the light
+  counts as “on”.
+</AnalogyCard>
+
+## Part 1 — A linear model adds weighted evidence
+
+For one feature:
+
+```text
+prediction = weight × feature + bias
+y_hat = w×x + b
+```
+
+`y_hat`, read “y hat”, is the prediction.
+
+- `x`: feature;
+- `w`: weight or slope;
+- `b`: bias or intercept;
+- `y`: observed target.
+
+If:
+
+```text
+predicted resolution minutes = 3 × message_length + 8
+```
+
+then each one-unit increase in the chosen message-length unit adds three predicted minutes, while other model inputs are absent.
+
+The intercept is the prediction at `x=0`. It may not be meaningful if zero lies outside the relevant data range.
+
+### Multiple linear regression
+
+With several features:
+
+```text
+y_hat = w1×x1 + w2×x2 + ... + wn×xn + b
+```
+
+Vector notation:
+
+```text
+y_hat = w · x + b
+```
+
+This is still linear in the parameters. A transformed feature such as `message_length²` can create a curved relationship in the original input while remaining a linear model over the transformed features.
+
+## Part 2 — Residuals show what the line missed
+
+A <Term id="residual">residual</Term> is commonly:
+
+```text
+residual = observed - predicted
+e = y - y_hat
+```
+
+- positive: observation lies above the prediction;
+- negative: observation lies below;
+- zero: exact prediction.
+
+<CodeNotebook title="Predictions and residuals">
+
+```python
+hours = [1, 2, 3]
+observed = [3, 5, 8]
+weight = 2
+bias = 1
+
+predicted = [weight * x + bias for x in hours]
+residuals = [
+    y - y_hat
+    for y, y_hat in zip(observed, predicted)
+]
+
+print("predicted:", predicted)
+print("residuals:", residuals)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+predicted: [3, 5, 7]
+residuals: [0, 0, 1]
+```
+
+</ExpectedOutput>
+
+Residuals are not merely one final score. Plot them against predictions, features, groups, and time. Patterns reveal what the model systematically misses.
+
+## Part 3 — Least squares chooses a line
+
+Positive and negative residuals can cancel. Absolute values avoid cancellation but have a sharp point at zero.
+
+<Term id="least-squares">Least squares</Term> squares every residual:
+
+```text
+sum of squared errors = Σ(y - y_hat)²
+mean squared error = (1/n) × Σ(y - y_hat)²
+```
+
+Squaring:
+
+- makes every contribution non-negative;
+- gives large errors more influence;
+- creates a smooth objective with a convenient derivative.
+
+It also makes the fit sensitive to outliers.
+
+<Figure id="01-02.1" label="THE LINE IS CHOSEN BY ITS VERTICAL ERRORS" caption="— each dashed vertical segment is a residual at a fixed input. Least squares chooses weight and bias to minimise their squared sizes. A far-away observation contributes a disproportionately large square, so investigate outliers and domain validity.">
+  <RegressionResiduals />
+</Figure>
+
+### Ordinary least squares
+
+**Ordinary least squares**, shortened to **OLS**, is the standard unweighted least-squares fit.
+
+For one feature, the fitted slope has a closed form:
+
+```text
+w = Σ((x - mean_x)(y - mean_y)) / Σ((x - mean_x)²)
+b = mean_y - w×mean_x
+```
+
+For multiple features, linear algebra solves the system. Production libraries use numerically stable decompositions rather than explicitly calculating a matrix inverse.
+
+Gradient descent is also useful, especially for large datasets or models that add other differentiable terms.
+
+## Part 4 — One gradient update by hand
+
+Suppose there is one example:
+
+```text
+x = 2
+y = 5
+w = 1
+b = 0
+```
+
+Prediction:
+
+```text
+y_hat = 1×2 + 0 = 2
+```
+
+Use squared loss:
+
+```text
+L = (y_hat - y)² = (2 - 5)² = 9
+```
+
+The derivatives are:
+
+```text
+dL/dw = 2(y_hat-y)×x
+       = 2(-3)×2
+       = -12
+
+dL/db = 2(y_hat-y)
+       = -6
+```
+
+With learning rate `0.1`:
+
+```text
+w_new = 1 - 0.1×(-12) = 2.2
+b_new = 0 - 0.1×(-6)  = 0.6
+```
+
+New prediction:
+
+```text
+2.2×2 + 0.6 = 5
+```
+
+This one-example step lands exactly on the target. Across many examples, gradients are aggregated and steps rarely solve everything at once.
+
+<PyRunner
+  client:idle
+  id="01-02.A"
+  label="FIT LINEAR REGRESSION WITH GRADIENT DESCENT"
+  code={`x_values = [1.0, 2.0, 3.0, 4.0]
+y_values = [3.0, 5.0, 7.0, 9.0]  # relationship: y = 2x + 1
+
+weight = 0.0
+bias = 0.0
+learning_rate = 0.05
+
+for step in range(500):
+    errors = [
+        (weight * x + bias) - y
+        for x, y in zip(x_values, y_values)
+    ]
+    count = len(x_values)
+    dw = 2 * sum(error * x for error, x in zip(errors, x_values)) / count
+    db = 2 * sum(errors) / count
+    weight -= learning_rate * dw
+    bias -= learning_rate * db
+
+print("weight:", round(weight, 3))
+print("bias:", round(bias, 3))
+print("x=5 prediction:", round(weight * 5 + bias, 3))
+
+# Try learning_rate = 0.5 and inspect stability.`}
+/>
+
+Expected output:
+
+```text
+weight: 2.0
+bias: 1.0
+x=5 prediction: 11.0
+```
+
+## Part 5 — Feature scale changes optimisation
+
+Suppose one feature ranges from 0 to 1 and another from 0 to 1,000,000.
+
+Their gradients can have very different magnitudes. Gradient descent may zigzag or require a tiny learning rate.
+
+**Standardisation** transforms a feature:
+
+```text
+scaled_x = (x - training_mean) / training_standard_deviation
+```
+
+Fit the mean and standard deviation on training data only.
+
+For plain OLS without regularisation, scaling changes coefficient units but not the best possible predictions when handled consistently. It can still improve numerical conditioning. With regularisation or gradient optimisation, scaling often materially affects the fit.
+
+## Part 6 — Interpret coefficients carefully
+
+In multiple linear regression:
+
+> Holding the other included features fixed, a one-unit increase in `x_j` changes the predicted target by `w_j`.
+
+Important limitations:
+
+- the unit must be stated;
+- “holding others fixed” may describe an unrealistic comparison;
+- correlated features make individual coefficients unstable;
+- omitted confounders can distort associations;
+- a predictive coefficient is not automatically causal;
+- extrapolation beyond observed data can be unreliable.
+
+If `training_hours` and `job_level` are strongly related, the training-hours coefficient is conditional on job level. It is not the total causal effect of giving someone another hour.
+
+## Part 7 — Check linear-model assumptions through evidence
+
+Classical OLS uncertainty calculations use assumptions such as:
+
+- **linearity:** expected target is linear in included features;
+- **independent errors:** residuals are not correlated in an unmodelled way;
+- **constant variance:** residual spread is similar across predictions;
+- **no perfect multicollinearity:** one feature is not an exact linear combination of others;
+- error-distribution assumptions for particular small-sample intervals or tests.
+
+Prediction can still be useful when some textbook assumptions are imperfect, but uncertainty statements and coefficient interpretation may fail.
+
+Inspect:
+
+- residual versus fitted plot;
+- residuals over time and groups;
+- extreme leverage points;
+- train/validation gap;
+- errors by relevant slices;
+- performance under shifts.
+
+A funnel-shaped residual plot suggests unequal variance. A curved pattern suggests missing non-linearity.
+
+## Part 8 — Linear regression failure modes
+
+Linear regression can fail when:
+
+- the relationship is strongly nonlinear;
+- important interactions are missing;
+- outliers dominate squared loss;
+- categories are encoded as meaningless ordered numbers;
+- features are collinear;
+- target variance changes with inputs;
+- predictions must obey a bound, such as non-negative counts;
+- data leaks the target or future.
+
+Possible responses include transformations, interactions, robust losses, regularisation, a different target distribution, trees, or a different model family. Diagnose before escalating complexity.
+
+## Part 9 — Why classification needs a different output
+
+For a binary target `y ∈ {0,1}`, a raw line can predict values below 0 or above 1.
+
+Clipping hides the problem and creates awkward fitting.
+
+Logistic regression keeps the linear score:
+
+```text
+z = w · x + b
+```
+
+but maps it to a probability using a <Term id="sigmoid-function">sigmoid function</Term>:
+
+```text
+p = 1 / (1 + exp(-z))
+```
+
+Properties:
+
+| Logit `z` | Probability `p` |
+|---:|---:|
+| -2 | 0.119 |
+| -1 | 0.269 |
+| 0 | 0.500 |
+| 1 | 0.731 |
+| 2 | 0.881 |
+
+Large positive logits approach 1. Large negative logits approach 0. They never reach either endpoint for finite logits.
+
+## Part 10 — Probability, odds, and log odds
+
+<Term id="odds">Odds</Term> are:
+
+```text
+odds = p / (1-p)
+```
+
+Examples:
+
+| Probability | Odds |
+|---:|---:|
+| 0.20 | 0.25 = 1:4 |
+| 0.50 | 1 = 1:1 |
+| 0.75 | 3 = 3:1 |
+| 0.90 | 9 = 9:1 |
+
+A <Term id="logit">logit</Term> is the natural logarithm of odds:
+
+```text
+logit(p) = log(p / (1-p))
+```
+
+Logit transforms probabilities from `(0,1)` to all real numbers.
+
+Logistic regression states:
+
+```text
+log(p / (1-p)) = w · x + b
+```
+
+Sigmoid is the inverse transformation.
+
+<Figure id="01-02.2" label="LINEAR SCORE → LOG ODDS → PROBABILITY → DECISION" caption="— the weighted sum is an unrestricted logit. Sigmoid maps it into a probability. A threshold then creates a class or action. At threshold 0.5 the boundary is logit zero, but operational thresholds should reflect error costs and capacity, not habit.">
+  <LogisticProbabilityBridge />
+</Figure>
+
+### Interpret a logistic coefficient
+
+For coefficient `w_j`, a one-unit feature increase:
+
+```text
+adds w_j to log odds
+multiplies odds by exp(w_j)
+```
+
+If `w_j=0.7`:
+
+```text
+odds multiplier = exp(0.7) ≈ 2.01
+```
+
+It does not add 70 percentage points. Probability change depends on the starting probability.
+
+## Part 11 — Log loss fits logistic regression
+
+For binary target `y` and predicted probability `p`:
+
+```text
+binary cross-entropy
+= -[y log(p) + (1-y) log(1-p)]
+```
+
+If `y=1`, loss is `-log(p)`.
+
+If `y=0`, loss is `-log(1-p)`.
+
+Confident wrong predictions receive large loss.
+
+<PyRunner
+  client:idle
+  id="01-02.B"
+  label="TRACE LOGITS, PROBABILITIES, AND LOG LOSS"
+  code={`from math import exp, log
+
+def sigmoid(logit):
+    return 1 / (1 + exp(-logit))
+
+examples = [
+    {"logit": -2.0, "target": 0},
+    {"logit": 0.0, "target": 1},
+    {"logit": 2.0, "target": 1},
+]
+
+for item in examples:
+    probability = sigmoid(item["logit"])
+    target = item["target"]
+    loss = -(
+        target * log(probability)
+        + (1 - target) * log(1 - probability)
+    )
+    print(
+        f"z={item['logit']:>4.1f}",
+        f"p={probability:.3f}",
+        f"y={target}",
+        f"loss={loss:.3f}",
+    )
+
+# Change the first target to 1: confident wrong evidence costs much more.`}
+/>
+
+Expected output:
+
+```text
+z=-2.0 p=0.119 y=0 loss=0.127
+z= 0.0 p=0.500 y=1 loss=0.693
+z= 2.0 p=0.881 y=1 loss=0.127
+```
+
+Stable libraries combine sigmoid and log loss to avoid overflow and `log(0)`.
+
+## Part 12 — Thresholds create decisions and boundaries
+
+A fitted probability is not yet a decision.
+
+```python
+predicted_class = probability >= threshold
+```
+
+At threshold 0.5:
+
+```text
+p ≥ 0.5
+logit ≥ 0
+w · x + b ≥ 0
+```
+
+The set where `w·x+b=0` is the <Term id="decision-boundary">decision boundary</Term>.
+
+With two raw features, it is a line. With three, a plane. With transformed nonlinear features, the boundary can curve in original input space.
+
+### Do not default blindly to 0.5
+
+Choose a threshold using validation evidence and operational costs.
+
+For urgent-ticket triage:
+
+- lower threshold catches more urgent cases but raises more false alerts;
+- higher threshold reduces alerts but may miss urgent cases.
+
+Model fitting estimates a score or probability. Product policy chooses the action trade-off.
+
+Changing threshold does not refit weights.
+
+## Part 13 — Fit logistic regression from scratch
+
+For logistic cross-entropy, the gradient has a clean form:
+
+```text
+error = probability - target
+gradient_weight_j = average(error × feature_j)
+gradient_bias = average(error)
+```
+
+<PyRunner
+  client:idle
+  id="01-02.C"
+  label="FIT ONE-FEATURE LOGISTIC REGRESSION"
+  code={`from math import exp
+
+def sigmoid(z):
+    # Inputs are small in this teaching example.
+    return 1 / (1 + exp(-z))
+
+# Failed sign-in attempts → whether manual review was required.
+x_values = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+targets =  [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+
+weight = 0.0
+bias = 0.0
+learning_rate = 0.2
+
+for _ in range(2_000):
+    probabilities = [
+        sigmoid(weight * x + bias)
+        for x in x_values
+    ]
+    errors = [
+        probability - target
+        for probability, target in zip(probabilities, targets)
+    ]
+    count = len(x_values)
+    dw = sum(error * x for error, x in zip(errors, x_values)) / count
+    db = sum(errors) / count
+    weight -= learning_rate * dw
+    bias -= learning_rate * db
+
+for attempts in (1, 2, 3, 4):
+    probability = sigmoid(weight * attempts + bias)
+    print(attempts, round(probability, 3))
+
+boundary = -bias / weight
+print("0.5 boundary:", round(boundary, 3))`}
+/>
+
+Expected output:
+
+```text
+1 0.005
+2 0.162
+3 0.888
+4 0.997
+0.5 boundary: 2.443
+```
+
+With perfectly separable unregularised data, logistic coefficients can keep growing rather than reach a finite maximum-likelihood estimate. Production implementations use convergence checks and commonly regularisation.
+
+## Part 14 — Multiclass extensions
+
+Binary logistic regression handles two classes.
+
+For more classes:
+
+- **one-vs-rest:** fit one binary classifier per class;
+- **multinomial logistic regression:** produce one logit per class and use softmax.
+
+Softmax probabilities total 1 across mutually exclusive classes.
+
+Do not force mutually compatible labels into one multiclass target. A document that can be both “billing” and “urgent” needs multilabel treatment, often one sigmoid output per label.
+
+## Worked example — predict ticket escalation
+
+Goal: estimate escalation probability when a ticket arrives.
+
+### 1. Define the row and target
+
+One row is a ticket snapshot at creation.
+
+Target:
+
+```text
+1 if escalated under policy v2 within 24 hours
+0 otherwise
+```
+
+This target still needs auditing: escalation may reflect staffing or policy inconsistency.
+
+### 2. Select features
+
+- message-length standard score;
+- number of previous contacts before creation;
+- account age;
+- documented issue categories encoded appropriately.
+
+Do not include `escalated_at`, final agent notes, or later resolution fields.
+
+### 3. Establish a baseline
+
+Compare:
+
+- majority-class prediction;
+- documented critical-phrase rule;
+- logistic regression.
+
+### 4. Fit
+
+Standardise numerical features using training statistics. Fit coefficients on training data by minimising log loss with regularisation.
+
+### 5. Validate probabilities and threshold
+
+Check:
+
+- log loss;
+- calibration;
+- precision and recall;
+- alert volume;
+- errors by language and issue group.
+
+Choose the operating threshold with validation data and human-review capacity.
+
+### 6. Test and interpret
+
+Open the time-separated test set after choices are frozen.
+
+Coefficients can identify useful associations, but do not claim causes. Correlated features and selection processes affect values.
+
+## In a real AI system
+
+<RealWorldExample
+  title="Two small models inside a support platform"
+  steps={[
+    "Linear regression estimates expected handling minutes",
+    "Logistic regression estimates escalation probability",
+    "A calibrated threshold sends high-risk cases to review",
+    "Capacity rules cap automated queue movement",
+    "Residual and classification errors are monitored by time and group",
+    "Fallback rules handle missing or contract-invalid features",
+  ]}
+>
+  Simple models can be excellent production components. They are fast, easy to
+  version, and useful as fallbacks or comparison baselines for a larger model.
+
+Their simplicity does not remove data leakage, privacy, calibration, causal interpretation, or distribution-shift risks.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Calling every error a residual without defining sign.",
+      fix: "State the convention, commonly observed minus predicted, and use it consistently in plots and calculations.",
+    },
+    {
+      mistake: "Assuming least squares is robust to extreme values.",
+      fix: "Squared errors amplify large residuals. Validate outliers and compare robust losses or transformations when appropriate.",
+    },
+    {
+      mistake: "Reading a coefficient as a causal effect.",
+      fix: "Say it is a conditional association in this fitted model unless a valid causal design supports more.",
+    },
+    {
+      mistake: "Extrapolating a line far beyond training inputs.",
+      fix: "Report the observed range, test domain behaviour, constrain deployment, or use a justified model of the boundary.",
+    },
+    {
+      mistake: "Saying logistic regression predicts by fitting a line directly to 0 and 1.",
+      fix: "It fits a linear model of log odds and uses sigmoid to produce probability.",
+    },
+    {
+      mistake: "Interpreting logistic weight 0.8 as +80 percentage points.",
+      fix: "It adds 0.8 to log odds and multiplies odds by `exp(0.8)` per unit, holding other included features fixed.",
+    },
+    {
+      mistake: "Using threshold 0.5 without considering costs.",
+      fix: "Choose threshold on validation evidence using false-positive, false-negative, capacity, and safety consequences.",
+    },
+    {
+      mistake: "Calculating `log(sigmoid(z))` naively for huge logits.",
+      fix: "Use a tested combined logits-based cross-entropy implementation for numerical stability.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "Observed y is 10 and predicted y is 7. Using observed minus predicted, what is the residual?",
+      options: ["-3", "3", "17"],
+      answer: 1,
+      explanation: "Residual is `10-7=3`; the observation lies three units above the prediction.",
+    },
+    {
+      question: "Why does least squares react strongly to outliers?",
+      options: [
+        "It ignores residual magnitude",
+        "It squares residuals, so large errors grow disproportionately",
+        "It always clips predictions",
+      ],
+      answer: 1,
+      explanation: "A residual of 10 contributes 100, while a residual of 2 contributes only 4.",
+    },
+    {
+      question: "What quantity does logistic regression model as a linear function?",
+      options: ["Probability directly", "Log odds", "The final threshold"],
+      answer: 1,
+      explanation: "The weighted score is the logit, or log odds. Sigmoid maps it to probability.",
+    },
+    {
+      question: "What happens when a binary-classification threshold is lowered?",
+      options: [
+        "The fitted coefficients automatically change",
+        "More examples are classified positive, without refitting",
+        "Every predicted probability increases",
+      ],
+      answer: 1,
+      explanation: "The probabilities stay fixed. A lower policy threshold labels more of them positive.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Trace one regression and one classification decision"
+  time="10–20 minutes"
+  goal="Calculate the complete path from features to numerical prediction, residual, probability, odds, and class."
+  steps={[
+    "For linear model `y_hat=2.5x+4`, calculate prediction and residual at `x=6`, `y=21`.",
+    "Calculate the squared residual.",
+    "For logistic model `z=-4+0.9x`, calculate the logit at `x=6`.",
+    "Apply sigmoid to obtain probability.",
+    "Convert that probability back to odds.",
+    "Classify using thresholds 0.5 and 0.9.",
+    "Explain which quantities came from fitting and which came from policy.",
+  ]}
+  expected="Linear prediction 19, residual 2, squared residual 4; logistic logit 1.4, probability about 0.802, odds about 4.06:1; positive at 0.5 and negative at 0.9."
+  challenge="Solve the feature value where the logistic probability crosses 0.7."
+>
+
+```python
+from math import exp
+
+x = 6
+
+linear_prediction = 2.5 * x + 4
+observed = 21
+residual = observed - linear_prediction
+
+logit = -4 + 0.9 * x
+probability = 1 / (1 + exp(-logit))
+odds = probability / (1 - probability)
+
+print("prediction:", linear_prediction)
+print("residual:", residual)
+print("squared residual:", residual ** 2)
+print("logit:", round(logit, 3))
+print("probability:", round(probability, 3))
+print("odds:", round(odds, 3))
+print("class at 0.5:", int(probability >= 0.5))
+print("class at 0.9:", int(probability >= 0.9))
+```
+
+Expected output:
+
+```text
+prediction: 19.0
+residual: 2.0
+squared residual: 4.0
+logit: 1.4
+probability: 0.802
+odds: 4.055
+class at 0.5: 1
+class at 0.9: 0
+```
+
+The weights and biases are fitted parameters. The thresholds are product-policy choices selected with validation evidence.
+
+For the challenge:
+
+```text
+target logit = log(0.7/0.3) ≈ 0.847
+-4 + 0.9x = 0.847
+x ≈ 5.386
+```
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "Linear regression predicts a number as a weighted sum plus bias.",
+    "Least squares minimises squared residuals, making large errors influential.",
+    "Gradient descent updates weight and bias in the direction that reduces training loss.",
+    "Coefficients describe conditional fitted associations, not automatic causal effects.",
+    "Logistic regression models log odds linearly and uses sigmoid to produce probability.",
+    "A decision threshold is a separate policy choice that trades different errors.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What does linear regression predict?",
+      back: "A numerical target as a weighted sum of features plus a bias.",
+    },
+    {
+      front: "What is a residual?",
+      back: "The signed difference between observed and predicted target, under a stated sign convention.",
+    },
+    {
+      front: "What does least squares minimise?",
+      back: "The sum or mean of squared residuals.",
+    },
+    {
+      front: "Why standardise before gradient descent?",
+      back: "Comparable feature scales often improve numerical conditioning and optimisation steps.",
+    },
+    {
+      front: "What does logistic regression model linearly?",
+      back: "The log odds of the binary outcome.",
+    },
+    {
+      front: "How do probability and odds connect?",
+      back: "Odds equal `p/(1-p)`; probability equals `odds/(1+odds)`.",
+    },
+    {
+      front: "What is a logit?",
+      back: "Natural log of odds: `log(p/(1-p))`.",
+    },
+    {
+      front: "What does sigmoid do?",
+      back: "Maps any real logit to a value strictly between zero and one.",
+    },
+    {
+      front: "What is a decision boundary?",
+      back: "Feature values where the chosen threshold changes the predicted class.",
+    },
+    {
+      front: "Does changing threshold refit logistic regression?",
+      back: "No. It changes how fixed probabilities are converted into decisions.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Derive one weight and bias gradient step for squared loss using a single example.",
+    "Explain least squares, residual diagnostics, and outlier sensitivity.",
+    "Convert among probability, odds, log odds, and sigmoid output.",
+    "Interpret one linear and one logistic coefficient with appropriate limitations.",
+    "Explain how threshold choice changes a decision boundary and operational errors.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Linear & logistic regression"
+  terms={[
+    "Residual — observed minus predicted",
+    "Least squares — minimise squared errors",
+    "Logit — log odds",
+    "Sigmoid — logit to probability",
+    "Boundary — where class changes",
+    "Threshold — probability policy",
+  ]}
+  mistakes={[
+    "Do not call association causation",
+    "Do not ignore residual patterns",
+    "Do not extrapolate blindly",
+    "Do not read logit weight as probability points",
+    "Do not default blindly to 0.5",
+  ]}
+  takeaways={[
+    "Linear: y_hat = w·x+b",
+    "Fit numerical targets with squared error",
+    "Logistic: log odds = w·x+b",
+    "Sigmoid creates probability",
+    "Threshold creates action",
+  ]}
+  questions={[
+    "What did this residual contribute?",
+    "What odds does this logit imply?",
+    "Who chose this threshold and why?",
+  ]}
+>
+  <p slot="main">
+    Both models add weighted feature evidence. Linear regression outputs a
+    number; logistic regression treats the score as log odds, maps it to
+    probability, then leaves the action threshold to policy.
+  </p>
+  <div slot="diagram">
+    <LogisticProbabilityBridge />
+  </div>
+  <pre slot="code">
+    <code>{`linear = weight * x + bias
+residual = observed - linear
+logit = weight * x + bias
+probability = 1 / (1 + exp(-logit))
+decision = probability >= threshold`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="linear-and-logistic-regression"
+  items={[
+    "I can calculate a linear prediction and residual.",
+    "I can explain least squares and outlier sensitivity.",
+    "I performed a gradient update by hand.",
+    "I can interpret a coefficient carefully.",
+    "I can convert probability, odds, and logit.",
+    "I traced sigmoid and log loss.",
+    "I can explain a decision boundary.",
+    "I can choose a threshold as policy.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="trees-and-ensembles"
+  title="Trees & ensembles"
+  why="Linear and logistic regression combine all evidence with one weighted equation. Next, build branching decision rules, then combine many trees through bagging and boosting to capture nonlinear interactions."
+/>

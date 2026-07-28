@@ -1,0 +1,58 @@
+---
+/**
+ * RegressionResiduals — a fitted line and its vertical residuals, with squared
+ * residual areas illustrating the least-squares objective.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 380"
+  role="img"
+  aria-label="A scatter plot shows five observed ticket-resolution values and a fitted straight line. Vertical dashed segments connect each observation to the line at the same input; these signed differences are residuals. Small translucent squares beside the residuals represent squared residual size. Least squares chooses the line parameters that minimise the sum of these squared vertical errors. One far-away point has a much larger squared contribution, showing sensitivity to outliers."
+>
+  <defs>
+    <marker id="reg-axis" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--ink)" />
+    </marker>
+  </defs>
+
+  <line x1="74" y1="310" x2="704" y2="310" stroke="var(--ink)" stroke-width="2" marker-end="url(#reg-axis)" />
+  <line x1="74" y1="310" x2="74" y2="44" stroke="var(--ink)" stroke-width="2" marker-end="url(#reg-axis)" />
+  <text x="704" y="340" text-anchor="end" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">hours worked · x</text>
+  <text x="37" y="52" transform="rotate(-90 37 52)" text-anchor="end" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">tickets resolved · y</text>
+
+  <path d="M108 278 L666 72" stroke="var(--blueprint)" stroke-width="4" />
+  <text x="554" y="94" font-family="var(--font-hand)" font-size="20" fill="var(--blueprint)">prediction = w·x + b</text>
+
+  <g stroke="var(--alert)" stroke-width="2.5" stroke-dasharray="5 4">
+    <line x1="150" y1="269" x2="150" y2="263" />
+    <line x1="254" y1="221" x2="254" y2="225" />
+    <line x1="358" y1="196" x2="358" y2="186" />
+    <line x1="462" y1="132" x2="462" y2="148" />
+    <line x1="566" y1="49" x2="566" y2="110" />
+  </g>
+
+  <g fill="var(--ink)" stroke="var(--paper)" stroke-width="2">
+    <circle cx="150" cy="269" r="7" />
+    <circle cx="254" cy="221" r="7" />
+    <circle cx="358" cy="196" r="7" />
+    <circle cx="462" cy="132" r="7" />
+    <circle cx="566" cy="49" r="7" />
+  </g>
+
+  <g fill="var(--alert)" opacity="0.15" stroke="var(--alert)" stroke-width="1.5">
+    <rect x="158" y="263" width="8" height="8" />
+    <rect x="262" y="220" width="8" height="8" />
+    <rect x="366" y="184" width="12" height="12" />
+    <rect x="470" y="132" width="16" height="16" />
+    <rect x="574" y="49" width="61" height="61" />
+  </g>
+
+  <path d="M566 49 C646 30 682 51 681 104" fill="none" stroke="var(--alert)" stroke-width="2" />
+  <text x="681" y="124" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">large residual</text>
+  <text x="681" y="144" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">square grows fast</text>
+
+  <rect x="103" y="331" width="390" height="36" rx="7" fill="var(--highlight)" stroke="var(--ink)" stroke-width="1.5" />
+  <text x="298" y="354" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--ink)">least squares: minimise Σ(observed − predicted)²</text>
+</svg>
