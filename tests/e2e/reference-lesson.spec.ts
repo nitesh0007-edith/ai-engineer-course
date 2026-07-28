@@ -25,6 +25,9 @@ test("quiz gives explained feedback and works from the keyboard", async ({
 }) => {
   await page.goto(LESSON, { waitUntil: "load" });
   const firstQuestion = page.locator(".quiz-card").first();
+  await expect(
+    firstQuestion.locator("xpath=ancestor::astro-island"),
+  ).not.toHaveAttribute("ssr", "");
   const correctChoice = firstQuestion.getByLabel(
     "A name that points to a value",
   );

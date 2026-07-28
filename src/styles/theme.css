@@ -245,6 +245,12 @@
 
 /* nav drawer under 1280 */
 @media (max-width: 1279px) {
+  /* The navigation becomes a fixed drawer here, so it must no longer reserve
+     a grid column. Otherwise it squeezes the reading canvas at tablet widths. */
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .nav-col {
     position: fixed;
     top: 52px;

@@ -1,0 +1,891 @@
+---
+layer: 1
+order: 4
+title: 'Other core algorithms'
+slug: 'other-core-algorithms'
+subtitle: 'Predict from nearby examples, separate classes with wide margins, and combine probabilistic evidence.'
+depth: use
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - trees-and-ensembles
+skillsGained:
+  - 'Calculate a k-nearest-neighbour prediction'
+  - 'Choose and scale features for meaningful distance'
+  - 'Explain SVM margins, support vectors, C, and kernels'
+  - 'Distinguish a kernel similarity from an explicit feature map'
+  - 'Calculate a small Naive Bayes posterior'
+  - 'Apply Laplace smoothing to zero word counts'
+  - 'Choose a sensible baseline algorithm for data size and representation'
+objectives:
+  - 'Build classification and regression predictions with k-nearest neighbours'
+  - 'Explain how k, distance, scaling, and dimensionality affect neighbour methods'
+  - 'Trace hard-margin and soft-margin SVM decisions'
+  - 'Explain how kernels enable nonlinear boundaries'
+  - 'Calculate priors, likelihoods, and posterior class scores in Naive Bayes'
+  - 'Compare Gaussian, Multinomial, Bernoulli, and Complement Naive Bayes'
+  - 'Select among k-NN, SVM, and Naive Bayes using validation evidence'
+concepts:
+  - k-nearest-neighbours
+  - distance-metric
+  - curse-of-dimensionality
+  - support-vector-machine
+  - margin
+  - support-vector
+  - kernel-trick
+  - naive-bayes
+  - conditional-independence
+  - laplace-smoothing
+diagrams:
+  - NeighbourhoodVote
+  - MarginKernelBayes
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 8
+exercises:
+  - prompt: 'Training points are `A=(0,0)`, `B=(2,0)`, and `C=(5,0)` with labels red, red, blue. For query `(3,0)`, calculate Euclidean distances and predict with `k=1` and `k=3`.'
+    difficulty: warmup
+    solution: 'Distances are 3 to A, 1 to B, and 2 to C. With `k=1`, nearest B predicts red. With `k=3`, two red votes beat one blue vote, so the prediction remains red. This example also shows that changing k need not change every decision.'
+  - prompt: 'An SVM has a narrow margin with zero training mistakes. Another has a wider margin with two violations. Explain why validation might prefer the second and which hyperparameter controls the trade-off.'
+    difficulty: core
+    solution: 'The zero-error separator may be shaped by noise and generalise poorly. A soft-margin SVM balances margin width and violations. Hyperparameter `C` penalises violations: larger C usually prioritises fewer training violations and a narrower margin, while smaller C allows more violations for stronger regularisation. Select C using scaled training and validation data.'
+  - prompt: 'A two-class text model has priors `P(billing)=0.6`, `P(technical)=0.4`. It estimates `P(refund|billing)=0.5`, `P(invoice|billing)=0.4`, `P(refund|technical)=0.1`, and `P(invoice|technical)=0.05`. Calculate and normalise Naive Bayes scores for a document containing refund and invoice.'
+    difficulty: stretch
+    solution: 'Billing score is `0.6×0.5×0.4=0.12`. Technical score is `0.4×0.1×0.05=0.002`. Total is 0.122, so normalised billing posterior is about `0.12/0.122=0.984` and technical about `0.016`, under the model assumptions.'
+resources:
+  - title: 'scikit-learn — nearest neighbours'
+    url: 'https://scikit-learn.org/stable/modules/neighbors.html'
+    type: docs
+    note: 'Official guide to neighbour classification, regression, search strategies, metrics, and limitations.'
+  - title: 'scikit-learn — support vector machines'
+    url: 'https://scikit-learn.org/stable/modules/svm.html'
+    type: docs
+    note: 'Official guide to SVC, linear SVMs, kernels, scaling, and computational trade-offs.'
+  - title: 'scikit-learn — Naive Bayes'
+    url: 'https://scikit-learn.org/stable/modules/naive_bayes.html'
+    type: docs
+    note: 'Official explanation of Gaussian, Multinomial, Complement, Bernoulli, and categorical variants.'
+  - title: 'An Introduction to Statistical Learning'
+    url: 'https://www.statlearning.com/'
+    type: course
+    note: 'A freely available textbook covering support-vector classifiers, kernels, and broader supervised-learning context.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import NeighbourhoodVote from '../../../components/diagrams/NeighbourhoodVote.astro';
+import MarginKernelBayes from '../../../components/diagrams/MarginKernelBayes.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Three algorithms can learn from the same labelled table for three very different reasons.
+
+k-NN trusts nearby examples. An SVM searches for a wide separating boundary. Naive Bayes multiplies class-conditional evidence.
+
+<LessonIdentity
+  module="Classical machine learning"
+  lesson="4 · Other core algorithms"
+  difficulty="Beginner"
+  duration="65 minutes"
+  prerequisites={[
+    "Vectors, norms, dot products, probability, and Bayes' rule",
+    "Features, scaling, classification, regression, and validation",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Not every tabular problem needs a tree ensemble.
+
+Neighbour methods are transparent local baselines. Linear SVMs can excel on high-dimensional sparse text. Kernel SVMs capture nonlinear boundaries on suitable smaller datasets. Naive Bayes trains quickly and provides a strong sparse-text baseline.
+
+<MainIdea>
+  <Term id="k-nearest-neighbours">k-nearest neighbours</Term> predicts from
+  nearby training examples under a chosen distance. A <Term
+  id="support-vector-machine">support-vector machine</Term> chooses a boundary
+  with a wide margin, optionally using a kernel for nonlinear separation. <Term
+  id="naive-bayes">Naive Bayes</Term> combines class priors and feature
+  likelihoods under a simplifying conditional-independence assumption.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="Neighbours, a safety corridor, and evidence cards"
+  limitation="Nearby coordinates are useful only when the representation makes distance meaningful. A wide margin does not guarantee fairness or causality. Naive Bayes evidence cards are usually correlated even though its calculation treats them as conditionally independent."
+>
+  k-NN asks nearby residents how they voted. An SVM draws the widest possible
+  safety corridor between two groups, guided by the closest points. Naive Bayes
+  begins with a base rate, then updates each class score using observed evidence
+  cards such as words.
+</AnalogyCard>
+
+## Part 1 — k-NN stores examples and delays the work
+
+<Term id="k-nearest-neighbours">k-nearest neighbours</Term>, shortened to **k-NN**, has a minimal fitting stage:
+
+1. Store training features and targets.
+2. For a query, calculate distance to training examples.
+3. Select the closest `k`.
+4. Combine their targets.
+
+Classification:
+
+```text
+prediction = majority vote or distance-weighted vote
+```
+
+Regression:
+
+```text
+prediction = mean or distance-weighted mean target
+```
+
+k-NN is sometimes called a **lazy learner** because prediction performs most of the search.
+
+## Part 2 — Distance defines “near”
+
+A <Term id="distance-metric">distance metric</Term> quantifies separation between feature vectors.
+
+Euclidean distance:
+
+```text
+d(x,q) = square_root(Σ(x_j-q_j)²)
+```
+
+Manhattan distance:
+
+```text
+d(x,q) = Σ|x_j-q_j|
+```
+
+Cosine distance is often defined from cosine similarity:
+
+```text
+distance = 1 - cosine_similarity
+```
+
+Choice depends on representation. Euclidean distance on one-hot categories means something different from Euclidean distance on physical coordinates.
+
+### Scale can dominate
+
+Suppose:
+
+- age ranges 18–90;
+- annual income ranges 15,000–300,000.
+
+Raw Euclidean distance is dominated by income units.
+
+Standardise numerical features using training statistics:
+
+```text
+scaled = (value - training_mean) / training_std
+```
+
+Apply the frozen transform to validation, test, and query rows.
+
+<Figure id="01-04.1" label="THE NEIGHBOURHOOD DEPENDS ON k AND REPRESENTATION" caption="— the three nearest neighbours vote billing, while a wider seven-neighbour region votes technical. Neither k is intrinsically correct. Select k, metric, weighting, and scaling using training and validation evidence.">
+  <NeighbourhoodVote />
+</Figure>
+
+## Part 3 — Calculate a neighbour prediction
+
+<PyRunner
+  client:idle
+  id="01-04.A"
+  label="CLASSIFY WITH k NEAREST NEIGHBOURS"
+  code={`from math import dist
+
+training = [
+    ((0.0, 0.0), "billing"),
+    ((1.0, 0.0), "billing"),
+    ((0.0, 1.0), "billing"),
+    ((4.0, 4.0), "technical"),
+    ((5.0, 4.0), "technical"),
+]
+query = (2.0, 1.0)
+k = 3
+
+ranked = sorted(
+    (dist(features, query), label)
+    for features, label in training
+)
+neighbours = ranked[:k]
+
+votes = {}
+for distance, label in neighbours:
+    votes[label] = votes.get(label, 0) + 1
+
+prediction = max(votes, key=votes.get)
+print([(round(d, 3), label) for d, label in neighbours])
+print(votes)
+print("prediction:", prediction)
+
+# Try k=1 and k=5.`}
+/>
+
+Expected output:
+
+```text
+[(1.414, 'billing'), (2.0, 'billing'), (2.236, 'billing')]
+{'billing': 3}
+prediction: billing
+```
+
+<LineExplanation
+  items={[
+    {
+      line: "dist(features, query)",
+      explanation: "Calculates Euclidean distance in the current representation. Production preprocessing must make those coordinates comparable.",
+    },
+    {
+      line: "sorted(... )[:k]",
+      explanation: "Ranks all stored examples and keeps the closest k. Index structures can accelerate some searches.",
+    },
+    {
+      line: "votes[label]",
+      explanation: "Counts class targets among neighbours. Distance weighting can give closer rows more influence.",
+    },
+    {
+      line: "max(votes, key=votes.get)",
+      explanation: "Returns the largest vote. A production implementation needs a deterministic tie rule.",
+    },
+  ]}
+/>
+
+## Part 4 — Choosing k changes smoothness
+
+Small `k`:
+
+- captures local detail;
+- sensitive to noise and single points;
+- produces irregular decision boundaries.
+
+Large `k`:
+
+- smooths local variation;
+- may ignore minority neighbourhoods;
+- eventually approaches the global majority.
+
+Choose odd k to reduce binary vote ties, but ties can still occur with multiple classes or distance weighting.
+
+Select k with validation or cross-validation. Do not choose it because a training plot looks attractive.
+
+## Part 5 — The curse of dimensionality
+
+The <Term id="curse-of-dimensionality">curse of dimensionality</Term> describes problems that appear as dimensions grow.
+
+If each feature ranges from 0 to 1, the unit hypercube volume stays 1, but neighbourhood volume becomes difficult to cover. To span only 10% of each coordinate:
+
+```text
+1 dimension: 0.1 of the interval
+10 dimensions: 0.1¹⁰ of the volume
+```
+
+Data becomes sparse, and nearest and farthest distances can become less distinguishable.
+
+Responses:
+
+- select relevant features;
+- learn or choose a meaningful embedding;
+- reduce dimension;
+- use cosine similarity for suitable text embeddings;
+- collect more representative data;
+- choose another model.
+
+Do not apply k-NN to thousands of raw noisy columns and assume “nearest” means similar.
+
+## Part 6 — k-NN engineering trade-offs
+
+Training is cheap; prediction can be expensive:
+
+```text
+brute-force query cost ≈ number of rows × dimensions
+```
+
+Search structures:
+
+- k-d trees;
+- ball trees;
+- approximate nearest-neighbour indexes.
+
+Their effectiveness depends on metric, dimension, and accuracy/latency trade-offs.
+
+k-NN also stores training examples. For personal or sensitive data, this creates retention, deletion, access-control, and possible information-exposure concerns.
+
+## Part 7 — SVMs prefer a wide margin
+
+A linear classifier has boundary:
+
+```text
+w · x + b = 0
+```
+
+A <Term id="support-vector-machine">support-vector machine</Term>, shortened to **SVM**, chooses a separating boundary with a large <Term id="margin">margin</Term>.
+
+The margin is the corridor between the boundary and closest class-constraining examples.
+
+Those closest influential points are <Term id="support-vector">support vectors</Term>.
+
+Distant training points often do not change the fitted boundary unless they move into the margin.
+
+### Hard margin versus soft margin
+
+A hard-margin SVM requires perfect separation. It fails when classes overlap and is brittle to outliers.
+
+A soft-margin SVM allows violations through **slack variables**.
+
+Hyperparameter `C` controls penalty:
+
+- larger `C`: violations cost more; fit training data more aggressively;
+- smaller `C`: violations cost less; wider margin and stronger regularisation.
+
+This convention applies to common SVM APIs, but always check library definitions.
+
+## Part 8 — Hinge loss
+
+For labels `y ∈ {-1,+1}` and score `f(x)=w·x+b`:
+
+```text
+hinge loss = max(0, 1 - y f(x))
+```
+
+If `y f(x) ≥ 1`, the example is correctly placed outside the margin and loss is zero.
+
+If it is inside the margin or incorrectly classified, loss is positive.
+
+The SVM objective balances:
+
+- a small weight norm, which corresponds to a wider margin;
+- penalties for hinge-loss violations.
+
+SVM scores are not probabilities by default. Probability calibration is a separate fitted procedure requiring held-out or cross-validated evidence.
+
+## Part 9 — Kernels create nonlinear boundaries
+
+A linear SVM separates with a hyperplane in its feature space.
+
+A feature map can add nonlinear coordinates:
+
+```text
+(x1, x2) → (x1², square_root(2)x1x2, x2²)
+```
+
+The <Term id="kernel-trick">kernel trick</Term> computes inner products in an implicit richer space without explicitly constructing all mapped coordinates.
+
+Common kernels:
+
+- linear: `K(x,z)=x·z`;
+- polynomial;
+- radial basis function, shortened to **RBF**;
+- sigmoid, used less commonly.
+
+RBF:
+
+```text
+K(x,z) = exp(-gamma × ||x-z||²)
+```
+
+`gamma` controls locality:
+
+- high gamma: influence falls quickly; flexible boundary and overfitting risk;
+- low gamma: broad influence; smoother boundary and underfitting risk.
+
+Scale features before RBF SVM, because squared distance drives the kernel.
+
+<Figure id="01-04.2" label="SVM USES THE BOUNDARY POINTS · NAIVE BAYES USES CLASS EVIDENCE" caption="— support vectors constrain a maximum-margin boundary; kernels can make that boundary nonlinear through implicit similarity. Naive Bayes starts with priors, multiplies class-conditional feature evidence, and normalises. Smoothing prevents one unseen count from zeroing a class.">
+  <MarginKernelBayes />
+</Figure>
+
+## Part 10 — SVM computational choices
+
+Kernel SVM training can scale poorly with the number of rows because it uses pairwise similarities. Exact complexity depends on data and solver, but large datasets can become expensive in time and memory.
+
+For large sparse text:
+
+- use a linear SVM implementation designed for many rows/features;
+- avoid an RBF kernel by default;
+- compare logistic regression and Naive Bayes.
+
+For smaller nonlinear datasets:
+
+- scale features;
+- tune `C` and `gamma` inside cross-validation;
+- compare against trees and simpler baselines.
+
+## Part 11 — Naive Bayes applies Bayes by class
+
+For class `c` and features `x`:
+
+```text
+P(c | x) ∝ P(c) × P(x | c)
+```
+
+<Term id="naive-bayes">Naive Bayes</Term> assumes features are <Term id="conditional-independence">conditionally independent</Term> given the class:
+
+```text
+P(x1, x2, ... | c)
+= P(x1|c) × P(x2|c) × ...
+```
+
+Text words are not truly independent. “credit” and “card” correlate. The assumption still produces a useful, fast classifier in many sparse problems.
+
+### Work in log space
+
+Multiplying many tiny probabilities underflows:
+
+```text
+log score(c)
+= log P(c) + Σ log P(feature_j | c)
+```
+
+Choose the largest log score, or use stable log-sum-exp to normalise.
+
+## Part 12 — A small text calculation
+
+Training counts:
+
+| Class | Documents | `refund` count | `server` count | total word count |
+|---|---:|---:|---:|---:|
+| billing | 6 | 5 | 0 | 20 |
+| technical | 4 | 1 | 4 | 16 |
+
+Without smoothing, `P(server|billing)=0`, so any document containing `server` gives billing score zero.
+
+<Term id="laplace-smoothing">Laplace smoothing</Term> adds one to every vocabulary count:
+
+```text
+P(word | class)
+= (count(word,class)+1) / (total_words_in_class + vocabulary_size)
+```
+
+Smoothing strength is a hyperparameter in general additive smoothing.
+
+<PyRunner
+  client:idle
+  id="01-04.B"
+  label="NAIVE BAYES IN LOG SPACE"
+  code={`from math import log, exp
+
+classes = {
+    "billing": {
+        "documents": 6,
+        "total_words": 20,
+        "counts": {"refund": 5, "server": 0},
+    },
+    "technical": {
+        "documents": 4,
+        "total_words": 16,
+        "counts": {"refund": 1, "server": 4},
+    },
+}
+vocabulary = ["refund", "server"]
+document = ["refund", "server"]
+total_documents = sum(item["documents"] for item in classes.values())
+
+log_scores = {}
+for label, item in classes.items():
+    score = log(item["documents"] / total_documents)
+    denominator = item["total_words"] + len(vocabulary)
+    for word in document:
+        probability = (item["counts"][word] + 1) / denominator
+        score += log(probability)
+    log_scores[label] = score
+
+maximum = max(log_scores.values())
+weights = {
+    label: exp(score - maximum)
+    for label, score in log_scores.items()
+}
+normaliser = sum(weights.values())
+posteriors = {
+    label: value / normaliser
+    for label, value in weights.items()
+}
+
+print({label: round(value, 3) for label, value in posteriors.items()})`}
+/>
+
+Expected output:
+
+```text
+{'billing': 0.376, 'technical': 0.624}
+```
+
+The result depends on simplified counts, vocabulary, tokenisation, smoothing, and independence assumptions.
+
+## Part 13 — Naive Bayes variants
+
+Choose a likelihood model matching feature type.
+
+### Gaussian Naive Bayes
+
+Models each numeric feature with a Gaussian distribution per class.
+
+Suitable baseline for continuous features when the approximation is reasonable.
+
+### Multinomial Naive Bayes
+
+Models non-negative counts or count-like values.
+
+Common for word-count and TF–IDF-style text features, though TF–IDF is not literally generated by a multinomial count process.
+
+### Bernoulli Naive Bayes
+
+Models binary feature presence/absence.
+
+Useful when whether a token appears matters more than how often.
+
+### Complement Naive Bayes
+
+Uses statistics from the complement of each class and is often useful for imbalanced text classification.
+
+Validate variants; names describe assumptions, not guaranteed winners.
+
+## Part 14 — Probability quality and duplicated evidence
+
+Naive Bayes posterior numbers can be overconfident because correlated features are multiplied as if independent.
+
+If `refund`, `refunds`, and `refunding` all encode nearly the same evidence, the model may count it several times.
+
+Evaluate:
+
+- discrimination;
+- calibration;
+- errors by class and group;
+- robustness to vocabulary and tokenisation;
+- out-of-vocabulary behaviour;
+- probability stability under duplicated correlated features.
+
+Use calibrated probabilities when downstream decisions require trustworthy risk estimates.
+
+## Worked comparison — ticket topic classification
+
+Goal: classify a new ticket as billing or technical.
+
+### k-NN
+
+Represent messages with embeddings, scale any added numeric features, and retrieve nearby labelled tickets.
+
+Strength: inspect actual neighbours.
+
+Risk: embedding distance may not match topic; queries grow expensive; stored examples may expose sensitive text.
+
+### Linear SVM
+
+Represent messages with sparse TF–IDF features and fit a wide-margin separator.
+
+Strength: strong high-dimensional sparse baseline.
+
+Risk: score is not a probability; tune `C`; inspect token and label bias.
+
+### Multinomial or Complement Naive Bayes
+
+Use token counts or suitable non-negative text features with smoothing.
+
+Strength: extremely fast and effective with small sparse data.
+
+Risk: correlated words and likelihood assumptions can create overconfidence.
+
+### Selection
+
+Use the same time-and-customer split. Compare the declared metric, calibration if required, latency, memory, privacy, and explainability.
+
+The best algorithm depends on representation and operating constraints, not the name.
+
+## In a real AI system
+
+<RealWorldExample
+  title="Layered support search and routing"
+  steps={[
+    "A vector index retrieves semantically nearby resolved tickets",
+    "Neighbour labels provide a transparent local signal",
+    "A linear SVM or Naive Bayes model supplies a fast topic baseline",
+    "A validated policy combines confidence, queue capacity, and fallback rules",
+    "Sensitive neighbour text is access-controlled and redacted",
+    "Monitoring checks drift, calibration, latency, and retrieval quality",
+  ]}
+>
+  Similarity search and k-NN share neighbour mechanics, but retrieval results
+  may be shown to a model or user rather than directly voted into a class.
+
+Keep retrieval, classification, and action policy as separately evaluated components.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Running k-NN on raw mixed-scale features.",
+      fix: "Choose units and metric deliberately; fit scaling on training data and apply it unchanged.",
+    },
+    {
+      mistake: "Choosing k from test-set accuracy.",
+      fix: "Select k, weighting, and metric with training and validation or cross-validation evidence.",
+    },
+    {
+      mistake: "Assuming nearest neighbours stay meaningful in many noisy dimensions.",
+      fix: "Select or learn useful representations, reduce dimension, inspect distance concentration, and compare another model.",
+    },
+    {
+      mistake: "Treating an SVM score as a probability.",
+      fix: "It is a signed decision score. Fit and evaluate a separate calibration procedure when probabilities are needed.",
+    },
+    {
+      mistake: "Using RBF SVM without scaling or tuning gamma.",
+      fix: "Place scaling inside the pipeline and tune C and gamma within training folds.",
+    },
+    {
+      mistake: "Calling the kernel trick free nonlinear modelling.",
+      fix: "Kernel training and prediction can be expensive; boundary flexibility still needs regularisation and valid evaluation.",
+    },
+    {
+      mistake: "Letting one unseen word make a Naive Bayes class probability zero.",
+      fix: "Use additive smoothing fitted on training counts.",
+    },
+    {
+      mistake: "Believing Naive Bayes features are literally independent.",
+      fix: "Treat independence as a modelling approximation and evaluate calibration and correlated evidence.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "Why is feature scaling especially important for Euclidean k-NN?",
+      options: [
+        "Large-unit features can dominate distance",
+        "It changes every label",
+        "It removes the need to choose k",
+      ],
+      answer: 0,
+      explanation: "Distance uses coordinate differences. A numerically large unit can overwhelm smaller-scale features regardless of relevance.",
+    },
+    {
+      question: "Which training examples determine an SVM boundary most directly?",
+      options: ["Every distant point equally", "Support vectors near or inside the margin", "Only test examples"],
+      answer: 1,
+      explanation: "Support vectors constrain the maximum-margin solution; sufficiently distant points often have no direct effect.",
+    },
+    {
+      question: "What does a high RBF gamma usually do?",
+      options: [
+        "Makes each example's influence very local",
+        "Forces a straight boundary",
+        "Turns scores into calibrated probabilities",
+      ],
+      answer: 0,
+      explanation: "RBF similarity decays faster with distance, allowing a more flexible and potentially overfit boundary.",
+    },
+    {
+      question: "Why use Laplace smoothing in Multinomial Naive Bayes?",
+      options: [
+        "To prevent unseen word–class counts from forcing a zero score",
+        "To make all classes identical",
+        "To prove conditional independence",
+      ],
+      answer: 0,
+      explanation: "A positive pseudo-count keeps every vocabulary likelihood non-zero; it does not make the independence assumption true.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Compare three predictions on one tiny dataset"
+  time="10–20 minutes"
+  goal="Trace the mechanism of k-NN, a linear margin score, and Naive Bayes rather than treating them as black boxes."
+  steps={[
+    "Calculate Euclidean distances from query `(2,1)` to the supplied points.",
+    "Predict with k=3.",
+    "Calculate SVM-style score `z=x1+x2-2.5` and its class sign.",
+    "Calculate unnormalised Naive Bayes class scores for words refund and server.",
+    "Normalise the Naive Bayes scores.",
+    "State which representation assumption each prediction relies on.",
+  ]}
+  expected="k-NN predicts billing; the linear score is 0.5 and predicts the positive class under threshold zero; the smoothed Naive Bayes example assigns about 0.376 billing and 0.624 technical."
+  challenge="Change one feature scale by 100 and show how k-NN changes unless the transform is corrected."
+>
+
+```python
+from math import dist
+
+training = [
+    ((0, 0), "billing"),
+    ((1, 0), "billing"),
+    ((0, 1), "billing"),
+    ((4, 4), "technical"),
+]
+query = (2, 1)
+
+neighbours = sorted(
+    (dist(point, query), label)
+    for point, label in training
+)[:3]
+
+margin_score = query[0] + query[1] - 2.5
+
+print("neighbours:", [(round(d, 3), label) for d, label in neighbours])
+print("k-NN:", "billing")
+print("margin score:", margin_score)
+print("SVM-style class:", int(margin_score >= 0))
+print("Naive Bayes:", {"billing": 0.376, "technical": 0.624})
+```
+
+Expected output:
+
+```text
+neighbours: [(1.414, 'billing'), (2.0, 'billing'), (2.236, 'billing')]
+k-NN: billing
+margin score: 0.5
+SVM-style class: 1
+Naive Bayes: {'billing': 0.376, 'technical': 0.624}
+```
+
+k-NN assumes geometric neighbourhood is meaningful. The SVM score assumes a linear boundary in this feature space. Naive Bayes assumes its fitted feature likelihoods and conditional-independence factorisation are useful.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "k-NN predicts from local training targets, so representation, scale, metric, and k define its behaviour.",
+    "High-dimensional distance can become uninformative and exact neighbour search can become expensive.",
+    "SVMs balance a wide margin against training violations; support vectors determine the boundary.",
+    "Kernels provide implicit nonlinear feature similarity but add compute and tuning risk.",
+    "Naive Bayes multiplies class priors and feature likelihoods under conditional independence.",
+    "Smoothing prevents zero counts, while log-space calculations prevent underflow.",
+    "Choose algorithms using valid evaluation, probability needs, latency, memory, privacy, and representation—not popularity.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    { front: "What does k-NN learn?", back: "It stores training examples and predicts from the targets of the k closest examples under a chosen distance." },
+    { front: "Why scale features for k-NN?", back: "Otherwise features with large numeric units can dominate distance." },
+    { front: "What is the curse of dimensionality?", back: "Space grows and local distance becomes harder to estimate meaningfully as dimensions increase." },
+    { front: "What does an SVM maximise?", back: "The margin around a separating boundary, balanced against violations in a soft-margin model." },
+    { front: "What is a support vector?", back: "A training point on or inside the margin that directly constrains the SVM boundary." },
+    { front: "What does C control?", back: "The penalty for margin violations; larger C usually fits training errors more aggressively." },
+    { front: "What is the kernel trick?", back: "Compute inner products in an implicit richer feature space without explicitly creating every coordinate." },
+    { front: "What is Naive Bayes' naive assumption?", back: "Features are conditionally independent given the class." },
+    { front: "Why use Laplace smoothing?", back: "To keep unseen training counts from assigning an exact zero likelihood." },
+    { front: "Why calculate Naive Bayes in log space?", back: "Sums of log probabilities avoid underflow from products of many tiny values." },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Design and calculate a k-NN prediction, including scaling, metric, k, weighting, and tie handling.",
+    "Explain hard and soft margins, hinge loss, support vectors, and C.",
+    "Explain an RBF kernel and how gamma changes boundary flexibility.",
+    "Calculate a smoothed Multinomial Naive Bayes posterior in log space.",
+    "Compare k-NN, linear SVM, kernel SVM, and Naive Bayes for sparse text, embeddings, and small tabular data.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Other core algorithms"
+  terms={[
+    "k-NN — local target vote",
+    "Metric — meaning of distance",
+    "Margin — SVM safety corridor",
+    "Support vector — boundary-defining row",
+    "Kernel — implicit feature similarity",
+    "Naive Bayes — prior × likelihoods",
+  ]}
+  mistakes={[
+    "Do not use raw mixed-scale distance",
+    "Do not tune k on test data",
+    "Do not call SVM scores probabilities",
+    "Do not kernelise huge data blindly",
+    "Do not multiply unsmoothed tiny probabilities",
+  ]}
+  takeaways={[
+    "Neighbourhood depends on representation",
+    "Wide margins regularise boundaries",
+    "Kernels trade flexibility for cost",
+    "Bayes combines prior and evidence",
+    "Smooth counts · calculate in log space",
+  ]}
+  questions={[
+    "What does near mean here?",
+    "Which rows constrain this margin?",
+    "Which evidence was counted twice?",
+  ]}
+>
+  <p slot="main">
+    k-NN uses local examples, SVMs use margin geometry, and Naive Bayes uses a
+    probabilistic factorisation. Each can be an excellent baseline when its
+    representation and assumptions match the problem.
+  </p>
+  <div slot="diagram">
+    <MarginKernelBayes />
+  </div>
+  <pre slot="code">
+    <code>{`knn = vote(nearest(query, k, metric))
+svm_class = sign(weights @ features + bias)
+log_score[class] = log(prior[class]) + sum(log_likelihoods)
+posterior = softmax(log_scores)`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="other-core-algorithms"
+  items={[
+    "I can calculate a k-NN prediction.",
+    "I can explain distance, scaling, and k.",
+    "I can describe the curse of dimensionality.",
+    "I can explain margins and support vectors.",
+    "I can explain C, kernels, and gamma.",
+    "I can calculate a Naive Bayes score.",
+    "I can apply smoothing and log space.",
+    "I can choose among the algorithms by constraints.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="unsupervised-learning"
+  title="Unsupervised learning"
+  why="You can now compare several supervised decision mechanisms. Next, remove the target labels and learn how clustering and dimensionality reduction reveal useful structure without pretending that discovered groups are ground truth."
+/>

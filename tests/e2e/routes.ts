@@ -14,4 +14,5 @@ export const ROUTES = [
   'chapters/what-learning-from-data-means/',
   'chapters/linear-and-logistic-regression/',
   'chapters/trees-and-ensembles/',
+  'chapters/other-core-algorithms/',
 ];

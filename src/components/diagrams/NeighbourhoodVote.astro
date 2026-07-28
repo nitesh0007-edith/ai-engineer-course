@@ -1,0 +1,55 @@
+---
+/**
+ * NeighbourhoodVote — k-NN classification, showing feature scaling and how k
+ * changes the local vote.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 380"
+  role="img"
+  aria-label="A two-feature scatter plot contains blue circles for billing tickets and red triangles for technical tickets. A new query point is marked with a star. Its three nearest neighbours contain two blue circles and one red triangle, so three-nearest-neighbour classification predicts billing. A larger dashed neighbourhood for seven neighbours contains four technical and three billing examples, so changing k changes the prediction. Axis labels warn that distance depends on feature scale, so scaling must be fitted on training data."
+>
+  <line x1="84" y1="318" x2="704" y2="318" stroke="var(--ink)" stroke-width="2" />
+  <line x1="84" y1="318" x2="84" y2="44" stroke="var(--ink)" stroke-width="2" />
+  <text x="704" y="347" text-anchor="end" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">scaled message length</text>
+  <text x="42" y="54" transform="rotate(-90 42 54)" text-anchor="end" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">scaled account age</text>
+
+  <circle cx="365" cy="201" r="72" fill="none" stroke="var(--ch1)" stroke-width="3" stroke-dasharray="7 5" />
+  <circle cx="365" cy="201" r="142" fill="none" stroke="var(--frame)" stroke-width="2" stroke-dasharray="5 5" />
+  <text x="431" y="151" font-family="var(--font-mono)" font-size="10" fill="var(--ch1)">k=3</text>
+  <text x="486" y="101" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">k=7</text>
+
+  <g fill="var(--blueprint)" stroke="var(--paper)" stroke-width="2">
+    <circle cx="326" cy="181" r="10" />
+    <circle cx="402" cy="220" r="10" />
+    <circle cx="270" cy="242" r="10" />
+    <circle cx="182" cy="126" r="10" />
+    <circle cx="239" cy="91" r="10" />
+  </g>
+
+  <g fill="var(--alert)" stroke="var(--paper)" stroke-width="2">
+    <path d="M382 159 l11 19 h-22 z" />
+    <path d="M461 201 l11 19 h-22 z" />
+    <path d="M420 296 l11 19 h-22 z" />
+    <path d="M527 229 l11 19 h-22 z" />
+    <path d="M498 115 l11 19 h-22 z" />
+  </g>
+
+  <path d="M365 184 l5 11 12 1 -9 8 3 12 -11 -6 -11 6 3 -12 -9 -8 12 -1 z" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2.5" />
+  <text x="365" y="238" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">new ticket</text>
+
+  <rect x="96" y="52" width="178" height="74" rx="9" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="1.5" />
+  <circle cx="116" cy="76" r="7" fill="var(--blueprint)" />
+  <text x="132" y="81" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">billing</text>
+  <path d="M109 101 l7 12 h-14 z" fill="var(--alert)" />
+  <text x="132" y="109" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">technical</text>
+
+  <rect x="535" y="54" width="202" height="83" rx="9" fill="var(--highlight)" stroke="var(--ink)" stroke-width="1.5" />
+  <text x="636" y="80" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">local vote</text>
+  <text x="636" y="102" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ch1)">k=3 → 2 blue / 1 red</text>
+  <text x="636" y="119" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--alert)">k=7 → 3 blue / 4 red</text>
+
+  <text x="382" y="368" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">distance is meaningless until units and scale are intentional</text>
+</svg>

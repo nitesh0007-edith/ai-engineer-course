@@ -4,9 +4,9 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 13 / 90 |
+| Chapters published | 14 / 90 |
 | Layers complete | 1 / 11 |
-| Total diagrams | 27 |
+| Total diagrams | 29 |
 | Total interactive widgets | 4 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
@@ -48,3 +48,4 @@ Notes:
 | 01-01 | What learning from data means | 1 | published | 2 | 4 | 2026-07-28 |
 | 01-02 | Linear & logistic regression | 1 | published | 2 | 4 | 2026-07-28 |
 | 01-03 | Trees & ensembles | 1 | published | 2 | 4 | 2026-07-28 |
+| 01-04 | Other core algorithms | 1 | published | 2 | 4 | 2026-07-28 |

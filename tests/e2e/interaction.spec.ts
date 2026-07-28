@@ -41,6 +41,19 @@ test.describe('layout integrity', () => {
     });
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
+
+  test('intermediate widths keep the lesson canvas readable', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 900 });
+    await page.goto('chapters/other-core-algorithms/', { waitUntil: 'load' });
+
+    const proseWidth = await page.locator('.prose').evaluate((el) => el.getBoundingClientRect().width);
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    );
+
+    expect(proseWidth).toBeGreaterThan(480);
+    expect(overflows).toBeFalsy();
+  });
 });
 
 test('theme toggle is keyboard operable', async ({ page }) => {

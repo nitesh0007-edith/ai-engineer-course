@@ -1,0 +1,51 @@
+---
+/**
+ * MarginKernelBayes — two complementary mechanisms: SVM margin/support vectors
+ * and Naive Bayes evidence multiplication with smoothing.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 410"
+  role="img"
+  aria-label="The left panel shows a support-vector machine separating blue and red examples. A central decision boundary has two parallel margin lines, and the closest circled examples are support vectors; distant examples do not determine the maximum-margin boundary. A curved inset shows that a kernel compares examples as if mapped into a richer feature space without explicitly constructing every coordinate. The right panel shows Naive Bayes starting with class priors, multiplying class-conditional word likelihoods for refund and invoice, then normalising to posterior probabilities. A warning states that zero counts need smoothing and that the conditional-independence assumption is useful but usually not literally true."
+>
+  <rect x="12" y="24" width="456" height="360" rx="13" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="240" y="57" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ink)">SVM · widest safe street</text>
+  <line x1="98" y1="333" x2="382" y2="92" stroke="var(--ink)" stroke-width="3" />
+  <line x1="65" y1="306" x2="350" y2="65" stroke="var(--blueprint)" stroke-width="2" stroke-dasharray="7 5" />
+  <line x1="130" y1="360" x2="414" y2="119" stroke="var(--blueprint)" stroke-width="2" stroke-dasharray="7 5" />
+  <text x="263" y="173" transform="rotate(-40 263 173)" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">decision boundary</text>
+  <text x="187" y="107" transform="rotate(-40 187 107)" font-family="var(--font-mono)" font-size="9" fill="var(--blueprint)">margin</text>
+
+  <g fill="var(--blueprint)" stroke="var(--paper)" stroke-width="2">
+    <circle cx="96" cy="117" r="9" /><circle cx="132" cy="165" r="9" /><circle cx="172" cy="103" r="9" /><circle cx="186" cy="192" r="9" />
+  </g>
+  <g fill="var(--alert)" stroke="var(--paper)" stroke-width="2">
+    <path d="M322 260 l11 19 h-22 z" /><path d="M357 218 l11 19 h-22 z" /><path d="M390 285 l11 19 h-22 z" /><path d="M290 309 l11 19 h-22 z" />
+  </g>
+  <circle cx="186" cy="192" r="16" fill="none" stroke="var(--ch1)" stroke-width="3" />
+  <circle cx="322" cy="260" r="17" fill="none" stroke="var(--ch1)" stroke-width="3" />
+  <text x="252" y="281" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">closest points = support vectors</text>
+
+  <rect x="36" y="298" width="165" height="62" rx="9" fill="var(--highlight)" stroke="var(--ink)" />
+  <path d="M52 343 C78 306 100 353 127 319 C150 291 170 339 190 311" fill="none" stroke="var(--alert)" stroke-width="2.5" />
+  <text x="118" y="352" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">kernel → curved boundary</text>
+
+  <rect x="490" y="24" width="278" height="360" rx="13" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="629" y="57" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ink)">Naive Bayes · evidence</text>
+  <rect x="518" y="82" width="222" height="49" rx="8" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="629" y="103" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">prior class probability</text>
+  <text x="629" y="120" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">P(billing)</text>
+  <text x="629" y="154" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--blueprint)">× P("refund" | billing)</text>
+  <text x="629" y="181" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--blueprint)">× P("invoice" | billing)</text>
+  <line x1="542" y1="198" x2="716" y2="198" stroke="var(--ink)" stroke-width="1.5" />
+  <text x="629" y="222" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">unnormalised class score</text>
+  <path d="M629 237 V267" stroke="var(--blueprint)" stroke-width="2.5" />
+  <rect x="518" y="277" width="222" height="50" rx="8" fill="var(--paper)" stroke="var(--ch1)" stroke-width="2" />
+  <text x="629" y="299" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">normalise across classes</text>
+  <text x="629" y="316" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">posterior probabilities</text>
+  <text x="629" y="350" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">zero count? smooth it</text>
+  <text x="629" y="370" text-anchor="middle" font-family="var(--font-mono)" font-size="8.5" fill="var(--ink-muted)">features assumed independent given class</text>
+</svg>
