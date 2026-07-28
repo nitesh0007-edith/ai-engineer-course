@@ -1,0 +1,27 @@
+---
+/** MetricCompass — confusion-matrix counts and metric choice by failure cost. */
+---
+
+<svg class="diagram-svg" viewBox="0 0 780 400" role="img" aria-label="A confusion matrix shows true positives, false positives, false negatives, and true negatives for a fraud alert. Arrows show precision asks whether alerts are correct and recall asks whether actual fraud was caught. A threshold slider illustrates that increasing recall can reduce precision. A lower panel contrasts ROC-AUC with precision-recall AUC for rare positives and warns that calibration is needed when a score is used as a probability. Regression notes distinguish MAE, RMSE, and the zero-value problem in MAPE.">
+  <rect x="18" y="35" width="340" height="280" rx="14" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="188" y="65" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">confusion matrix</text>
+  <text x="230" y="91" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">predicted</text>
+  <text x="133" y="111" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">alert</text><text x="244" y="111" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">no alert</text>
+  <text x="45" y="187" transform="rotate(-90 45 187)" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">actual</text>
+  <rect x="78" y="124" width="106" height="72" fill="var(--blueprint)" opacity=".88"/><rect x="184" y="124" width="106" height="72" fill="var(--alert)" opacity=".76"/><rect x="78" y="196" width="106" height="72" fill="var(--alert)" opacity=".76"/><rect x="184" y="196" width="106" height="72" fill="var(--ink-muted)" opacity=".48"/>
+  <g text-anchor="middle" fill="var(--paper)" font-family="var(--font-hand)" font-size="17"><text x="131" y="155">TP</text><text x="237" y="155">FN</text><text x="131" y="227">FP</text><text x="237" y="227">TN</text></g>
+  <text x="131" y="177" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--paper)">caught fraud</text><text x="237" y="177" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--paper)">missed fraud</text><text x="131" y="249" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--paper)">false alarm</text><text x="237" y="249" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--paper)">correct quiet</text>
+  <text x="188" y="294" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">precision: are alerts right?</text>
+  <text x="188" y="312" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">recall: did we catch fraud?</text>
+  <rect x="386" y="35" width="376" height="160" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="574" y="65" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">choose a threshold by consequence</text>
+  <line x1="424" y1="117" x2="713" y2="117" stroke="var(--ink-muted)" stroke-width="5" stroke-linecap="round" /><circle cx="557" cy="117" r="12" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="424" y="99" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">lower threshold</text><text x="713" y="99" text-anchor="end" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">higher threshold</text>
+  <text x="424" y="150" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">more alerts · higher recall · more false positives</text>
+  <text x="424" y="175" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">fewer alerts · higher precision · more missed positives</text>
+  <rect x="386" y="220" width="376" height="95" rx="14" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="574" y="249" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">score summaries and regression errors</text>
+  <text x="405" y="275" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">ROC-AUC: ranking overall</text><text x="405" y="293" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">PR-AUC: positives are rare → inspect this</text>
+  <text x="594" y="275" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">MAE: typical absolute miss</text><text x="594" y="293" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">RMSE: punishes big misses · MAPE breaks at 0</text>
+  <text x="390" y="363" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">a ranking score is not a probability — check calibration before acting on confidence</text>
+</svg>

@@ -20,7 +20,8 @@
         "http://localhost:4321/ai-engineer-course/chapters/linear-and-logistic-regression/",
         "http://localhost:4321/ai-engineer-course/chapters/trees-and-ensembles/",
         "http://localhost:4321/ai-engineer-course/chapters/other-core-algorithms/",
-        "http://localhost:4321/ai-engineer-course/chapters/unsupervised-learning/"
+        "http://localhost:4321/ai-engineer-course/chapters/unsupervised-learning/",
+        "http://localhost:4321/ai-engineer-course/chapters/evaluation-done-properly/"
       ],
       "numberOfRuns": 3,
       "settings": {

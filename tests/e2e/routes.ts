@@ -16,4 +16,5 @@ export const ROUTES = [
   'chapters/trees-and-ensembles/',
   'chapters/other-core-algorithms/',
   'chapters/unsupervised-learning/',
+  'chapters/evaluation-done-properly/',
 ];

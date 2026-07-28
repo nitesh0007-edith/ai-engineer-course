@@ -1,0 +1,565 @@
+---
+layer: 1
+order: 6
+title: 'Evaluation done properly'
+slug: 'evaluation-done-properly'
+subtitle: 'Protect the evidence, measure the mistakes that matter, and choose thresholds honestly.'
+depth: build
+difficulty: beginner
+readingTime: 70
+prerequisites:
+  - unsupervised-learning
+skillsGained:
+  - 'Create train, validation, and test splits that match deployment'
+  - 'Use cross-validation without leaking transformations or choices'
+  - 'Calculate and interpret a confusion matrix, precision, recall, and F1'
+  - 'Choose between ROC-AUC and PR-AUC for a ranking task'
+  - 'Check calibration before treating a score as a probability'
+  - 'Choose MAE, RMSE, or percentage errors for a regression problem'
+objectives:
+  - 'Explain why an untouched test set is protected evidence'
+  - 'Design an evaluation split for independent, grouped, and time-ordered data'
+  - 'Calculate classification metrics from a confusion matrix'
+  - 'Select a threshold using operational costs and capacity'
+  - 'Explain ranking metrics and their limitations on imbalanced data'
+  - 'Compare regression error metrics and identify MAPE failures'
+concepts:
+  - train-validation-test-split
+  - cross-validation
+  - confusion-matrix
+  - accuracy
+  - precision
+  - recall
+  - f1-score
+  - roc-auc
+  - pr-auc
+  - calibration
+  - mean-absolute-error
+  - root-mean-squared-error
+  - mean-absolute-percentage-error
+diagrams:
+  - EvaluationSplitFlow
+  - MetricCompass
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 7
+exercises:
+  - prompt: 'A screening model has TP=36, FP=12, FN=9, TN=943. Calculate accuracy, precision, recall, and F1 to three decimal places. Explain why accuracy is insufficient.'
+    difficulty: warmup
+    solution: 'Accuracy is `(36+943)/1000=0.979`. Precision is `36/(36+12)=0.750`. Recall is `36/(36+9)=0.800`. F1 is `2×0.75×0.8/(0.75+0.8)=0.774`. High accuracy mostly reflects the 943 true negatives; the important positive-case misses and false alerts remain visible only in other metrics.'
+  - prompt: 'You predict account cancellation one month ahead. Describe a split that prevents future information leaking into earlier predictions, and state where threshold selection happens.'
+    difficulty: core
+    solution: 'Use chronological splits: fit preprocessing and model on earlier months, select model and threshold on a later validation period, and report once on a final later test period. Do not randomise rows if the same account or future-derived feature could cross the boundary. Group accounts where needed.'
+  - prompt: 'A medical triage score has excellent ROC-AUC but poor precision among the top 1% of alerts. Explain what to inspect and why ROC-AUC alone did not guarantee useful deployment.'
+    difficulty: stretch
+    solution: 'Inspect prevalence, the precision-recall curve, precision/recall at the operational alert volume, calibration, subgroups, and clinician capacity. ROC-AUC measures ranking against negatives across thresholds; rare positives can yield a strong ROC-AUC while most actual alerts are false. Choose a threshold with the real harm and workflow in view.'
+resources:
+  - title: 'scikit-learn — model evaluation'
+    url: 'https://scikit-learn.org/stable/modules/model_evaluation.html'
+    type: docs
+    note: 'Official definitions and implementation guidance for classification and regression metrics.'
+  - title: 'scikit-learn — cross-validation'
+    url: 'https://scikit-learn.org/stable/modules/cross_validation.html'
+    type: docs
+    note: 'Official guidance for cross-validation strategies, groups, time series, and common pitfalls.'
+  - title: 'scikit-learn — calibration'
+    url: 'https://scikit-learn.org/stable/modules/calibration.html'
+    type: docs
+    note: 'Official guide to calibration curves and probability calibration methods.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import EvaluationSplitFlow from '../../../components/diagrams/EvaluationSplitFlow.astro';
+import MetricCompass from '../../../components/diagrams/MetricCompass.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+An evaluation is a rehearsal for the future decision your system will make.
+
+If future data leaks into training, if the metric hides the expensive mistake, or if you repeatedly peek at the test set, the rehearsal flatters the model. Production then surprises you.
+
+<LessonIdentity
+  module="Classical machine learning"
+  lesson="6 · Evaluation done properly"
+  difficulty="Beginner"
+  duration="70 minutes"
+  prerequisites={[
+    "Features, targets, probabilities, loss, and data leakage",
+    "Classification, regression, thresholds, and time-aware data handling",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+Every later AI system needs this discipline: a prompt, retrieval system, classifier, or agent is only useful if it performs well on relevant unseen work.
+
+<MainIdea>
+  A <Term id="train-validation-test-split">train-validation-test split</Term>
+  protects evidence: fit on training data, make choices using validation data,
+  and estimate final performance on a test set untouched by those choices. A
+  metric is a lens on a particular kind of success or failure, never the whole
+  system.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="Practise, dress rehearsal, opening night"
+  limitation="A clean dress rehearsal does not guarantee an opening-night success if the audience, venue, rules, or consequences differ. Evaluation needs ongoing monitoring after launch too."
+>
+  Training is rehearsal: performers can repeat it. Validation is the dress
+  rehearsal: choose the final arrangement there. The test set is opening night:
+  you do not change the show after seeing the reaction and still call it an
+  independent review. A metric is the review criterion—laughter, safety,
+  timing, or ticket sales—not a universal score.
+</AnalogyCard>
+
+## Step 1 — Define the decision before the metric
+
+Write down:
+
+- who or what receives a prediction;
+- the decision that follows;
+- the time when information is available;
+- which errors are harmful, and to whom;
+- capacity limits, such as human reviews per day;
+- the baseline you need to beat;
+- slices that must be reviewed separately.
+
+For fraud screening, a false negative might lose money. A false positive might block a legitimate customer. “Maximise F1” is not a decision policy until those consequences are considered.
+
+## Step 2 — Protect train, validation, and test evidence
+
+<Figure id="01-06.1" label="FIT · CHOOSE · REPORT" caption="— training data fits transforms and candidates. Validation data selects hyperparameters, models, thresholds, and policies. The test set is locked until one final report. Cross-validation repeats validation within training data; it is not permission to tune on the test set.">
+  <EvaluationSplitFlow />
+</Figure>
+
+The <Term id="train-validation-test-split">train-validation-test split</Term> has three jobs:
+
+| Portion | Use it for | Do not use it for |
+|---|---|---|
+| Train | fit imputation, scaling, features, and model parameters | final claims |
+| Validation | compare options, tune hyperparameters and thresholds | repeatedly reporting the final result |
+| Test | one final estimate after choices are frozen | selecting an option |
+
+Fit every learned transform on training rows only. Means, feature selection, PCA, encoders, text vocabulary, and imputation can leak information if calculated across future validation or test rows.
+
+### Match the split to deployment
+
+Random independent rows can be suitable only when rows are genuinely exchangeable.
+
+- **Grouped data:** keep one customer, patient, document, or device in one split.
+- **Time-ordered data:** train on earlier periods and validate/test on later periods.
+- **Rare classes:** use stratification where it does not violate time or groups.
+- **Repeated decisions:** ensure features exist at the intended prediction time.
+
+## Step 3 — Cross-validation uses training data more efficiently
+
+<Term id="cross-validation">Cross-validation</Term> partitions available training data into folds. In five-fold cross-validation, fit on four folds and validate on the fifth; rotate until every fold has been held out once.
+
+Report the distribution across folds, not just the best score. Put all learned preprocessing inside the fold pipeline. A scaler fitted before folds has already seen held-out validation rows.
+
+Use time-series or grouped variants when random folds violate the real decision boundary. Keep a final untouched test period or group for the final report.
+
+## Step 4 — Start with the confusion matrix
+
+For a binary decision at one threshold, the <Term id="confusion-matrix">confusion matrix</Term> counts:
+
+- **true positive (TP):** predicted positive and actually positive;
+- **false positive (FP):** positive alert on a negative case;
+- **false negative (FN):** missed positive case;
+- **true negative (TN):** correctly predicted negative.
+
+<Figure id="01-06.2" label="METRICS ASK DIFFERENT QUESTIONS" caption="— the confusion matrix exposes error types at one threshold. Lowering a threshold catches more positives but usually creates more alerts. ROC-AUC and PR-AUC summarise ranking across thresholds; calibration checks whether score values deserve probability interpretation.">
+  <MetricCompass />
+</Figure>
+
+### Calculate core classification metrics
+
+<Term id="accuracy">Accuracy</Term>:
+
+```text
+(TP + TN) / (TP + FP + FN + TN)
+```
+
+<Term id="precision">Precision</Term> answers: “When we alert, how often are we right?”
+
+```text
+TP / (TP + FP)
+```
+
+<Term id="recall">Recall</Term>, also called sensitivity, answers: “Of actual positives, how many did we find?”
+
+```text
+TP / (TP + FN)
+```
+
+<Term id="f1-score">F1</Term> is the harmonic mean of precision and recall:
+
+```text
+2 × precision × recall / (precision + recall)
+```
+
+F1 gives neither error type a monetary, safety, or fairness cost. Use it only when that balance is a reasonable proxy.
+
+### Worked example — a rare screening decision
+
+From 1,000 accounts, 45 are truly risky. A threshold produces TP=36, FP=12, FN=9, TN=943.
+
+```text
+accuracy  = (36 + 943) / 1000 = 0.979
+precision = 36 / (36 + 12)     = 0.750
+recall    = 36 / (36 + 9)      = 0.800
+F1        ≈ 0.774
+```
+
+Accuracy looks almost perfect because negatives are common. It does not show nine missed risky accounts or twelve unnecessary interventions.
+
+<PyRunner
+  client:idle
+  id="01-06.A"
+  label="CALCULATE METRICS FROM COUNTS"
+  code={`tp, fp, fn, tn = 36, 12, 9, 943
+
+accuracy = (tp + tn) / (tp + fp + fn + tn)
+precision = tp / (tp + fp)
+recall = tp / (tp + fn)
+f1 = 2 * precision * recall / (precision + recall)
+
+for name, value in {
+    "accuracy": accuracy,
+    "precision": precision,
+    "recall": recall,
+    "f1": f1,
+}.items():
+    print(f"{name}: {value:.3f}")
+
+# Change the counts and identify which business error changed.`}
+/>
+
+Expected output:
+
+```text
+accuracy: 0.979
+precision: 0.750
+recall: 0.800
+f1: 0.774
+```
+
+<LineExplanation
+  items={[
+    { line: "tp / (tp + fp)", explanation: "Precision only examines issued positive alerts. It becomes undefined when no alerts are issued; libraries need a documented zero-division policy." },
+    { line: "tp / (tp + fn)", explanation: "Recall only examines actual positives. It makes misses visible even when the negative class is huge." },
+    { line: "2 * precision * recall / (...) ", explanation: "The harmonic mean falls sharply when either precision or recall is low. It is a summary, not a substitute for the count table." },
+  ]}
+/>
+
+## Step 5 — Thresholds turn scores into actions
+
+Many classifiers output a score. A threshold turns it into an alert:
+
+```text
+alert if score >= threshold
+```
+
+Lower threshold: more alerts, usually higher recall and lower precision.
+
+Higher threshold: fewer alerts, usually higher precision and lower recall.
+
+Choose on validation data using costs, review capacity, safety, fairness, and outcomes. Freeze it before the test report. A threshold can also vary only when a lawful, fair, and carefully justified policy supports it; never casually “fix” a subgroup metric with different rules.
+
+## Step 6 — Ranking curves answer a different question
+
+The <Term id="roc-auc">ROC-AUC</Term> measures ranking quality across thresholds: how often a random positive receives a higher score than a random negative. It is useful but can look strong when negatives vastly outnumber positives.
+
+<Term id="pr-auc">PR-AUC</Term> summarises the precision-recall curve. It focuses attention on the positive class, so it is often more revealing for rare fraud, defects, or incidents.
+
+Neither curve selects an operational threshold. Always inspect:
+
+- class prevalence;
+- precision and recall at realistic alert volumes;
+- confusion matrix at the chosen threshold;
+- confidence intervals or variation across relevant samples;
+- subgroup and time slices;
+- a baseline tied to the current workflow.
+
+## Step 7 — A score is not automatically a probability
+
+<Term id="calibration">Calibration</Term> asks whether predicted probabilities match observed frequencies.
+
+If comparable cases all receive 0.80, roughly 80% should actually be positive. A model can rank very well and be badly calibrated. A score of 0.8 should not drive a risk estimate, budget, or automated action until calibration has been checked on held-out data.
+
+Calibration can shift when prevalence, policy, or data distribution changes. Re-check it after deployment.
+
+## Step 8 — Regression has different errors
+
+For a numeric target `y` and prediction `ŷ`:
+
+<Term id="mean-absolute-error">MAE</Term> is average absolute miss:
+
+```text
+MAE = mean(|y - ŷ|)
+```
+
+<Term id="root-mean-squared-error">RMSE</Term> squares misses before averaging, then takes a square root:
+
+```text
+RMSE = square_root(mean((y - ŷ)²))
+```
+
+RMSE penalises big mistakes more. Choose it when a large miss genuinely costs more—not because it is conventional.
+
+<Term id="mean-absolute-percentage-error">MAPE</Term> divides error by actual value. It is undefined at actual zero and volatile near zero. Use it only when percentage error makes sense and zero is handled honestly; consider MAE, scaled errors, or a domain-specific cost instead.
+
+<CodeNotebook title="Compare regression errors before choosing one">
+
+```python
+actual = [10, 12, 20, 100]
+predicted = [11, 10, 24, 80]
+
+absolute_errors = [abs(y - y_hat) for y, y_hat in zip(actual, predicted)]
+mae = sum(absolute_errors) / len(absolute_errors)
+rmse = (sum(error ** 2 for error in absolute_errors) / len(absolute_errors)) ** 0.5
+
+print("absolute errors:", absolute_errors)
+print("MAE:", round(mae, 3))
+print("RMSE:", round(rmse, 3))
+```
+
+</CodeNotebook>
+
+Expected output:
+
+```text
+absolute errors: [1, 2, 4, 20]
+MAE: 6.75
+RMSE: 10.21
+```
+
+The 20-unit miss matters more to RMSE because it is squared. Decide whether that reflects your real consequence.
+
+## Real-world AI engineering example
+
+<RealWorldExample
+  title="Evaluate an AI support-routing system"
+  steps={[
+    "Define success: correct queue assignment within a fixed review capacity and safe fallback for uncertainty",
+    "Split tickets by time and customer group so later tickets and repeated customer patterns do not leak backward",
+    "Fit embeddings, retrieval settings, and classifiers only on training periods",
+    "Use validation periods to choose the routing threshold and abstain-to-human policy",
+    "Report test-period confusion matrices by queue, language, urgency, and ticket length",
+    "Monitor launch-period queue load, correction rate, calibration, latency, and drift",
+  ]}
+>
+  A single “accuracy” number would hide whether urgent tickets are being missed,
+  whether a queue is overwhelmed, and whether confidence scores deserve trust.
+  Evaluation connects model behaviour to the actual service decision.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    { mistake: "Tuning after seeing test results.", fix: "Treat the test set as locked. If you make a choice because of it, it became validation data; obtain a new final test period or dataset." },
+    { mistake: "Randomly splitting time-dependent or grouped rows.", fix: "Use chronological and group-aware splits that mirror what information exists at prediction time." },
+    { mistake: "Fitting scaling, imputation, PCA, or feature selection before splitting.", fix: "Fit every learned transform only within training folds, then apply it to held-out rows." },
+    { mistake: "Celebrating accuracy on a rare-positive problem.", fix: "Show prevalence, confusion matrix, precision, recall, PR-AUC, and threshold-specific workload." },
+    { mistake: "Choosing a threshold at 0.5 by habit.", fix: "Select it on validation data with documented error costs, capacity, and safety constraints." },
+    { mistake: "Treating a high AUC as calibrated confidence.", fix: "Evaluate calibration separately on held-out data and monitor it after conditions change." },
+    { mistake: "Using MAPE where actual values can be zero.", fix: "Use MAE, RMSE, a safer scaled metric, or a domain cost and report the behaviour near zero." },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    { question: "What must stay untouched while you choose a model and threshold?", options: ["The final test set", "The training set", "The feature names"], answer: 0, explanation: "The test set provides the final independent estimate. Choosing from it turns it into validation data and inflates confidence." },
+    { question: "A spam model alerts on 10 messages and eight are spam. What is its precision?", options: ["0.8", "0.2", "It cannot be calculated"], answer: 0, explanation: "Precision is true positive alerts divided by all positive alerts: 8 / 10 = 0.8." },
+    { question: "Why is PR-AUC often useful when positives are rare?", options: ["It focuses on precision and recall for the positive class", "It makes thresholds unnecessary", "It calibrates probabilities"], answer: 0, explanation: "PR-AUC foregrounds positive-case performance. It still needs prevalence, threshold-specific counts, and calibration checks." },
+    { question: "What is a safe interpretation of a well-calibrated 0.7 score?", options: ["Comparable cases scored 0.7 are positive about 70% of the time", "This one case has a guaranteed 70% outcome", "The classifier has 70% accuracy"], answer: 0, explanation: "Calibration is a frequency property over comparable held-out cases, not a guarantee for an individual case or a statement about accuracy." },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Choose an alert threshold from consequences"
+  time="10–20 minutes"
+  goal="Make a threshold choice using counts and capacity rather than a default 0.5."
+  steps={[
+    "Run the starter code to calculate metrics for two threshold options.",
+    "Count daily alerts for each option and compare them with the review capacity of 25.",
+    "Write one harmful false-positive consequence and one harmful false-negative consequence.",
+    "Choose an option, or explain why neither is safe enough.",
+    "State which future period you would reserve for a final test report.",
+  ]}
+  expected="The lower threshold catches more positives but creates 30 alerts, exceeding capacity. The higher threshold fits 20 alerts but misses more positives. A defensible choice must state the consequence trade-off and test it later."
+  challenge="Add an abstain band where medium scores are sent to a human reviewer, then define metrics for the automated and reviewed paths separately."
+>
+
+```python
+options = {
+    "lower threshold": {"tp": 18, "fp": 12, "fn": 2, "tn": 968},
+    "higher threshold": {"tp": 14, "fp": 6, "fn": 6, "tn": 974},
+}
+
+for name, counts in options.items():
+    tp, fp, fn = counts["tp"], counts["fp"], counts["fn"]
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+    print(name)
+    print(" alerts:", tp + fp)
+    print(" precision:", round(precision, 3))
+    print(" recall:", round(recall, 3))
+```
+
+Expected output:
+
+```text
+lower threshold
+ alerts: 30
+ precision: 0.6
+ recall: 0.9
+higher threshold
+ alerts: 20
+ precision: 0.7
+ recall: 0.7
+```
+
+<details>
+  <summary>Reveal solution and reasoning</summary>
+
+  There is no universal winner. With capacity 25, the lower threshold cannot be
+  fully reviewed unless the workflow changes. The higher threshold fits capacity
+  and creates fewer false alarms, but it misses four more real positives. Name
+  the harm of those misses, compare a safer fallback, select on validation data,
+  then reserve a later untouched period for the final estimate.
+</details>
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "An evaluation split is a simulation of future information boundaries, not a random ritual.",
+    "Fit transforms and models on training data; make choices on validation; report once on a protected test set.",
+    "Confusion-matrix counts reveal the mistakes that accuracy can hide.",
+    "Thresholds convert scores into work and harm, so choose them with capacity and consequences.",
+    "ROC-AUC, PR-AUC, and calibration answer different questions and none replaces threshold-specific review.",
+    "MAE and RMSE encode different preferences about large regression misses; MAPE is unsafe near zero.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    { front: "What is validation data for?", back: "Choosing models, hyperparameters, thresholds, and policies without touching the final test set." },
+    { front: "What does cross-validation do?", back: "Rotates held-out validation folds within training data to compare choices more reliably." },
+    { front: "What does precision ask?", back: "Of positive alerts, how many are actually positive?" },
+    { front: "What does recall ask?", back: "Of actual positives, how many did the model find?" },
+    { front: "Why can accuracy mislead?", back: "A dominant negative class can make most predictions correct while rare important positives are missed." },
+    { front: "When is PR-AUC especially useful?", back: "When positive cases are rare and positive-alert quality matters." },
+    { front: "What is calibration?", back: "Agreement between predicted probabilities and observed frequencies on comparable held-out cases." },
+    { front: "How do MAE and RMSE differ?", back: "RMSE squares errors and penalises large misses more; MAE weights every absolute miss linearly." },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Design a leakage-safe train/validation/test plan for time-ordered grouped data.",
+    "Calculate and interpret accuracy, precision, recall, and F1 from a confusion matrix.",
+    "Explain how threshold selection changes workload and the two kinds of classification error.",
+    "Compare ROC-AUC, PR-AUC, and calibration for a rare-positive system.",
+    "Choose a regression metric for three different cost structures and explain why MAPE can fail.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="Evaluation done properly"
+  terms={[
+    "Train — fit allowed evidence",
+    "Validation — choose settings",
+    "Test — final untouched estimate",
+    "Precision — alerts that are right",
+    "Recall — positives caught",
+    "Calibration — scores match frequencies",
+  ]}
+  mistakes={[
+    "Do not tune on test results",
+    "Do not random-split future data",
+    "Do not fit transforms across folds",
+    "Do not trust accuracy alone",
+    "Do not read AUC as calibrated risk",
+  ]}
+  takeaways={[
+    "Protect unseen evidence",
+    "Count error types",
+    "Thresholds create consequences",
+    "Ranking ≠ calibration",
+    "Choose error by real cost",
+  ]}
+  questions={[
+    "What future boundary does this split simulate?",
+    "Which mistake is most harmful?",
+    "Can the team handle this alert volume?",
+  ]}
+>
+  <p slot="main">Evaluation is a disciplined rehearsal: fit on the past, choose without peeking at the final evidence, and measure the errors that affect the real decision.</p>
+  <div slot="diagram"><MetricCompass /></div>
+  <pre slot="code"><code>{`fit(train)
+choose(model, threshold, validation)
+report_once(test)
+precision = TP / (TP + FP)
+recall = TP / (TP + FN)`}</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="evaluation-done-properly"
+  items={[
+    "I can explain why the test set stays locked.",
+    "I can design time-aware and group-aware splits.",
+    "I can calculate a confusion matrix and core metrics.",
+    "I can choose a threshold using real consequences.",
+    "I can compare ROC-AUC and PR-AUC.",
+    "I can explain and check calibration.",
+    "I can choose a regression error metric deliberately.",
+    "I completed the quiz, practice activity, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="bias-variance-and-regularisation" title="The bias–variance trade-off & regularisation" why="You can now measure whether a model generalises. Next, explain why models overfit or underfit, then control complexity with regularisation, balancing, and disciplined hyperparameter searches." />

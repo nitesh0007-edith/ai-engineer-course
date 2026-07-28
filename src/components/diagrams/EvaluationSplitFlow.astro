@@ -1,0 +1,33 @@
+---
+/** EvaluationSplitFlow — protected evaluation data and cross-validation flow. */
+---
+
+<svg class="diagram-svg" viewBox="0 0 780 390" role="img" aria-label="A time-ordered dataset flows into a training set, a validation set, and a locked test set. Training fits preprocessing and models. Validation chooses models and thresholds. The test set is used once for an honest final estimate. Below, five cross-validation folds rotate the held-out validation fold within training data. A warning says not to tune on the test set or allow future rows to influence the past.">
+  <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">protect the evidence before measuring</text>
+  <rect x="22" y="58" width="736" height="80" rx="13" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="51" y="89" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">ordered rows</text>
+  <rect x="177" y="76" width="315" height="37" rx="6" fill="var(--blueprint)" opacity=".78" />
+  <rect x="492" y="76" width="154" height="37" rx="6" fill="var(--highlight)" />
+  <rect x="646" y="76" width="84" height="37" rx="6" fill="var(--alert)" opacity=".8" />
+  <text x="335" y="101" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--paper)">train · fit transforms + model</text>
+  <text x="569" y="101" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">validate · choose</text>
+  <text x="688" y="101" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--paper)">test</text>
+  <path d="M334 140 V177 M569 140 V177 M688 140 V177" stroke="var(--ink)" stroke-width="2" />
+  <rect x="208" y="179" width="250" height="67" rx="11" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="333" y="205" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">fit candidates</text>
+  <text x="333" y="225" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">only allowed training rows</text>
+  <rect x="490" y="179" width="158" height="67" rx="11" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="569" y="205" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">select</text>
+  <text x="569" y="225" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">metric + threshold</text>
+  <rect x="662" y="179" width="81" height="67" rx="11" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="702" y="205" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">once</text>
+  <text x="702" y="225" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">final test</text>
+  <rect x="22" y="276" width="736" height="76" rx="13" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="47" y="305" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">cross-validation</text>
+  <g transform="translate(230 286)" font-family="var(--font-mono)" font-size="9" text-anchor="middle">
+    <g><rect width="76" height="20" fill="var(--highlight)"/><rect x="76" width="76" height="20" fill="var(--blueprint)"/><rect x="152" width="76" height="20" fill="var(--blueprint)"/><rect x="228" width="76" height="20" fill="var(--blueprint)"/><rect x="304" width="76" height="20" fill="var(--blueprint)"/><text x="-13" y="14" fill="var(--ink)">1</text></g>
+    <g transform="translate(0 24)"><rect width="76" height="20" fill="var(--blueprint)"/><rect x="76" width="76" height="20" fill="var(--highlight)"/><rect x="152" width="76" height="20" fill="var(--blueprint)"/><rect x="228" width="76" height="20" fill="var(--blueprint)"/><rect x="304" width="76" height="20" fill="var(--blueprint)"/><text x="-13" y="14" fill="var(--ink)">2</text></g>
+  </g>
+  <text x="625" y="341" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">yellow = held-out fold</text>
+  <text x="390" y="378" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">never tune on the test set · never let future data influence earlier decisions</text>
+</svg>
