@@ -1071,6 +1071,18 @@
   visibility: visible;
 }
 
+/* At tablet widths the lesson canvas can sit close to the viewport edge. Keep
+   a glossary tooltip attached to the term's right edge so its hidden box never
+   widens the document or creates horizontal scrolling. */
+@media (max-width: 1279px) {
+  .term > .term-card {
+    left: auto;
+    right: 0;
+    width: min(280px, calc(100vw - 36px));
+    transform: none;
+  }
+}
+
 /* ═══ Handwritten sketchnote lesson system ═══════════════════════════════ */
 .sketch-label {
   margin: 0 0 8px;

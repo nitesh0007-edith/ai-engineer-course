@@ -19,4 +19,5 @@ export const ROUTES = [
   'chapters/evaluation-done-properly/',
   'chapters/bias-variance-and-regularisation/',
   'chapters/from-neurons-to-networks/',
+  'chapters/backpropagation-from-scratch/',
 ];

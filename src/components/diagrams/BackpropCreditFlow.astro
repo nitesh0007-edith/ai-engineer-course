@@ -1,0 +1,53 @@
+---
+/**
+ * BackpropCreditFlow — one tiny squared-error graph. Forward values appear on
+ * top; backward derivatives appear on the return path so learners can connect
+ * the chain rule to the actual calculation.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 370"
+  role="img"
+  aria-label="A computation graph for one prediction. With input x equal to 2, weight w equal to 0, and target t equal to 1, multiplication produces prediction y equal to 0. Subtracting target produces error negative 1, and squaring produces loss 1. A forward arrow moves left to right. Backward arrows move right to left: loss derivative with respect to error is negative 2, error derivative with respect to prediction is 1, prediction derivative with respect to weight is 2. Multiplying the local derivatives gives loss derivative with respect to weight negative 4. With learning rate 0.1, subtracting this gradient changes w from 0 to 0.4, reducing loss on this one example.">
+  <defs>
+    <marker id="backprop-forward-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+    <marker id="backprop-backward-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--alert)" />
+    </marker>
+  </defs>
+
+  <text x="390" y="30" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--blueprint)">forward: calculate a loss</text>
+  <rect x="28" y="72" width="112" height="69" rx="10" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="84" y="100" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">weight</text>
+  <text x="84" y="122" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--blueprint)">w = 0</text>
+  <text x="168" y="100" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--ink-muted)">x = 2</text>
+  <path d="M140 106 H222" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#backprop-forward-arrow)" />
+  <rect x="230" y="72" width="111" height="69" rx="10" fill="var(--highlight)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="286" y="98" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">multiply</text>
+  <text x="286" y="122" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">y = w × x = 0</text>
+  <path d="M341 106 H402" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#backprop-forward-arrow)" />
+  <rect x="410" y="72" width="125" height="69" rx="10" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="472" y="98" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">subtract target</text>
+  <text x="472" y="122" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink-muted)">e = y − t = −1</text>
+  <text x="555" y="99" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--ink-muted)">t = 1</text>
+  <path d="M535 106 H608" fill="none" stroke="var(--blueprint)" stroke-width="3" marker-end="url(#backprop-forward-arrow)" />
+  <rect x="616" y="72" width="134" height="69" rx="10" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="683" y="98" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">square error</text>
+  <text x="683" y="122" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--alert)">L = e² = 1</text>
+
+  <text x="390" y="201" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--alert)">backward: assign credit with local slopes</text>
+  <path d="M683 151 V230 H565" fill="none" stroke="var(--alert)" stroke-width="3" marker-end="url(#backprop-backward-arrow)" />
+  <text x="643" y="220" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--alert)">dL/de = 2e = −2</text>
+  <path d="M465 230 H355" fill="none" stroke="var(--alert)" stroke-width="3" marker-end="url(#backprop-backward-arrow)" />
+  <text x="410" y="221" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--alert)">de/dy = 1</text>
+  <path d="M280 230 H160 V151" fill="none" stroke="var(--alert)" stroke-width="3" marker-end="url(#backprop-backward-arrow)" />
+  <text x="217" y="253" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--alert)">dy/dw = x = 2</text>
+
+  <rect x="115" y="282" width="550" height="57" rx="10" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="390" y="307" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">gradient for this parameter: dL/dw = (−2) × 1 × 2 = −4</text>
+  <text x="390" y="328" text-anchor="middle" font-family="var(--font-mono)" font-size="12" fill="var(--blueprint)">update: w ← w − 0.1 × (−4) = 0.4</text>
+</svg>

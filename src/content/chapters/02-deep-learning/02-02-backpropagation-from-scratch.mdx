@@ -1,0 +1,349 @@
+---
+layer: 2
+order: 2
+title: 'Backpropagation from scratch'
+slug: 'backpropagation-from-scratch'
+subtitle: 'Trace an error backwards through a tiny neural calculation, compute a gradient, and make one honest learning update.'
+depth: build
+difficulty: beginner
+readingTime: 60
+prerequisites:
+  - from-neurons-to-networks
+skillsGained:
+  - 'Draw a computation graph for a small prediction and loss'
+  - 'Use the chain rule to calculate one parameter gradient'
+  - 'Explain the distinct jobs of a forward pass, backpropagation, and an optimiser'
+  - 'Make and verify one gradient-descent update in Python'
+  - 'Use a finite-difference check as a small gradient debugging tool'
+objectives:
+  - 'Calculate squared-error loss for one prediction and target'
+  - 'Identify local derivatives along a computation graph'
+  - 'Multiply local derivatives with the chain rule to obtain dL/dw'
+  - 'Apply a learning-rate update and compare loss before and after'
+  - 'Explain what automatic differentiation does and does not guarantee'
+concepts:
+  - backpropagation
+  - computation-graph
+  - derivative
+  - chain-rule
+  - loss-function
+  - gradient
+  - gradient-descent
+  - learning-rate
+  - automatic-differentiation
+diagrams:
+  - BackpropCreditFlow
+  - GradientDescentLandscape
+interactives:
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 2
+exercises:
+  - prompt: 'For x=3, target=1, and weight=0 with y=w×x and L=(y-target)², calculate dL/dw.'
+    difficulty: warmup
+    solution: 'y=0 and error=-1. dL/de=2×(-1)=-2, de/dy=1, dy/dw=x=3. Therefore dL/dw=-2×1×3=-6.'
+  - prompt: 'Using learning rate 0.1 and gradient -6, calculate the updated weight. Does it move prediction y=w×3 closer to target 1?'
+    difficulty: core
+    solution: 'w_new = 0 - 0.1×(-6) = 0.6. The new prediction is 1.8, which has error 0.8 instead of -1, so squared loss drops from 1 to 0.64. It improves this example but overshoots the exact target.'
+  - prompt: 'A training loss becomes NaN after a learning-rate increase. Give three safe debugging checks before changing many settings at once.'
+    difficulty: stretch
+    solution: 'Check input and target values for NaN or infinity; log loss, parameter, activation, and gradient magnitude; revert to the last known-good run and reduce or restore the learning rate; confirm loss implementation and label scale; compare one batch with a numerical gradient check. Change one factor at a time and keep validation boundaries intact.'
+resources:
+  - title: 'PyTorch — Autograd mechanics'
+    url: 'https://docs.pytorch.org/docs/stable/notes/autograd.html'
+    type: docs
+    note: 'Official explanation of PyTorch’s dynamic computation graph and automatic differentiation behaviour.'
+  - title: 'micrograd'
+    url: 'https://github.com/karpathy/micrograd'
+    type: repo
+    note: 'A small educational automatic-differentiation engine; read it after you can trace the manual example in this lesson.'
+  - title: 'Deep Learning — back-propagation and other differentiation algorithms'
+    url: 'https://www.deeplearningbook.org/contents/mlp.html'
+    type: docs
+    note: 'More formal reference material for the same computation-graph and chain-rule idea.'
+status: published
+updated: 2026-07-28
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import BackpropCreditFlow from '../../../components/diagrams/BackpropCreditFlow.astro';
+import GradientDescentLandscape from '../../../components/diagrams/GradientDescentLandscape.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+A model predicts that a support ticket is safe to wait. The target says it was urgent. Knowing the prediction was wrong is not enough: the system needs to know which of thousands or billions of adjustable numbers should change, and in which direction.
+
+<Term id="backpropagation">Backpropagation</Term> is the accounting method that assigns that local credit. It is the bridge between a forward-pass calculator and a model that can learn.
+
+<LessonIdentity module="Deep learning" lesson="2 · Backpropagation from scratch" difficulty="Beginner" duration="60 minutes" prerequisites={['Perceptrons, activations, hidden layers, and a forward pass', 'Derivatives, gradients, and the chain rule from Maths I']} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+Every trainable neural network needs a way to improve its parameters from examples. Backpropagation makes this practical: it calculates a gradient for each parameter without separately redoing the whole calculation for every parameter. Frameworks automate the arithmetic, but debugging a training run requires knowing what they are doing.
+
+<MainIdea>
+  A <Term id="computation-graph">computation graph</Term> records the forward calculation from inputs to <Term id="loss-function">loss</Term>. Backpropagation travels backward through that graph. At each operation it applies a local <Term id="derivative">derivative</Term>, and the <Term id="chain-rule">chain rule</Term> combines those local effects into a gradient for every parameter. An optimiser then uses the gradient to make a small update.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="Tracing a restaurant bill backwards" limitation="A bill has exact, human-chosen line items. A network can have millions of interacting parameters, its loss is only a proxy for the desired outcome, and a correct gradient does not prove the data, objective, or deployment policy is good.">
+  Imagine a restaurant bill is unexpectedly high. You start at the total, then trace
+  backwards through service charge, dishes, and quantities to see how much each
+  choice affected it. Backpropagation does the same for model loss. It starts with
+  “how wrong was this prediction?” and traces backwards through each calculation,
+  assigning each parameter a local share of responsibility.
+</AnalogyCard>
+
+## Step 1 — Turn an error into a number the model can reduce
+
+A model needs a numeric target for improvement. A <Term id="loss-function">loss function</Term> measures how costly a prediction is compared with the training target. For one numeric prediction, a simple choice is **squared error**:
+
+```text
+loss = (prediction − target)²
+```
+
+Let input `x = 2`, target `t = 1`, and one parameter `w = 0`. Our tiny model predicts:
+
+```text
+y = w × x = 0 × 2 = 0
+error = y − t = 0 − 1 = −1
+loss = error² = (−1)² = 1
+```
+
+The loss is not a moral judgement and it is not the same as user harm. It is the training signal we chose. In a real system, choosing the wrong target or loss can optimise the wrong behaviour very efficiently.
+
+## Step 2 — Put the forward pass on a computation graph
+
+<Figure id="02-02.1" label="ONE ERROR, TRACED BOTH WAYS" caption="— the top path calculates a prediction and squared loss. The bottom path applies local derivatives backwards. Their product is the gradient for w, which an optimiser uses for one small update.">
+  <BackpropCreditFlow />
+</Figure>
+
+A <Term id="computation-graph">computation graph</Term> makes the calculation explicit as connected values and operations. Our graph has three operations: multiply, subtract, and square.
+
+The forward pass goes left to right. Backpropagation goes right to left. It does **not** reverse the model’s answer. It calculates how a small change in an earlier value would change the final loss.
+
+## Step 3 — Use the chain rule, one local slope at a time
+
+A <Term id="derivative">derivative</Term> is a local rate of change. For squared error, the derivative of `error²` with respect to `error` is `2 × error`. At `error = −1`, that is `−2`.
+
+We need the derivative of loss `L` with respect to weight `w`. The chain rule says multiply the local effects along the path:
+
+```text
+dL/dw = dL/derror × derror/dy × dy/dw
+```
+
+For our example:
+
+```text
+dL/derror = 2 × error = −2
+derror/dy = 1
+dy/dw = x = 2
+
+dL/dw = −2 × 1 × 2 = −4
+```
+
+`dL/dw = −4` means a small increase in `w` would locally decrease loss. The sign matters. A gradient is not “the amount to subtract”; it points uphill. To reduce loss, gradient descent goes in the opposite direction.
+
+## Worked example — make one update and check it
+
+<Term id="gradient-descent">Gradient descent</Term> updates a parameter using a <Term id="learning-rate">learning rate</Term>, a positive step-size setting:
+
+```text
+new_weight = old_weight − learning_rate × gradient
+```
+
+With learning rate `0.1` and gradient `−4`:
+
+```text
+new_weight = 0 − 0.1 × (−4)
+new_weight = 0.4
+```
+
+Now run a new forward pass, using `w = 0.4`:
+
+```text
+new prediction = 0.4 × 2 = 0.8
+new error = 0.8 − 1 = −0.2
+new loss = (−0.2)² = 0.04
+```
+
+Loss fell from `1` to `0.04` on this example. That is a useful sanity check, not a generalisation result. A real training step averages or sums loss over a batch, repeats across training data, and still needs validation data to reveal whether the improvement survives unseen examples.
+
+<Figure id="02-02.2" label="MOVE DOWNHILL, BUT NOT BLINDLY" caption="— a gradient is a local uphill direction. Gradient descent moves the opposite way using a learning rate. Steps that are too large can overshoot; steps that are too small can make learning painfully slow.">
+  <GradientDescentLandscape />
+</Figure>
+
+## Try it — manual forward, backward, and update in Python
+
+<CodeNotebook title="One parameter learns from one example">
+
+```python
+x = 2.0
+target = 1.0
+weight = 0.0
+learning_rate = 0.1
+
+# Forward pass
+prediction = weight * x
+error = prediction - target
+loss_before = error ** 2
+
+# Backward pass: local derivatives multiplied by the chain rule
+d_loss_d_error = 2 * error
+d_error_d_prediction = 1.0
+d_prediction_d_weight = x
+gradient = d_loss_d_error * d_error_d_prediction * d_prediction_d_weight
+
+# Optimiser step
+new_weight = weight - learning_rate * gradient
+new_loss = (new_weight * x - target) ** 2
+
+print('loss before:', loss_before)
+print('dL/dw:', gradient)
+print('new weight:', new_weight)
+print('loss after:', new_loss)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+loss before: 1.0
+dL/dw: -4.0
+new weight: 0.4
+loss after: 0.03999999999999998
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: 'error = prediction - target', explanation: 'The signed error says which side of the target the prediction lies on.' }, { line: 'd_loss_d_error = 2 * error', explanation: 'This is the local slope of squared error at the current error.' }, { line: 'd_prediction_d_weight = x', explanation: 'For y=w×x, increasing w by a tiny amount changes y in proportion to x.' }, { line: 'weight - learning_rate * gradient', explanation: 'The gradient points uphill, so subtracting it takes a controlled downhill step.' }]} />
+
+## Step 4 — Check a gradient before trusting it
+
+A small <Term id="automatic-differentiation">automatic differentiation</Term> system calculates chain-rule gradients for framework operations. It is exact for those operations up to normal floating-point effects. It cannot detect a wrong target, incorrect data, an unsuitable loss, a missing mask, or a model that is unsafe to deploy.
+
+For a small debugging check, estimate a slope with two nearby forward passes. This **finite difference** is slower and approximate, so it is for checking—not for training a large network.
+
+<CodeNotebook title="Compare manual and numerical gradients">
+
+```python
+def loss_for(weight: float) -> float:
+    prediction = weight * 2.0
+    return (prediction - 1.0) ** 2
+
+
+weight = 0.0
+epsilon = 0.0001
+
+numerical = (loss_for(weight + epsilon) - loss_for(weight - epsilon)) / (2 * epsilon)
+manual = 2 * (weight * 2.0 - 1.0) * 2.0
+
+print('numerical:', round(numerical, 4))
+print('manual:', round(manual, 4))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+numerical: -4.0
+manual: -4.0
+```
+
+</ExpectedOutput>
+
+If these disagree for a small test, stop and inspect the calculation before launching a long training run. In larger systems, test a few parameters and keep tolerances realistic because floating-point arithmetic and very small `epsilon` values can introduce numerical noise.
+
+## Real-world AI engineering example — a training run that starts to fail
+
+<RealWorldExample title="Backpropagation is inside the framework, diagnosis is still your job" steps={['Validate that inputs, targets, masks, and loss all have the expected shape and range.', 'Log training loss, validation metric, gradient norms, activation statistics, learning rate, and skipped updates.', 'Run a tiny known batch and verify it can overfit before scaling the experiment.', 'Use automatic differentiation for gradients and numerical checks only for small debugging cases.', 'Version data, code, parameters, and checkpoints so a good or bad run can be reproduced.']}>
+  In a document-classification service, the framework performs backpropagation when
+  a training job calls `loss.backward()`. The engineering work is making that loss
+  meaningful, keeping labels and splits valid, detecting unstable gradients, and
+  deciding whether a lower training loss actually improves held-out behaviour.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: 'Saying backpropagation “updates the weights”.', fix: 'Separate the jobs: backpropagation calculates gradients; an optimiser applies an update using those gradients and settings such as learning rate.' }, { mistake: 'Dropping the sign of a gradient.', fix: 'Write the update rule explicitly: parameter minus learning rate times gradient. Check whether a tiny step lowers loss on a toy example.' }, { mistake: 'Treating lower loss on one batch as success.', fix: 'Use it only as a local sanity check. Measure held-out performance, error slices, calibration, latency, and user impact separately.' }, { mistake: 'Changing learning rate, model shape, data, and loss at the same time after NaNs appear.', fix: 'Return to a known-good run, log finite values and magnitudes, then change one controlled factor at a time.' }, { mistake: 'Assuming automatic differentiation makes any model correct.', fix: 'Autodiff differentiates implemented operations. It cannot validate the target, data pipeline, masking, metric, or decision policy.' }, { mistake: 'Using finite differences as the main training method.', fix: 'Use backpropagation/autodiff for efficient training. Use finite differences only on tiny cases to catch implementation mistakes.' }]} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: 'What is the main output of backpropagation?', options: ['A gradient for each parameter', 'A finished trained model', 'A new validation set'], answer: 0, explanation: 'Backpropagation calculates how loss changes with respect to each parameter. An optimiser later uses those gradients to update parameters.' }, { question: 'For L=(y-t)², what is dL/dy?', options: ['2(y-t)', 'y+t', 'Always 1'], answer: 0, explanation: 'Treat the difference y-t as one intermediate value. The derivative of its square is two times that value; the chain rule then continues through y.' }, { question: 'If dL/dw is -4 and learning rate is 0.1, what update does gradient descent make from w=0?', options: ['w becomes 0.4', 'w becomes -0.4', 'w stays 0'], answer: 0, explanation: 'The rule is w - learning_rate × gradient, so 0 - 0.1 × -4 = 0.4.' }, { question: 'What is a finite-difference gradient useful for?', options: ['Checking a tiny manual or autodiff gradient', 'Replacing backpropagation for large networks', 'Choosing a fair decision policy'], answer: 0, explanation: 'It estimates a slope from nearby forward passes. It is slow and approximate, but useful for debugging a small calculation.' }]} />
+
+## Practice activity
+
+<PracticeActivity title="Follow one error backwards" time="10–20 minutes" goal="Calculate a loss gradient by hand, make one update, and verify that the local loss falls." steps={['Use x=3, target=1, and weight=0 with y=w×x and squared error.', 'Write y, error, and loss for the forward pass.', 'Calculate dL/de, de/dy, dy/dw, and dL/dw.', 'Apply learning rate 0.1 and calculate the new loss.', 'Run the starter code and compare it with your working.', 'State one reason this single-example result is not sufficient for deployment.']} expected="Your gradient is -6, the updated weight is 0.6, and loss decreases from 1 to 0.64. You should identify validation on relevant unseen cases as a missing step." challenge="Add a bias parameter, derive its gradient, and confirm a numerical gradient check for both w and b.">
+
+```python
+x = 3.0
+target = 1.0
+weight = 0.0
+learning_rate = 0.1
+
+prediction = weight * x
+error = prediction - target
+loss = error ** 2
+
+gradient = 2 * error * x
+new_weight = weight - learning_rate * gradient
+new_loss = (new_weight * x - target) ** 2
+
+print('loss:', loss)
+print('gradient:', gradient)
+print('new weight:', new_weight)
+print('new loss:', new_loss)
+```
+
+**Solution:** the forward pass gives `prediction=0`, `error=-1`, and `loss=1`.
+The local derivatives are `dL/de=-2`, `de/dy=1`, and `dy/dw=3`, so the gradient
+is `-6`. The update is `0 - 0.1×(-6) = 0.6`. The new prediction is `1.8`, with
+error `0.8` and loss `0.64`. The loss fell, but this is only one training example.
+A deployable model still needs representative data, protected validation and test
+evidence, an error policy, and monitoring.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways points={['A loss converts one prediction error into a numeric training signal, not a complete measure of product success.', 'A computation graph records the forward operations that backpropagation differentiates in reverse.', 'The chain rule multiplies local derivatives to assign a gradient to an earlier parameter.', 'Gradient descent subtracts learning rate times gradient; the sign tells the update direction.', 'Autodiff makes gradients practical, while data, loss design, validation, and monitoring remain engineering responsibilities.']} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: 'What does backpropagation calculate?', back: 'The gradient of loss with respect to each parameter, by applying the chain rule backwards through a computation graph.' }, { front: 'What is a computation graph?', back: 'A representation of values and operations in a calculation, used to trace both forward values and backward derivatives.' }, { front: 'What is the derivative of e² with respect to e?', back: '2e.' }, { front: 'What does a negative dL/dw mean?', back: 'Increasing w slightly would locally reduce loss; gradient descent subtracts the negative gradient, so it increases w.' }, { front: 'What does learning rate control?', back: 'The size of each optimiser update step.' }, { front: 'What is automatic differentiation not able to validate?', back: 'Whether your data, target, loss, evaluation, or deployment policy is appropriate.' }]} />
+
+<RevisionQuestions questions={['Draw a computation graph for y=w×x, e=y−t, L=e². Label the forward values and local derivatives.', 'Derive dL/dw for squared error and explain every factor in the chain-rule product.', 'Explain why backpropagation and gradient descent are different operations.', 'Design a small gradient-debugging plan for a model whose loss becomes NaN after a configuration change.']} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="Backpropagation from scratch" terms={['Loss — numeric training signal', 'Computation graph — connected operations', 'Derivative — local rate of change', 'Chain rule — multiply local effects', 'Gradient — loss change per parameter', 'Learning rate — update step size']} mistakes={['Do not confuse gradients with updates', 'Do not lose the gradient sign', 'Do not trust one-batch loss alone', 'Do not treat autodiff as data validation']} takeaways={['Forward computes loss', 'Backward assigns gradients', 'Optimiser changes parameters', 'Tiny checks catch big training bugs', 'Validation judges useful learning']} questions={['What is dL/dw?', 'Which direction lowers loss?', 'What does autodiff not know?']}>
+  <p slot="main">Backpropagation breaks one final error into local responsibilities for each parameter. The chain rule moves backward through the forward calculation; an optimiser then makes a measured move downhill.</p>
+  <div slot="diagram"><BackpropCreditFlow /></div>
+  <pre slot="code"><code>forward → loss
+backward → gradient
+parameter ← parameter − rate × gradient</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="backpropagation-from-scratch" items={['I can calculate squared-error loss for one example.', 'I can draw a small computation graph.', 'I can multiply local derivatives with the chain rule.', 'I can explain a gradient sign and learning-rate update.', 'I can distinguish backpropagation from an optimiser.', 'I can use a finite difference as a debugging check.', 'I completed the quiz, practice, and flashcards.']} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="pytorch" title="PyTorch" why="You can now explain the arithmetic that a training framework automates. Next, use tensors, autograd, modules, data loaders, and training loops to apply the same ideas to real models." />
