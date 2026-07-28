@@ -1,6 +1,9 @@
 /** Published routes under test. Relative to the configured baseURL. */
 export const ROUTES = [
   '', // landing
+  'login/',
+  'auth/callback/',
+  'profile/',
   'chapters/how-to-use-this-course/',
   'chapters/python-for-ai-engineering/',
   'chapters/async-python/',

@@ -53,6 +53,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Build
+        env:
+          PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
         run: pnpm build
 
       - uses: actions/upload-pages-artifact@v3

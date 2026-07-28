@@ -1,0 +1,12 @@
+---
+import Base from '../layouts/Base.astro';
+import TopBar from '../components/ui/TopBar.astro';
+import AuthPanel from '../components/auth/AuthPanel.tsx';
+---
+
+<Base title="Sign in — AI Engineer" description="Sign in to save your AI Engineer course progress.">
+  <div class="app">
+    <TopBar breadcrumb="Your learning notebook" />
+    <main class="auth-page dot-canvas"><AuthPanel client:load /></main>
+  </div>
+</Base>

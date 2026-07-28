@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { supabase } from '../../lib/supabase';
 
 export default function LessonChecklist({
   lessonId,
@@ -25,6 +26,29 @@ export default function LessonChecklist({
     setLoaded(true);
   }, [items.length, storageKey]);
 
+  // Logged-in learners keep the same checklist when they return on another
+  // device. Guest progress remains local and is never uploaded without a
+  // signed-in user.
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    void (async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!active || !userData.user) return;
+      const { data } = await supabase
+        .from('lesson_progress')
+        .select('completed_items')
+        .eq('user_id', userData.user.id)
+        .eq('lesson_id', lessonId)
+        .maybeSingle();
+      if (!active || !Array.isArray(data?.completed_items)) return;
+      setChecked((local) =>
+        items.map((_, index) => local[index] === true || data.completed_items[index] === true),
+      );
+    })();
+    return () => { active = false; };
+  }, [items.length, lessonId]);
+
   useEffect(() => {
     if (!loaded) return;
     try {
@@ -33,6 +57,25 @@ export default function LessonChecklist({
       // Non-fatal: persistence is an enhancement.
     }
   }, [checked, loaded, storageKey]);
+
+  useEffect(() => {
+    if (!loaded || !supabase) return;
+    void (async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+      const allComplete = checked.length > 0 && checked.every(Boolean);
+      await supabase.from('lesson_progress').upsert(
+        {
+          user_id: userData.user.id,
+          lesson_id: lessonId,
+          completed_items: checked,
+          completed_at: allComplete ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,lesson_id' },
+      );
+    })();
+  }, [checked, lessonId, loaded]);
 
   const complete = checked.filter(Boolean).length;
 

@@ -1,0 +1,12 @@
+---
+import Base from '../../layouts/Base.astro';
+import TopBar from '../../components/ui/TopBar.astro';
+import AuthCallback from '../../components/auth/AuthCallback.tsx';
+---
+
+<Base title="Completing sign-in — AI Engineer">
+  <div class="app">
+    <TopBar breadcrumb="Completing secure sign-in" />
+    <main class="auth-page dot-canvas"><section class="auth-panel sketch-card"><AuthCallback client:load /></section></main>
+  </div>
+</Base>

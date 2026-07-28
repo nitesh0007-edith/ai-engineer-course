@@ -1,0 +1,12 @@
+---
+import Base from '../layouts/Base.astro';
+import TopBar from '../components/ui/TopBar.astro';
+import ProfileDashboard from '../components/auth/ProfileDashboard.tsx';
+---
+
+<Base title="My learning — AI Engineer" description="Your saved AI Engineer course progress.">
+  <div class="app">
+    <TopBar breadcrumb="My learning" />
+    <main class="auth-page dot-canvas"><ProfileDashboard client:load /></main>
+  </div>
+</Base>
