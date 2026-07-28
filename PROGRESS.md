@@ -6,7 +6,7 @@
 |---|---|
 | Chapters published | 17 / 90 |
 | Layers complete | 1 / 11 |
-| Total diagrams | 35 |
+| Total diagrams | 36 |
 | Total interactive widgets | 4 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist) |
 | Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
 
@@ -36,7 +36,7 @@ Notes:
 | id | title | layer | status | diagrams | interactives | published |
 |---|---|---|---|---|---|---|
 | 00-00 | How to use this course | 0 | published | 2 | 1 | 2026-07-24 |
-| 00-01 | Python for AI engineering | 0 | published | 2 | 3 | 2026-07-24 |
+| 00-01 | Python foundations for reliable AI applications | 0 | published | 3 | 3 | 2026-07-28 |
 | 00-02 | Async Python | 0 | published | 2 | 3 | 2026-07-26 |
 | 00-03 | Modern Python tooling | 0 | published | 2 | 2 | 2026-07-27 |
 | 00-04 | APIs & services | 0 | published | 3 | 4 | 2026-07-28 |
