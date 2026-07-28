@@ -38,24 +38,26 @@ const activeLayers = [...byLayer.keys()].sort((a, b) => a - b);
 <nav aria-label="Course chapters">
   {
     activeLayers.map((layer) => (
-      <div class="nav-layer">
-        <div class="nav-layer-head">
+      <details class="nav-layer" open={byLayer.get(layer)!.some((c) => c.data.slug === currentSlug)}>
+        <summary class="nav-layer-head">
           {String(layer).padStart(2, '0')} · {LAYER_NAMES[layer]}
+        </summary>
+        <div class="nav-layer-chapters">
+          {byLayer.get(layer)!.map((c) => {
+            const id = `${String(c.data.layer).padStart(2, '0')}-${String(c.data.order).padStart(2, '0')}`;
+            return (
+              <a
+                class="nav-chapter"
+                href={`${base}/chapters/${c.data.slug}/`}
+                aria-current={c.data.slug === currentSlug ? 'page' : undefined}
+              >
+                <span class="num">{id}</span>
+                {c.data.title}
+              </a>
+            );
+          })}
         </div>
-        {byLayer.get(layer)!.map((c) => {
-          const id = `${String(c.data.layer).padStart(2, '0')}-${String(c.data.order).padStart(2, '0')}`;
-          return (
-            <a
-              class="nav-chapter"
-              href={`${base}/chapters/${c.data.slug}/`}
-              aria-current={c.data.slug === currentSlug ? 'page' : undefined}
-            >
-              <span class="num">{id}</span>
-              {c.data.title}
-            </a>
-          );
-        })}
-      </div>
+      </details>
     ))
   }
 </nav>

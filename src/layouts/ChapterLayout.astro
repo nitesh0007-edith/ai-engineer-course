@@ -40,9 +40,9 @@ const components = {
 
 <Base title={`${d.title} — AI Engineer`} description={d.subtitle}>
   <div class="app">
-    <TopBar breadcrumb={`${id} · ${d.title}`} />
+    <TopBar breadcrumb={`${id} · ${d.title}`} sidebarControls />
     <div class="layout">
-      <div class="nav-col">
+      <div class="nav-col" id="course-sidebar">
         <SiteNav currentSlug={d.slug} />
       </div>
 
@@ -63,7 +63,7 @@ const components = {
         </article>
       </main>
 
-      <aside class="rail-col">
+      <aside class="rail-col" id="lesson-outline">
         <TableOfContents headings={headings} />
       </aside>
     </div>

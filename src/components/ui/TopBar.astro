@@ -5,36 +5,101 @@ import Search from './Search.tsx';
 
 interface Props {
   breadcrumb?: string;
+  sidebarControls?: boolean;
 }
-const { breadcrumb } = Astro.props;
+const { breadcrumb, sidebarControls = false } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <header class="topbar">
-  <button
-    class="nav-toggle icon-btn"
-    type="button"
-    aria-label="Toggle chapter navigation"
-    data-nav-toggle
-  >
-    ☰
-  </button>
+  {sidebarControls && (
+    <button
+      class="nav-toggle icon-btn"
+      type="button"
+      aria-label="Hide chapter navigation"
+      aria-controls="course-sidebar"
+      aria-expanded="true"
+      data-left-sidebar-toggle
+    >
+      ☰
+    </button>
+  )}
   <a class="wordmark" href={`${base}/`}>AI&nbsp;ENGINEER</a>
   {breadcrumb && <span class="breadcrumb">{breadcrumb}</span>}
   <span class="spacer"></span>
   <ProgressReadout />
   <Search client:idle />
+  {sidebarControls && (
+    <button
+      class="rail-toggle icon-btn"
+      type="button"
+      aria-label="Hide lesson outline"
+      aria-controls="lesson-outline"
+      aria-expanded="true"
+      data-right-sidebar-toggle
+    >
+      ☷
+    </button>
+  )}
   <ThemeToggle client:load />
 </header>
 
 <script>
-  // Toggle the left-nav drawer at narrow widths.
-  const btn = document.querySelector('[data-nav-toggle]');
+  const app = document.querySelector('.app');
   const nav = document.querySelector('.nav-col');
-  btn?.addEventListener('click', () => {
-    const open = nav?.getAttribute('data-open') === 'true';
-    nav?.setAttribute('data-open', String(!open));
+  const leftButton = document.querySelector('[data-left-sidebar-toggle]');
+  const rightButton = document.querySelector('[data-right-sidebar-toggle]');
+  const desktop = window.matchMedia('(min-width: 1280px)');
+
+  const setLeft = (hidden: boolean) => {
+    app?.setAttribute('data-left-sidebar-hidden', String(hidden));
+    leftButton?.setAttribute('aria-expanded', String(!hidden));
+    leftButton?.setAttribute('aria-label', hidden ? 'Show chapter navigation' : 'Hide chapter navigation');
+    try { localStorage.setItem('ai-engineer-course:left-sidebar-hidden', String(hidden)); } catch {}
+  };
+
+  const setRight = (hidden: boolean) => {
+    app?.setAttribute('data-right-sidebar-hidden', String(hidden));
+    rightButton?.setAttribute('aria-expanded', String(!hidden));
+    rightButton?.setAttribute('aria-label', hidden ? 'Show lesson outline' : 'Hide lesson outline');
+    try { localStorage.setItem('ai-engineer-course:right-sidebar-hidden', String(hidden)); } catch {}
+  };
+
+  try {
+    setLeft(localStorage.getItem('ai-engineer-course:left-sidebar-hidden') === 'true');
+    setRight(localStorage.getItem('ai-engineer-course:right-sidebar-hidden') === 'true');
+  } catch {}
+
+  const syncForViewport = () => {
+    if (!desktop.matches) {
+      // At smaller widths this control opens the drawer. A saved desktop
+      // reading-mode choice must not claim that the closed drawer is open.
+      nav?.setAttribute('data-open', 'false');
+      leftButton?.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    leftButton?.setAttribute(
+      'aria-expanded',
+      String(app?.getAttribute('data-left-sidebar-hidden') !== 'true'),
+    );
+  };
+  syncForViewport();
+
+  leftButton?.addEventListener('click', () => {
+    if (!desktop.matches) {
+      const open = nav?.getAttribute('data-open') === 'true';
+      nav?.setAttribute('data-open', String(!open));
+      leftButton.setAttribute('aria-expanded', String(!open));
+      return;
+    }
+    setLeft(app?.getAttribute('data-left-sidebar-hidden') !== 'true');
   });
+
+  rightButton?.addEventListener('click', () => {
+    setRight(app?.getAttribute('data-right-sidebar-hidden') !== 'true');
+  });
+
+  desktop.addEventListener('change', syncForViewport);
 </script>
 
 <style>

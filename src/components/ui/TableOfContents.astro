@@ -10,16 +10,28 @@ interface Props {
 const { headings } = Astro.props;
 // Rail TOC lists sections and subsections only.
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const groups: Array<{ main: Heading; children: Heading[] }> = [];
+for (const heading of toc) {
+  if (heading.depth === 2 || groups.length === 0) {
+    groups.push({ main: heading, children: [] });
+  } else {
+    groups.at(-1)!.children.push(heading);
+  }
+}
 ---
 
 {
   toc.length > 0 && (
     <nav class="toc" aria-label="On this page">
       <p class="toc-head">On this page</p>
-      {toc.map((h) => (
-        <a class={h.depth === 3 ? 'h3' : ''} href={`#${h.slug}`}>
-          {h.text}
-        </a>
+      {groups.map((group) => (
+        <details class="toc-group" open>
+          <summary>{group.main.text}</summary>
+          <a class="toc-main-link" href={`#${group.main.slug}`}>Jump to section</a>
+          {group.children.map((h) => (
+            <a class="h3" href={`#${h.slug}`}>{h.text}</a>
+          ))}
+        </details>
       ))}
     </nav>
   )

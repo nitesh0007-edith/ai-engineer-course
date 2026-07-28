@@ -71,6 +71,57 @@ test('theme toggle is keyboard operable', async ({ page }) => {
     .not.toBe(before);
 });
 
+test.describe('sidebar and topic controls', () => {
+  test('desktop sidebars can be hidden, restored, and remembered during the visit', async ({ page }) => {
+    await page.addInitScript(() => localStorage.clear());
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(CHAPTER, { waitUntil: 'load' });
+
+    const left = page.locator('[data-left-sidebar-toggle]');
+    const right = page.locator('[data-right-sidebar-toggle]');
+    await expect(page.locator('.nav-col')).toBeVisible();
+    await expect(page.locator('.rail-col')).toBeVisible();
+
+    await left.focus();
+    await page.keyboard.press('Enter');
+    await expect(left).toHaveAccessibleName('Show chapter navigation');
+    await expect(page.locator('.nav-col')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('ai-engineer-course:left-sidebar-hidden'))).toBe('true');
+
+    await left.click();
+    await expect(page.locator('.nav-col')).toBeVisible();
+
+    await right.click();
+    await expect(right).toHaveAccessibleName('Show lesson outline');
+    await expect(page.locator('.rail-col')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('ai-engineer-course:right-sidebar-hidden'))).toBe('true');
+
+    await right.click();
+    await expect(page.locator('.rail-col')).toBeVisible();
+  });
+
+  test('main topics collapse their subtopics with pointer and keyboard controls', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(CHAPTER, { waitUntil: 'load' });
+
+    const activeLayer = page.locator('.nav-layer:has(.nav-chapter[aria-current="page"])');
+    const layerSummary = activeLayer.locator('summary');
+    await layerSummary.focus();
+    await page.keyboard.press('Enter');
+    await expect(activeLayer).not.toHaveAttribute('open', '');
+    await page.keyboard.press('Enter');
+    await expect(activeLayer).toHaveAttribute('open', '');
+
+    const firstGroup = page.locator('.toc-group').first();
+    const groupSummary = firstGroup.locator('summary');
+    await groupSummary.click();
+    await expect(firstGroup).not.toHaveAttribute('open', '');
+    await groupSummary.focus();
+    await page.keyboard.press('Enter');
+    await expect(firstGroup).toHaveAttribute('open', '');
+  });
+});
+
 test('exercise solutions are reachable and reveal', async ({ page }) => {
   await page.goto('chapters/python-for-ai-engineering/', { waitUntil: 'load' });
   const firstSolution = page.getByRole('group').filter({ hasText: /reveal solution/i }).first();
