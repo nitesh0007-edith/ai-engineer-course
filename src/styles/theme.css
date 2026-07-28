@@ -468,6 +468,19 @@
   color: var(--ink-muted);
   font-size: 13px;
 }
+.turnstile-check {
+  min-height: 84px;
+  margin-top: 6px;
+}
+.turnstile-check > div {
+  min-height: 65px;
+}
+.turnstile-check p {
+  margin: 5px 0 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .auth-callback-status {
   width: min(100%, 580px);
   margin: 0;

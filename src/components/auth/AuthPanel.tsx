@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { authConfigured, coursePath, supabase } from '../../lib/supabase';
+import { authConfigured, coursePath, supabase, turnstileSiteKey } from '../../lib/supabase';
+import TurnstileWidget from './TurnstileWidget';
 
 type Step = 'email' | 'code';
 
@@ -15,7 +16,10 @@ export default function AuthPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
   const validEmail = useMemo(() => /^\S+@\S+\.\S+$/.test(email.trim()), [email]);
+  const captchaRequired = Boolean(turnstileSiteKey);
+  const clearCaptcha = useCallback(() => setCaptchaToken(''), []);
 
   async function sendCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,10 +29,18 @@ export default function AuthPanel() {
       setError('Enter a valid email address to continue.');
       return;
     }
+    if (captchaRequired && !captchaToken) {
+      setError('Complete the human check before requesting a code.');
+      return;
+    }
     setBusy(true);
     const { error: requestError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: callbackUrl(), shouldCreateUser: true },
+      options: {
+        emailRedirectTo: callbackUrl(),
+        shouldCreateUser: true,
+        captchaToken: captchaToken || undefined,
+      },
     });
     setBusy(false);
     if (requestError) {
@@ -92,7 +104,15 @@ export default function AuthPanel() {
             disabled={busy}
             required
           />
-          <button className="auth-submit" type="submit" disabled={busy || !validEmail}>
+          {captchaRequired && (
+            <TurnstileWidget
+              siteKey={turnstileSiteKey}
+              onVerify={setCaptchaToken}
+              onExpired={clearCaptcha}
+              onError={clearCaptcha}
+            />
+          )}
+          <button className="auth-submit" type="submit" disabled={busy || !validEmail || (captchaRequired && !captchaToken)}>
             {busy ? 'Sending code…' : 'Send one-time code'}
           </button>
         </form>
