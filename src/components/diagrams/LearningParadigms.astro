@@ -1,0 +1,70 @@
+---
+/**
+ * LearningParadigms — one observed support environment, three distinct
+ * learning questions: labelled prediction, structure discovery, and action
+ * choice from rewards.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 360"
+  role="img"
+  aria-label="Three learning paradigms are compared. Supervised learning receives examples with desired answers and learns to predict a label or number for a new example. Unsupervised learning receives examples without desired answers and finds structure such as groups or lower-dimensional patterns, which still need human interpretation. Reinforcement learning places an agent in an environment; the agent chooses actions, receives observations and rewards, and learns a policy for long-term reward. These paradigms answer different questions and can be combined."
+>
+  <defs>
+    <marker id="paradigm-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <rect x="18" y="35" width="236" height="285" rx="13" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="136" y="69" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ink)">supervised</text>
+  <text x="136" y="91" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">examples + desired answers</text>
+  <rect x="42" y="116" width="76" height="48" rx="7" fill="var(--paper)" stroke="var(--ink)" />
+  <text x="80" y="137" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">message</text>
+  <text x="80" y="152" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">"refund"</text>
+  <rect x="154" y="116" width="76" height="48" rx="7" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="192" y="137" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink)">label</text>
+  <text x="192" y="152" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">billing</text>
+  <path d="M118 140 H150" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#paradigm-arrow)" />
+  <path d="M136 180 V222" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#paradigm-arrow)" />
+  <rect x="62" y="231" width="148" height="55" rx="8" fill="var(--paper)" stroke="var(--blueprint)" stroke-width="2" />
+  <text x="136" y="254" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">predict for new row</text>
+  <text x="136" y="272" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">class or number</text>
+  <text x="136" y="307" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch1)">answer known during training</text>
+
+  <rect x="272" y="35" width="236" height="285" rx="13" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="390" y="69" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ink)">unsupervised</text>
+  <text x="390" y="91" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">examples · no desired answers</text>
+  <g fill="var(--blueprint)">
+    <circle cx="326" cy="136" r="6" /><circle cx="342" cy="124" r="6" /><circle cx="350" cy="144" r="6" /><circle cx="330" cy="157" r="6" />
+  </g>
+  <g fill="var(--ch2)">
+    <circle cx="422" cy="129" r="6" /><circle cx="440" cy="145" r="6" /><circle cx="413" cy="156" r="6" /><circle cx="447" cy="117" r="6" />
+  </g>
+  <g fill="var(--alert)">
+    <circle cx="377" cy="195" r="6" /><circle cx="396" cy="208" r="6" /><circle cx="410" cy="188" r="6" />
+  </g>
+  <path d="M390 222 V247" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#paradigm-arrow)" />
+  <text x="390" y="270" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">find structure</text>
+  <text x="390" y="289" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">groups · representation · anomaly</text>
+  <text x="390" y="307" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ch2)">human meaning still required</text>
+
+  <rect x="526" y="35" width="236" height="285" rx="13" fill="var(--paper-raise)" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="644" y="69" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ink)">reinforcement</text>
+  <text x="644" y="91" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">actions + consequences over time</text>
+  <rect x="546" y="126" width="78" height="58" rx="8" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="585" y="150" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">agent</text>
+  <text x="585" y="168" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">policy</text>
+  <rect x="664" y="126" width="78" height="58" rx="8" fill="var(--paper)" stroke="var(--ink)" />
+  <text x="703" y="150" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">environment</text>
+  <text x="703" y="168" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">world</text>
+  <path d="M624 143 H660" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#paradigm-arrow)" />
+  <text x="642" y="133" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">action</text>
+  <path d="M664 174 C642 219 604 218 588 188" fill="none" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#paradigm-arrow)" />
+  <text x="626" y="220" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">observation + reward</text>
+  <text x="644" y="270" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">learn action policy</text>
+  <text x="644" y="289" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">long-term reward</text>
+  <text x="644" y="307" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--blueprint)">exploration can be risky</text>
+</svg>

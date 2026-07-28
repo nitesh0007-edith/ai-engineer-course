@@ -11,4 +11,5 @@ export const ROUTES = [
   'chapters/maths-i-linear-algebra-calculus/',
   'chapters/maths-ii-probability-statistics-optimisation/',
   'chapters/data-foundations/',
+  'chapters/what-learning-from-data-means/',
 ];

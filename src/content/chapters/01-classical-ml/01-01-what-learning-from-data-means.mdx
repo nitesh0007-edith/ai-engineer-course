@@ -1,0 +1,982 @@
+---
+layer: 1
+order: 1
+title: 'What learning from data means'
+slug: 'what-learning-from-data-means'
+subtitle: 'See what a model learns, trace the fitting loop, and decide whether it works beyond remembered examples.'
+depth: build
+difficulty: beginner
+readingTime: 55
+prerequisites:
+  - data-foundations
+skillsGained:
+  - 'Distinguish programmed rules from fitted model behaviour'
+  - 'Choose supervised, unsupervised, or reinforcement learning for a problem'
+  - 'Name features, targets, predictions, parameters, hyperparameters, and loss'
+  - 'Trace a complete parameter-fitting loop'
+  - 'Build and compare a meaningful baseline'
+  - 'Explain generalisation and recognise memorisation or distribution shift'
+objectives:
+  - 'Explain machine learning in plain English without implying that a model thinks like a person'
+  - 'Compare supervised, unsupervised, and reinforcement learning by their feedback'
+  - 'Identify features, targets, parameters, hyperparameters, predictions, and loss in an example'
+  - 'Trace repeated prediction, loss, gradient, and update steps'
+  - 'Use training, validation, and test sets for distinct decisions'
+  - 'Evaluate whether an apparent pattern can generalise to the intended deployment conditions'
+concepts:
+  - machine-learning
+  - supervised-learning
+  - unsupervised-learning
+  - reinforcement-learning
+  - feature
+  - target
+  - model-parameter
+  - hyperparameter
+  - loss-function
+  - baseline-model
+  - generalisation
+diagrams:
+  - LearningParadigms
+  - FittingGeneralisationLoop
+interactives:
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 7
+exercises:
+  - prompt: 'Classify each problem as supervised, unsupervised, reinforcement learning, or not necessarily machine learning: predict ticket resolution time from completed tickets; group unlabelled tickets by language; choose a sequence of robot movements from rewards; reject messages containing an exact blocked phrase.'
+    difficulty: warmup
+    solution: 'Resolution-time prediction is supervised regression because historical rows have numerical targets. Grouping unlabelled tickets is unsupervised learning. Sequential robot control from rewards is reinforcement learning. An exact blocked-phrase check can be a programmed rule and does not require machine learning.'
+  - prompt: 'A classifier gets 100% accuracy on training data and 61% on a representative validation set. What does this suggest, and what should you inspect next?'
+    difficulty: core
+    solution: 'The large gap suggests memorisation or overfitting, though leakage, inconsistent pipelines, and a changed validation distribution are also possible. Check the split and duplicates, compare a baseline, inspect training and validation curves, reduce unnecessary complexity, add representative training evidence, and verify that both sets use the same frozen transformations.'
+  - prompt: 'Design a baseline for predicting support-ticket resolution time and explain how it prevents a misleading claim about a complex model.'
+    difficulty: stretch
+    solution: 'A simple baseline predicts the median resolution time from the training set for every validation ticket. Compare both methods on the same untouched validation rows with an appropriate error metric. If the complex model does not reliably improve on that baseline, its added cost, latency, and maintenance are not justified. Segment checks may reveal that an average improvement hides worse performance for important groups.'
+resources:
+  - title: 'Google Machine Learning Crash Course'
+    url: 'https://developers.google.com/machine-learning/crash-course'
+    type: course
+    note: 'A practical introduction to models, loss, gradient descent, generalisation, and production ML.'
+  - title: 'scikit-learn — supervised learning'
+    url: 'https://scikit-learn.org/stable/supervised_learning.html'
+    type: docs
+    note: 'Official map of supervised estimators; use it after the paradigm and fitting-loop mental model.'
+  - title: 'scikit-learn — unsupervised learning'
+    url: 'https://scikit-learn.org/stable/unsupervised_learning.html'
+    type: docs
+    note: 'Official guide to clustering, decomposition, density estimation, and other unlabelled-data methods.'
+  - title: 'Reinforcement Learning: An Introduction'
+    url: 'http://incompleteideas.net/book/the-book-2nd.html'
+    type: course
+    note: 'The freely available Sutton and Barto textbook; later course chapters develop its concepts gradually.'
+  - title: 'Rules of Machine Learning'
+    url: 'https://developers.google.com/machine-learning/guides/rules-of-ml'
+    type: docs
+    note: 'Production-focused guidance on baselines, pipelines, objectives, and launching ML systems.'
+status: published
+updated: 2026-07-28
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import LearningParadigms from '../../../components/diagrams/LearningParadigms.astro';
+import FittingGeneralisationLoop from '../../../components/diagrams/FittingGeneralisationLoop.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+A machine-learning model is an adjustable pattern.
+
+Training uses examples to adjust that pattern. Evaluation asks whether the pattern still works on relevant examples it did not train on.
+
+<LessonIdentity
+  module="Classical machine learning"
+  lesson="1 · What learning from data means"
+  difficulty="Beginner"
+  duration="55 minutes"
+  prerequisites={[
+    "Features, targets, and leakage-safe data splits",
+    "Averages, gradients, and basic Python loops",
+  ]}
+  skills={frontmatter.skillsGained}
+/>
+
+## Why this matters
+
+AI engineers rarely invent a learning algorithm from nothing. They define the problem, build evidence, select a model, fit it, evaluate it, and connect it to a reliable product.
+
+If “learning” remains vague, it is easy to leak answers, optimise the wrong score, mistake memorisation for intelligence, or use reinforcement learning where a rule would be safer.
+
+<MainIdea>
+  <Term id="machine-learning">Machine learning</Term> fits adjustable model
+  parameters from experience against an objective. The fitted model is useful
+  only if it <Term id="generalisation">generalises</Term>: it performs well on
+  relevant unseen cases under the conditions where it will be used. Different
+  learning paradigms provide different kinds of feedback.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard
+  title="Fitting a reusable curve stencil"
+  limitation="Real models can contain billions of interacting parameters, data is not neutral, and optimisation may find shortcuts rather than the relationship people intended. The model does not understand its stencil as a human would."
+>
+  Imagine placing an adjustable curve over observed dots. Training moves the
+  curve until its predictions fit the training dots according to a score. A
+  useful curve captures the underlying shape and predicts new dots. A bad curve
+  bends around every old dot but misses the next one.
+</AnalogyCard>
+
+## Part 1 — Rules and learning solve different problems
+
+A programmed rule states behaviour directly:
+
+```python
+if attempts >= 5:
+    require_identity_check()
+```
+
+The developer chose the threshold and action.
+
+A learned model has adjustable values fitted from examples:
+
+```text
+risk = model(attempts, device_age, location_change, ...)
+```
+
+The developer still chooses:
+
+- the product goal;
+- which data is legitimate;
+- the model family;
+- the objective and constraints;
+- how success is evaluated;
+- what happens when the model is uncertain;
+- where human review and rules remain necessary.
+
+Learning does not remove engineering decisions. It moves some behaviour from hand-written branches into fitted parameters.
+
+### When a rule is better
+
+Prefer a clear rule when:
+
+- the requirement is exact and stable;
+- errors have severe consequences;
+- there are too few representative examples;
+- the decision must be directly auditable;
+- the rule already performs the job cheaply;
+- policy, law, or safety requires deterministic behaviour.
+
+A good AI system often combines rules and models.
+
+## Part 2 — Examples, features, targets, and predictions
+
+One learning example contains information about one case.
+
+A <Term id="feature">feature</Term> is an input value presented to the model.
+
+A <Term id="target">target</Term> is the desired answer in supervised learning.
+
+For ticket urgency:
+
+| Element | Example |
+|---|---|
+| raw case | one support ticket |
+| features | message representation, customer tier, hour |
+| target | `urgent` or `not urgent` |
+| prediction | estimated urgency class or probability |
+
+A **label** usually means a target category. Some teams use “label” for any target.
+
+Features must exist at prediction time. The target must be defined consistently and represent the real goal closely enough to be useful.
+
+If “urgent” means “an agent opened it within ten minutes”, the target may reflect staffing and queue position, not genuine urgency. Labels are measurements created by a process, not perfect truth.
+
+## Part 3 — Three kinds of learning feedback
+
+The paradigms differ mainly in what feedback the learner receives.
+
+<Figure id="01-01.1" label="SAME WORLD · THREE LEARNING QUESTIONS" caption="— supervised learning has desired answers for examples; unsupervised learning searches unlabelled examples for structure; reinforcement learning receives rewards after actions in an environment. They solve different problems and may appear together in one system.">
+  <LearningParadigms />
+</Figure>
+
+### Supervised learning
+
+<Term id="supervised-learning">Supervised learning</Term> uses examples paired with target answers.
+
+Two common tasks:
+
+- **classification:** predict a category, such as spam/not spam;
+- **regression:** predict a number, such as resolution minutes.
+
+It does not mean a human watches every training step. “Supervision” is the target signal in the training data.
+
+Use supervised learning when historical examples contain a target that corresponds to the future prediction task.
+
+### Unsupervised learning
+
+<Term id="unsupervised-learning">Unsupervised learning</Term> receives examples without desired target answers.
+
+It can search for:
+
+- clusters of similar examples;
+- lower-dimensional representations;
+- density and unusual points;
+- latent structure useful to another task.
+
+A clustering algorithm may create three groups. It does not automatically know that the groups mean “billing”, “technical”, and “account”. A human or downstream evaluation supplies meaning.
+
+“No labels” does not mean “no objective”. Algorithms still optimise something, such as compact clusters or reconstruction error.
+
+### Reinforcement learning
+
+<Term id="reinforcement-learning">Reinforcement learning</Term>, shortened to **RL**, learns action choices from interaction and reward.
+
+Core terms:
+
+- **agent:** the decision maker;
+- **environment:** the world it interacts with;
+- **observation** or **state:** information about the current situation;
+- **action:** a choice the agent makes;
+- **reward:** numerical feedback;
+- **policy:** a rule or model mapping situations to actions;
+- **return:** cumulative future reward.
+
+Unlike ordinary supervised learning, a correct action label is not supplied for every situation. Actions change what happens next, and rewards can be delayed.
+
+Exploration may affect real users. Train in simulation, constrain actions, use offline evidence, and require safety review where mistakes matter.
+
+### Not every AI problem belongs to only one box
+
+A recommendation system might:
+
+1. learn item representations without labels;
+2. train a supervised click predictor;
+3. optimise a sequence of recommendations with reward feedback;
+4. apply deterministic safety and eligibility rules.
+
+Name the feedback at each stage instead of labelling the whole product with one paradigm.
+
+## Part 4 — A model is a function with adjustable parameters
+
+A **model** maps inputs to predictions.
+
+For one feature:
+
+```text
+prediction = weight × feature + bias
+```
+
+The weight and bias are <Term id="model-parameter">model parameters</Term>. Training changes them.
+
+A <Term id="hyperparameter">hyperparameter</Term> is chosen outside that parameter-fitting calculation.
+
+Examples:
+
+| Parameters learned during fit | Hyperparameters chosen around fit |
+|---|---|
+| linear weights | learning rate |
+| tree split thresholds | maximum tree depth |
+| neural network weights | number of layers |
+| cluster centres | number of clusters, in basic k-means |
+
+Hyperparameters are still informed by data, usually through validation. Do not choose them by repeatedly consulting the test set.
+
+### Model family and representation limit what can be learned
+
+A straight line cannot represent every curve.
+
+Features also shape the available pattern. If a model sees only message length, it cannot directly use message meaning.
+
+Training finds parameters inside the chosen model family and representation. It does not search every imaginable program.
+
+## Part 5 — Loss turns prediction quality into a training signal
+
+A <Term id="loss-function">loss function</Term> assigns a numerical cost to a prediction relative to a target.
+
+For numerical prediction, squared error is:
+
+```text
+loss = (prediction - target)²
+```
+
+If the target is 10:
+
+| Prediction | Squared error |
+|---:|---:|
+| 9 | 1 |
+| 7 | 9 |
+| 2 | 64 |
+
+The square makes larger errors cost much more.
+
+For classification, cross-entropy commonly scores predicted probabilities. Earlier you saw:
+
+```text
+loss = -log(probability assigned to the correct class)
+```
+
+The training objective usually aggregates loss across a batch plus any regularisation.
+
+### Loss is a proxy, not the whole product
+
+Lower loss does not automatically mean:
+
+- fair decisions;
+- useful user outcomes;
+- safe behaviour;
+- calibrated confidence;
+- low latency or cost;
+- correct behaviour under distribution shift.
+
+Choose loss because it supports the product goal, then evaluate broader requirements separately.
+
+## Part 6 — The fitting loop
+
+**Fitting** or **training** changes model parameters to reduce an objective on training examples.
+
+For gradient-based fitting:
+
+1. Read a batch of training features and targets.
+2. Run the model to produce predictions. This is the **forward pass**.
+3. Calculate loss.
+4. Calculate how loss changes with each parameter: the gradient.
+5. Use an optimiser to update parameters.
+6. Repeat over batches.
+
+One complete pass through the training dataset is an **epoch**.
+
+<Figure id="01-01.2" label="FITTING CHANGES PARAMETERS · EVALUATION DOES NOT" caption="— training predictions produce loss and parameter updates. Validation guides model and hyperparameter choices without fitting on validation rows. After choices are frozen, the sealed test set estimates generalisation. Production monitoring supplies evidence for a future version rather than rewriting the old test result.">
+  <FittingGeneralisationLoop />
+</Figure>
+
+### A small fitting loop in Python
+
+The next lesson derives linear regression carefully. Here, focus on the loop.
+
+<PyRunner
+  client:idle
+  id="01-01.A"
+  label="FIT A LINE FROM EXAMPLES"
+  code={`# Training examples: input hours and target tickets resolved.
+hours = [1.0, 2.0, 3.0, 4.0, 5.0]
+targets = [2.2, 3.9, 6.1, 7.8, 10.2]
+
+weight = 0.0
+bias = 0.0
+learning_rate = 0.02
+
+for epoch in range(400):
+    predictions = [weight * x + bias for x in hours]
+    errors = [
+        prediction - target
+        for prediction, target in zip(predictions, targets)
+    ]
+
+    # Gradients of mean squared error for weight and bias.
+    count = len(hours)
+    weight_gradient = 2 * sum(
+        error * x for error, x in zip(errors, hours)
+    ) / count
+    bias_gradient = 2 * sum(errors) / count
+
+    weight -= learning_rate * weight_gradient
+    bias -= learning_rate * bias_gradient
+
+    if epoch in (0, 9, 99, 399):
+        mean_loss = sum(error ** 2 for error in errors) / count
+        print(epoch, round(mean_loss, 3))
+
+print("weight:", round(weight, 3))
+print("bias:", round(bias, 3))
+print("prediction for 6 hours:", round(weight * 6 + bias, 2))
+
+# Change the learning rate to 0.2. What happens, and why?`}
+/>
+
+Expected output:
+
+```text
+0 44.428
+9 0.059
+99 0.036
+399 0.026
+weight: 1.982
+bias: 0.1
+prediction for 6 hours: 11.99
+```
+
+<LineExplanation
+  items={[
+    {
+      line: "predictions = [weight * x + bias ...]",
+      explanation: "The forward pass uses current parameters to predict every training target.",
+    },
+    {
+      line: "errors = prediction - target",
+      explanation: "Each signed error records how far and in which direction the prediction missed.",
+    },
+    {
+      line: "weight_gradient / bias_gradient",
+      explanation: "The gradients summarise how mean squared error would change if each parameter moved slightly.",
+    },
+    {
+      line: "parameter -= learning_rate * gradient",
+      explanation: "Gradient descent moves parameters in the direction expected to reduce loss. The learning rate controls step size.",
+    },
+    {
+      line: "weight * 6 + bias",
+      explanation: "After fitting, inference applies frozen parameters to an unseen input. Extrapolating beyond the observed range still requires caution.",
+    },
+  ]}
+/>
+
+This demonstration uses all five rows as training examples. A real evaluation must reserve unseen evidence.
+
+## Part 7 — Start with a baseline
+
+A <Term id="baseline-model">baseline model</Term> is a simple reference.
+
+Examples:
+
+- classification: always predict the most frequent training class;
+- regression: always predict the training mean or median;
+- forecasting: repeat the latest observed value;
+- recommendation: show popular eligible items;
+- language task: use a clear rule or existing retrieval method.
+
+Why:
+
+- proves the pipeline and metric can run end to end;
+- reveals whether the task has useful signal;
+- catches label or metric bugs;
+- defines the minimum improvement needed;
+- makes complexity earn its place.
+
+<CodeNotebook title="A regression baseline">
+
+```python
+from statistics import median
+
+training_targets = [12, 14, 16, 100]
+baseline = median(training_targets)
+
+validation_targets = [13, 18, 40]
+absolute_errors = [
+    abs(baseline - target)
+    for target in validation_targets
+]
+
+print("baseline:", baseline)
+print("mean absolute error:", sum(absolute_errors) / len(absolute_errors))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+baseline: 15.0
+mean absolute error: 10.0
+```
+
+</ExpectedOutput>
+
+Compare every candidate on the same validation cases and metric.
+
+## Part 8 — Training, validation, and test answer different questions
+
+From the data-foundations lesson:
+
+- **training:** what parameters fit the examples?
+- **validation:** which model, features, hyperparameters, and threshold should we choose?
+- **test:** after choices are frozen, how well does the selected system perform on untouched evidence?
+
+The validation set indirectly influences the selected system. Repeated validation tuning can overfit validation too.
+
+If experimentation is extensive:
+
+- use cross-validation where appropriate;
+- keep a final untouched test set;
+- log experiments;
+- limit manual metric hunting;
+- obtain fresh future evidence after launch.
+
+Do not merge the test set into training and continue reporting the old test score as independent evidence.
+
+## Part 9 — Generalisation is the real goal
+
+<Term id="generalisation">Generalisation</Term> means performing usefully on relevant unseen cases.
+
+It is not merely “high test accuracy”. The test set must represent the intended use.
+
+### Memorisation versus useful pattern
+
+Consider an image classifier:
+
+- memorisation: recognises exact training image pixels;
+- generalisation: recognises new relevant images under expected conditions.
+
+Memorisation is not always useless. Retrieval systems deliberately remember records. The problem is claiming a model learned a reusable relationship when it only stored examples or shortcuts.
+
+### Why training performance can mislead
+
+A highly flexible model can fit:
+
+- real signal;
+- random noise;
+- duplicated examples;
+- annotation quirks;
+- watermarks, filenames, or source IDs;
+- future information accidentally present.
+
+Training loss usually improves as capacity and fitting time increase. Generalisation may improve, flatten, then worsen.
+
+### Distribution assumptions
+
+Evaluation often assumes future cases are related to development data.
+
+**Independent and identically distributed**, shortened to **IID**, is an idealisation: examples are independent draws from one fixed distribution.
+
+Real systems violate it:
+
+- users repeat;
+- time changes behaviour;
+- product policy changes labels;
+- one model changes the data collected next;
+- new languages, devices, or attacks appear.
+
+Use group and time splits, stress tests, slice evaluation, and production monitoring to model those realities.
+
+### Distribution shift
+
+**Distribution shift** means deployment data differs from training data.
+
+Examples:
+
+- new customer region;
+- seasonal ticket topics;
+- changed form fields;
+- model-generated text entering the pipeline;
+- a new fraud strategy;
+- delayed or redefined targets.
+
+A model can generalise within its test distribution and still fail after a shift. State the evaluation boundary honestly.
+
+## Part 10 — Overfitting and underfitting, first look
+
+**Underfitting** means the model or training process cannot capture enough useful pattern.
+
+Typical signal:
+
+```text
+training error: high
+validation error: high
+```
+
+**Overfitting** means the fitted system matches training-specific detail that does not transfer.
+
+Typical signal:
+
+```text
+training error: very low
+validation error: much higher
+```
+
+These patterns are clues, not proof. A broken pipeline, leakage, label noise, or distribution mismatch can create similar curves.
+
+Later lessons cover regularisation and the bias–variance trade-off in depth.
+
+## Worked example — route urgent support tickets
+
+Goal: rank incoming tickets so genuinely urgent cases receive faster human attention.
+
+### 1. Define the decision
+
+At ticket creation, estimate whether the case meets a documented urgent policy.
+
+The model assists queue ordering. It does not close cases automatically.
+
+### 2. Define examples
+
+One row is one ticket at creation time.
+
+Features may include message text representation, declared issue category, and account service tier. Resolution outcome is unavailable at this moment.
+
+The target is an urgency label produced from reviewed policy criteria, not merely whether an agent happened to answer quickly.
+
+### 3. Select the paradigm
+
+This is supervised classification: historical tickets have input features and target classes.
+
+Unsupervised clustering might help explore topic structure, but clusters are not urgency labels.
+
+Reinforcement learning is unnecessary for the first system. Online exploration that delays a real urgent ticket would be unsafe.
+
+### 4. Split and baseline
+
+Split by customer and time. Keep recent tickets as test evidence.
+
+Baseline:
+
+```text
+predict urgent only when a documented critical phrase matches
+```
+
+Also compare the most-frequent-class baseline, but inspect recall for urgent tickets; accuracy alone can hide failure on a rare class.
+
+### 5. Fit and choose
+
+Fit model parameters on training tickets. Use validation data to choose representation, regularisation, and operating threshold.
+
+Do not train on validation labels after each decision.
+
+### 6. Evaluate generalisation
+
+On untouched test data, inspect:
+
+- missed urgent cases;
+- false alerts and workload;
+- performance across language, source, and issue groups;
+- confidence calibration;
+- latency and fallback behaviour.
+
+### 7. Monitor
+
+Track input schema, category rates, delayed reviewed labels, overrides, and incidents. A shift triggers investigation and a separately evaluated model version.
+
+## In a real AI system
+
+<RealWorldExample
+  title="Learning system versus complete application"
+  steps={[
+    "A contract validates incoming ticket fields",
+    "A feature pipeline creates the model input",
+    "A fitted classifier returns probabilities",
+    "A threshold and deterministic policy choose the workflow",
+    "A human handles uncertain or high-impact cases",
+    "Monitoring records quality, drift, overrides, and outcomes",
+  ]}
+>
+  The fitted model is one component. The complete AI application also needs
+  data validation, privacy controls, fallbacks, logging, user experience,
+  access control, and operational ownership.
+
+A better offline model can make a worse application if it is slower, brittle, impossible to monitor, or connected to an unsafe action.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes
+  items={[
+    {
+      mistake: "Calling any data-processing rule machine learning.",
+      fix: "Ask which adjustable parameters are fitted from what experience against which objective. Exact rules remain software logic.",
+    },
+    {
+      mistake: "Treating unsupervised clusters as true categories.",
+      fix: "Describe the optimised structure, test stability and usefulness, and have domain experts interpret it.",
+    },
+    {
+      mistake: "Using reinforcement learning for a one-step labelled prediction.",
+      fix: "Start with supervised learning when direct targets exist. RL adds sequential credit assignment, exploration, and safety complexity.",
+    },
+    {
+      mistake: "Confusing parameters with hyperparameters.",
+      fix: "Parameters change inside fitting; hyperparameters configure or select the fitting process using training and validation evidence.",
+    },
+    {
+      mistake: "Choosing a complex model without a baseline.",
+      fix: "Build the smallest relevant rule, mean, median, or majority baseline first and compare on identical evaluation data.",
+    },
+    {
+      mistake: "Reporting training performance as model quality.",
+      fix: "Use protected validation and test evidence that represents intended deployment.",
+    },
+    {
+      mistake: "Assuming one held-out score proves universal generalisation.",
+      fix: "State the test distribution, evaluate meaningful slices and shifts, then monitor future production evidence.",
+    },
+    {
+      mistake: "Optimising a convenient target that does not represent user value.",
+      fix: "Audit how labels are produced, document proxy limitations, and evaluate product outcomes and harms separately.",
+    },
+  ]}
+/>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard
+  client:load
+  questions={[
+    {
+      question: "What makes a task supervised learning?",
+      options: [
+        "Every step is watched by a person",
+        "Training examples include desired target answers",
+        "The model has no adjustable parameters",
+      ],
+      answer: 1,
+      explanation: "Supervision means the examples pair inputs with target outputs. Human monitoring is a separate product and safety decision.",
+    },
+    {
+      question: "Which value is normally a model parameter?",
+      options: [
+        "A fitted linear weight",
+        "The chosen learning rate",
+        "The number of validation experiments",
+      ],
+      answer: 0,
+      explanation: "The fitting loop learns the weight. Learning rate is a hyperparameter controlling that loop.",
+    },
+    {
+      question: "Why keep a simple baseline?",
+      options: [
+        "It guarantees fairness",
+        "It defines a reference the added complexity must beat",
+        "It makes a test set unnecessary",
+      ],
+      answer: 1,
+      explanation: "A baseline exposes whether the pipeline and complex model provide real incremental value under the same evaluation.",
+    },
+    {
+      question: "A model is strong on an IID-style test but weak after a new region launches. What is the best description?",
+      options: [
+        "The test proved universal generalisation",
+        "Deployment may contain distribution shift",
+        "Training loss must have been zero",
+      ],
+      answer: 1,
+      explanation: "The intended operating distribution changed. Generalisation evidence has a boundary and must be updated for the new conditions.",
+    },
+  ]}
+/>
+
+## Practice activity
+
+<PracticeActivity
+  title="Design the learning problem before choosing a model"
+  time="10–20 minutes"
+  goal="Turn a vague request into a testable learning problem with a baseline and generalisation boundary."
+  steps={[
+    "Choose one case: ticket urgency, resume–job match, or document topic discovery.",
+    "State the exact decision and prediction time.",
+    "Choose supervised, unsupervised, reinforcement, or a deterministic rule; justify the feedback.",
+    "Define one example, features, and target or objective.",
+    "Name one learned parameter and one hyperparameter.",
+    "Design training, validation, and test boundaries.",
+    "Choose a baseline and one product constraint.",
+    "Write one sentence defining where you expect generalisation.",
+  ]}
+  expected="A one-page problem card that another engineer can implement and challenge without guessing what ‘learn’ means."
+  challenge="Name one shortcut or distribution shift that could create a convincing but unsafe result."
+>
+
+Example solution for ticket urgency:
+
+```text
+Decision:
+  rank a new ticket for human triage at creation time
+
+Paradigm:
+  supervised classification; reviewed tickets have policy-based labels
+
+Example:
+  one ticket snapshot at creation
+
+Features:
+  text representation, declared category, service tier
+
+Target:
+  reviewed urgent / not urgent under policy v3
+
+Parameter:
+  a fitted feature weight
+
+Hyperparameter:
+  regularisation strength
+
+Split:
+  customer groups kept together; train on older months,
+  validate on the next month, test on the newest untouched month
+
+Baseline:
+  documented critical-phrase rule
+
+Constraint:
+  no automatic closure; uncertain high-impact cases go to a human
+
+Generalisation boundary:
+  expected to cover tickets from supported languages and current
+  products under policy v3, not new products or unseen languages
+
+Shortcut risk:
+  agent queue ID may encode historical staffing rather than urgency
+```
+
+The point is not to choose the final algorithm. It is to make the learning claim precise enough to test.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways
+  points={[
+    "Machine learning fits adjustable parameters from examples; it does not remove product, data, or safety decisions.",
+    "Supervised learning uses target answers, unsupervised learning searches for structure, and reinforcement learning learns action policies from rewards.",
+    "Features enter the model, parameters are fitted, hyperparameters configure fitting, and loss supplies the optimisation signal.",
+    "A simple baseline makes complexity prove its value.",
+    "Training fits parameters, validation guides choices, and a sealed test estimates the selected system's performance.",
+    "Generalisation always has a boundary: relevant unseen cases under stated conditions, not every possible future.",
+  ]}
+/>
+
+## Flashcards
+
+<FlashcardDeck
+  client:load
+  cards={[
+    {
+      front: "What is machine learning?",
+      back: "Fitting adjustable model parameters from examples against an objective, then evaluating the result on relevant unseen data.",
+    },
+    {
+      front: "What feedback defines supervised learning?",
+      back: "Each training example includes a desired target answer.",
+    },
+    {
+      front: "What does unsupervised learning receive?",
+      back: "Examples without desired targets; it optimises an objective that exposes structure requiring interpretation.",
+    },
+    {
+      front: "What does reinforcement learning fit?",
+      back: "A policy for choosing actions to maximise expected cumulative reward through environment interaction.",
+    },
+    {
+      front: "Feature versus target?",
+      back: "A feature is model input; a target is the desired supervised prediction.",
+    },
+    {
+      front: "Parameter versus hyperparameter?",
+      back: "A parameter changes inside fitting; a hyperparameter configures or selects the fitting process.",
+    },
+    {
+      front: "What does a loss function do?",
+      back: "Assigns numerical cost to predictions so fitting has an optimisation signal.",
+    },
+    {
+      front: "Why build a baseline?",
+      back: "To create a simple reference that exposes whether added complexity delivers real improvement.",
+    },
+    {
+      front: "What is generalisation?",
+      back: "Useful performance on relevant unseen cases under the intended operating conditions.",
+    },
+    {
+      front: "What is distribution shift?",
+      back: "Deployment data or relationships differ from those represented during development and evaluation.",
+    },
+  ]}
+/>
+
+<RevisionQuestions
+  questions={[
+    "Compare supervised, unsupervised, and reinforcement learning using the feedback each receives and one suitable application.",
+    "Trace one complete fitting iteration from features to parameter update.",
+    "Explain parameters, hyperparameters, loss, baseline, and prediction using one model example.",
+    "Why can low training loss coexist with poor generalisation?",
+    "Design evidence that tests a model under time, group, and distribution-shift constraints.",
+  ]}
+/>
+
+## One-page sketchnote summary
+
+<SketchnoteSummary
+  title="What learning from data means"
+  terms={[
+    "Feature — model input",
+    "Target — desired supervised answer",
+    "Parameter — fitted value",
+    "Hyperparameter — fitting choice",
+    "Loss — training cost signal",
+    "Generalisation — works on relevant unseen cases",
+  ]}
+  mistakes={[
+    "Do not report training score as quality",
+    "Do not call clusters true labels",
+    "Do not reach for RL without a sequential need",
+    "Do not skip the baseline",
+    "Do not claim universal generalisation",
+  ]}
+  takeaways={[
+    "Name the feedback",
+    "Define prediction time",
+    "Fit parameters on training data",
+    "Choose with validation",
+    "Test once · monitor future shift",
+  ]}
+  questions={[
+    "What exactly changes during fitting?",
+    "Which evidence chose this system?",
+    "Where should it generalise?",
+  ]}
+>
+  <p slot="main">
+    Learning fits model parameters from experience against an objective.
+    Evidence from relevant unseen cases—not memory of training rows—supports a
+    generalisation claim.
+  </p>
+  <div slot="diagram">
+    <FittingGeneralisationLoop />
+  </div>
+  <pre slot="code">
+    <code>{`for batch in training_data:
+    prediction = model(batch.features)
+    loss = objective(prediction, batch.target)
+    gradients = differentiate(loss)
+    parameters -= learning_rate * gradients`}</code>
+  </pre>
+</SketchnoteSummary>
+
+<LessonChecklist
+  client:load
+  lessonId="what-learning-from-data-means"
+  items={[
+    "I can distinguish a fitted model from a programmed rule.",
+    "I can compare the three learning paradigms.",
+    "I can identify features and targets.",
+    "I can distinguish parameters and hyperparameters.",
+    "I traced prediction, loss, gradient, and update.",
+    "I can propose a relevant baseline.",
+    "I can explain the three dataset roles.",
+    "I can state a generalisation boundary.",
+    "I completed the quiz, practice, and flashcards.",
+  ]}
+/>
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp
+  slug="linear-and-logistic-regression"
+  title="Linear & logistic regression"
+  why="You can now trace the fitting loop and ask whether a pattern generalises. Next, build two foundational supervised models: one predicts a number with a line, and one predicts class probability through odds and logits."
+/>
