@@ -85,12 +85,12 @@ test("print mode shows the one-page summary and hides interactive controls", asy
   await expect(page.locator(".topbar")).toBeHidden();
 });
 
-test("reference lesson keeps the GitHub Pages base path in internal links", async ({
+test("reference lesson keeps root-domain paths in internal links", async ({
   page,
 }) => {
   await page.goto(LESSON, { waitUntil: "load" });
   const nextHref = await page.locator(".nextup").getAttribute("href");
   const homeHref = await page.locator(".wordmark").getAttribute("href");
-  expect(nextHref).toBe("/ai-engineer-course/chapters/async-python/");
-  expect(homeHref).toBe("/ai-engineer-course/");
+  expect(nextHref).toBe("/chapters/async-python/");
+  expect(homeHref).toBe("/");
 });

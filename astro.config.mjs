@@ -3,12 +3,12 @@ import react from '@astrojs/react';
 import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 
-// Project page on GitHub Pages: served from https://<owner>.github.io/<repo>/
-// `site` + `base` must both be correct so built asset URLs carry the repo prefix
-// in production (and Astro's dev server mirrors the base too).
+// Custom-domain GitHub Pages site: served from the domain root.
+// `site` + `base` must both be correct so generated canonical URLs, assets,
+// and the client-side authentication callback use the production domain.
 export default defineConfig({
-  site: 'https://nitesh0007-edith.github.io',
-  base: '/ai-engineer-course',
+  site: 'https://www.learnaiwithnitesh.dev',
+  base: '/',
   output: 'static',
   trailingSlash: 'ignore',
   markdown: {

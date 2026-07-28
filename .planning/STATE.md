@@ -59,6 +59,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-27 — shipped chapter 00-03 (Modern Python tooling) end to end, plus fixed deploy.yml to actually gate on quality.yml passing (workflow_run), verified live via a real push.
-Stopped at: 00-03 published and deployed. Next up: 00-04 APIs & services.
-Resume file: None
+Last session: 2026-07-29 — prepared the custom-domain production migration for `www.learnaiwithnitesh.dev`. Astro now builds for the domain root (`site: https://www.learnaiwithnitesh.dev`, `base: /`); Playwright's preview base and internal-link assertion were updated accordingly. `pnpm check`, `pnpm build`, `pnpm check:manifest`, and all 85 Playwright tests passed. These three source changes are local and uncommitted: `astro.config.mjs`, `playwright.config.ts`, and `tests/e2e/reference-lesson.spec.ts`.
+Stopped at: GitHub Pages has verified `www.learnaiwithnitesh.dev` and HTTPS is enforced. Supabase Site URL and exact `/auth/callback/` redirect are configured; CAPTCHA protection uses Cloudflare Turnstile; the Turnstile widget allows apex, `www`, and the legacy GitHub hostname. Next: commit/push the prepared root-path migration, wait for the gated Pages deployment, then verify the live custom domain and OTP login.
+Resume file: .planning/STATE.md

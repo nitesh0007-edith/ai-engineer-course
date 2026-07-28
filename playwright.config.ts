@@ -2,11 +2,11 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Runs against the built, previewed site (not dev) so the gate checks what
- * actually ships — base path and all. `pnpm build` must run first; the
- * webServer below serves dist via `astro preview`.
+ * actually ships — including its custom-domain root path. `pnpm build` must run
+ * first; the webServer below serves dist via `astro preview`.
  */
 const PORT = 4321;
-const BASE = `http://localhost:${PORT}/ai-engineer-course/`;
+const BASE = `http://localhost:${PORT}/`;
 
 export default defineConfig({
   testDir: './tests/e2e',
