@@ -24,4 +24,5 @@ export const ROUTES = [
   'chapters/from-neurons-to-networks/',
   'chapters/backpropagation-from-scratch/',
   'chapters/pytorch/',
+  'chapters/training-mechanics/',
 ];

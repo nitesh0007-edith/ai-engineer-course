@@ -22,7 +22,11 @@
         "http://localhost:4321/chapters/other-core-algorithms/",
         "http://localhost:4321/chapters/unsupervised-learning/",
         "http://localhost:4321/chapters/evaluation-done-properly/",
-        "http://localhost:4321/chapters/bias-variance-and-regularisation/"
+        "http://localhost:4321/chapters/bias-variance-and-regularisation/",
+        "http://localhost:4321/chapters/from-neurons-to-networks/",
+        "http://localhost:4321/chapters/backpropagation-from-scratch/",
+        "http://localhost:4321/chapters/pytorch/",
+        "http://localhost:4321/chapters/training-mechanics/"
       ],
       "numberOfRuns": 3,
       "settings": {

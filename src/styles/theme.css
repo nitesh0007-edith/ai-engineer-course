@@ -2218,3 +2218,129 @@
   color: var(--ink-muted);
   margin: 0;
 }
+
+/* ═══ TrainingLoopVisualizer — deterministic loss-curve workbench ═════════ */
+.training-loop-lab {
+  max-width: min(980px, 100%);
+}
+.training-loop-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(0, 2fr);
+  gap: 20px;
+}
+.training-loop-controls {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px dashed var(--frame);
+  border-radius: 8px;
+  background: var(--paper-sink);
+  padding: 14px;
+}
+.training-loop-controls legend {
+  padding: 0 6px;
+  color: var(--blueprint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.training-loop-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.training-loop-controls output {
+  color: var(--blueprint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.training-loop-controls input[type="range"] {
+  width: 100%;
+  min-height: 28px;
+  accent-color: var(--blueprint);
+}
+.training-loop-controls select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--frame);
+  border-radius: 4px;
+  background: var(--paper-raise);
+  padding: 6px 8px;
+  color: var(--ink);
+  font: 12px/1.35 var(--font-mono);
+}
+.training-loop-controls .training-loop-check {
+  min-height: 44px;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+.training-loop-check input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--blueprint);
+}
+.training-loop-plot {
+  min-width: 0;
+}
+.training-loop-readout {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 0;
+}
+.training-loop-readout div {
+  min-width: 0;
+  border-top: 2px solid var(--hairline);
+  padding: 8px 4px 0;
+}
+.training-loop-readout dt {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.training-loop-readout dd {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.training-loop-status {
+  border-left: 3px solid var(--blueprint);
+  margin: 14px 0 0;
+  padding: 6px 10px;
+  color: var(--ink-muted);
+  font-size: 13.5px;
+}
+.training-loop-status.warning {
+  border-left-color: var(--alert);
+  color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .training-loop-layout {
+    grid-template-columns: 1fr;
+  }
+  .training-loop-readout {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 430px) {
+  .training-loop-lab .frame {
+    padding-inline: 10px;
+  }
+  .training-loop-readout {
+    grid-template-columns: 1fr;
+  }
+}

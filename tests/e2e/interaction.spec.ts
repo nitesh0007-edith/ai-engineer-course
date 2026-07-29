@@ -56,7 +56,7 @@ test.describe('layout integrity', () => {
   });
 
   test('new deep-learning diagrams fit tablet and mobile canvases', async ({ page }) => {
-    for (const route of ['chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/']) {
+    for (const route of ['chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/']) {
       for (const width of [768, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(route, { waitUntil: 'load' });
@@ -159,6 +159,29 @@ test('exercise solutions are reachable and reveal', async ({ page }) => {
   await summary.click();
   // the solution body (a code block) becomes visible
   await expect(firstSolution.locator('pre').first()).toBeVisible();
+});
+
+test('training curve workbench updates from keyboard-operable controls', async ({ page }) => {
+  await page.goto('chapters/training-mechanics/', { waitUntil: 'load' });
+
+  const lab = page.locator('.training-loop-lab');
+  await expect(lab.locator('xpath=ancestor::astro-island')).not.toHaveAttribute('ssr', '');
+
+  const accumulation = lab.getByLabel('Micro-batches per update');
+  await accumulation.selectOption('4');
+  await expect(lab.getByText('Effective batch', { exact: true }).locator('..')).toContainText('128');
+
+  await accumulation.selectOption('1');
+  const schedule = lab.getByLabel('Learning-rate rule');
+  await schedule.selectOption('constant');
+
+  const rate = lab.getByLabel('Starting learning rate');
+  await rate.focus();
+  await page.keyboard.press('End');
+  await expect(lab.locator('.training-loop-status')).toContainText('unstable');
+
+  await schedule.focus();
+  await expect(schedule).toBeFocused();
 });
 
 test.describe('reduced motion', () => {

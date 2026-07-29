@@ -1,0 +1,468 @@
+---
+layer: 2
+order: 4
+title: 'Training mechanics'
+slug: 'training-mechanics'
+subtitle: 'Turn a training loop into a measured experiment: batches, schedules, curves, controlled recovery, and recoverable checkpoints.'
+depth: build
+difficulty: beginner
+readingTime: 75
+prerequisites:
+  - pytorch
+skillsGained:
+  - 'Count optimiser updates from dataset size, batch size, epochs, and accumulation steps'
+  - 'Compare SGD, momentum, Adam, and AdamW without treating one as a universal winner'
+  - 'Build and explain a learning-rate warmup and decay rule'
+  - 'Read training and validation curves without selecting on the final test set'
+  - 'Use gradient clipping as a measured safeguard rather than a hidden repair'
+  - 'Save and restore the best validation checkpoint with enough state to resume'
+objectives:
+  - 'Explain how batch size, epoch count, and gradient accumulation determine update count'
+  - 'Distinguish a learning-rate schedule, clipping threshold, and stopping rule'
+  - 'Diagnose a flat, unstable, or overfitting run with one controlled change at a time'
+  - 'Choose a checkpoint using a declared validation criterion while protecting final test evidence'
+concepts:
+  - hyperparameter
+  - batch
+  - epoch
+  - learning-rate
+  - learning-rate-schedule
+  - gradient-accumulation
+  - gradient-clipping
+  - early-stopping
+  - checkpoint
+diagrams:
+  - OptimiserMemory
+  - TrainingLoopVisualizer
+interactives:
+  - TrainingLoopVisualizer
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 4
+exercises:
+  - prompt: 'A loader has 1,000 examples, batch size 100, and does not drop its final batch. How many ordinary optimiser updates occur in one epoch and in six epochs?'
+    difficulty: warmup
+    solution: 'There are `ceil(1000 / 100) = 10` batches and therefore 10 ordinary updates per epoch. Six epochs produce `10 × 6 = 60` updates. This assumes one optimiser step per batch and no gradient accumulation.'
+  - prompt: 'You have 16-example micro-batches and accumulate four of them before each optimiser step. What is the effective batch size for one process, and why should the loss normally be divided by four before each backward call?'
+    difficulty: core
+    solution: 'One update combines `16 × 4 = 64` examples. Dividing each mean loss by four makes the accumulated gradient correspond to the average across those four micro-batches. Without that scaling, the gradient sum is four times larger, changing the effective update size.'
+  - prompt: 'Training loss becomes `NaN` immediately after a learning-rate increase. Give a controlled recovery plan that preserves evidence.'
+    difficulty: stretch
+    solution: 'Keep the failing configuration and data version. Reproduce it on the same first failing batch if possible. Check inputs, targets, loss, parameters, and gradients for non-finite values. Restore the last known-good rate, confirm the run is finite, then retry one change. Log learning rate and the gradient norm before any clipping. Use anomaly detection only for the small debugging reproduction because it is slow.'
+resources:
+  - title: 'PyTorch — Optimizers and learning-rate schedulers'
+    url: 'https://docs.pytorch.org/docs/stable/optim.html'
+    type: docs
+    note: 'Official reference for optimiser state, scheduler choices, and the required step ordering.'
+  - title: 'PyTorch — Automatic mixed precision examples'
+    url: 'https://docs.pytorch.org/docs/stable/notes/amp_examples.html'
+    type: docs
+    note: 'Official examples showing gradient accumulation and why scaled gradients must be unscaled before clipping.'
+  - title: 'PyTorch — Automatic differentiation and anomaly detection'
+    url: 'https://docs.pytorch.org/docs/stable/autograd.html'
+    type: docs
+    note: 'Official reference for tracing a failing backward operation and detecting non-finite gradients during debugging.'
+status: published
+updated: 2026-07-29
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import TrainingLoopVisualizer from '../../../components/interactive/TrainingLoopVisualizer.tsx';
+import OptimiserMemory from '../../../components/diagrams/OptimiserMemory.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Your PyTorch loop runs. The first batches look ordinary. Then the loss becomes `NaN`, or training loss keeps falling while validation loss turns upward. The final checkpoint exists, but nobody can explain why that particular model was selected.
+
+The five training calls are correct. The **run** is not yet a controlled experiment.
+
+<LessonIdentity module="Deep learning" lesson="4 · Training mechanics" difficulty="Beginner" duration="75 minutes" prerequisites={['A PyTorch forward, loss, zero_grad, backward, and step loop', 'A train, validation, and protected test split']} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+Training mechanics are the operating decisions around the loop: how examples form updates, how large each update may be, when its size changes, which evidence selects a checkpoint, and what you record when something breaks.
+
+<MainIdea>
+  A <Term id="hyperparameter">hyperparameter</Term> is a setting you choose rather than a value the model learns. Batch size, optimiser, learning rate, schedule, clipping threshold, accumulation count, and stopping rule are all hypotheses. Log them, compare them with protected validation evidence, and change one important factor at a time.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="Steering in fog with an instrument panel" limitation="A road has a physical destination. Training follows a loss chosen by people, so a smooth journey can still optimise the wrong target or learn a harmful shortcut.">
+  A gradient is a local steering hint. The learning rate controls how sharply you
+  turn. A batch is one small view through the windscreen. Training loss reports
+  progress on roads you practised; validation is a separate road sign showing
+  whether that progress transfers. A checkpoint records the vehicle state and
+  instrument readings so you can return to a measured point.
+</AnalogyCard>
+
+## Step 1 — Count updates, not only epochs
+
+A <Term id="batch">batch</Term> is the group of examples used for one forward and backward calculation. In the ordinary loop, one batch produces one optimiser update.
+
+An <Term id="epoch">epoch</Term> is one pass through the training loader. It measures data passes, not a fixed amount of learning. Changing batch size changes the number of updates inside the same epoch.
+
+For `N` training examples and batch size `B`, when the last smaller batch is kept:
+
+```text
+batches per epoch = ceiling(N / B)
+updates = batches per epoch × epochs
+```
+
+With 1,000 examples and batch size 100, one epoch contains ten batches and ordinarily ten updates. Six epochs contain 60 updates.
+
+<CodeNotebook title="Count batches and updates explicitly">
+
+```python
+from math import ceil
+
+examples = 1_000
+batch_size = 100
+epochs = 6
+
+batches_per_epoch = ceil(examples / batch_size)
+updates = batches_per_epoch * epochs
+
+print('batches per epoch:', batches_per_epoch)
+print('updates:', updates)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+batches per epoch: 10
+updates: 60
+```
+
+</ExpectedOutput>
+
+Batch size affects memory use, the amount of batch-to-batch gradient variation, and the number of updates. It does not make a split valid, repair leakage, or guarantee better generalisation.
+
+## Step 2 — Choose an update rule and a step size
+
+An <Term id="optimiser">optimiser</Term> turns gradients into parameter updates. A <Term id="learning-rate">learning rate</Term> controls the update scale.
+
+<Figure id="02-04.1" label="THREE WAYS TO REMEMBER A SLOPE" caption="— gradient descent reacts to the current gradient. Momentum smooths recent directions. Adam-style methods also rescale coordinates using recent squared gradients. None repairs invalid data or an unsuitable objective.">
+  <OptimiserMemory />
+</Figure>
+
+Plain stochastic gradient descent, usually shortened to **SGD**, uses the current batch gradient. Momentum keeps a moving average of recent gradients, which can reduce repeated zigzagging. Adam keeps moving averages of gradients and squared gradients, then adapts the update scale by coordinate. AdamW applies weight decay separately from that adaptive gradient update.
+
+These are different starting hypotheses, not a universal ranking. Optimiser state also matters when you resume: momentum and Adam-family methods remember earlier gradients.
+
+For a single weight, the simplest update is:
+
+```text
+new weight = old weight − learning rate × gradient
+```
+
+If `weight = 1.0` and `gradient = 0.5`, a rate of `0.1` produces `0.95`. A rate of `1.0` produces `0.5`. The larger move is not automatically better. It may move quickly, overshoot, oscillate, or make later values non-finite.
+
+## Step 3 — Warm up, then decay for a stated reason
+
+A <Term id="learning-rate-schedule">learning-rate schedule</Term> changes the rate according to a declared rule.
+
+**Warmup** begins below the chosen rate and increases over early updates. This can make early updates less abrupt while activations and optimiser state are still settling.
+
+**Decay** reduces the rate later. Large early steps can make progress; smaller later steps can refine rather than repeatedly cross a narrow region.
+
+Warmup and decay are not automatic repairs. Their duration and shape are more hyperparameters. Log the rate used for every update, and compare the scheduled run with a clear baseline.
+
+This pure-Python schedule warms up for three updates and then decays linearly to one tenth of the starting rate:
+
+<CodeNotebook title="A visible warmup and decay rule">
+
+```python
+def scheduled_rate(step: int, total_steps: int, peak: float, warmup: int) -> float:
+    if step <= warmup:
+        return peak * step / warmup
+
+    decay_progress = (step - warmup) / (total_steps - warmup)
+    return peak * (1.0 - 0.9 * decay_progress)
+
+
+for step in range(1, 9):
+    rate = scheduled_rate(step, total_steps=8, peak=0.08, warmup=3)
+    print(step, f'{rate:.3f}')
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+1 0.027
+2 0.053
+3 0.080
+4 0.066
+5 0.051
+6 0.037
+7 0.022
+8 0.008
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: 'step <= warmup', explanation: 'The first three optimiser updates increase from a smaller rate to the declared peak.' }, { line: '(step - warmup) / (total_steps - warmup)', explanation: 'Later updates are mapped onto a progress value from zero to one.' }, { line: '1.0 - 0.9 * decay_progress', explanation: 'The multiplier falls from 1.0 to 0.1, so the last rate is one tenth of the peak.' }]} />
+
+In PyTorch, call most schedulers after `optimizer.step()`. A metric-driven scheduler such as `ReduceLROnPlateau` receives a validation measure. Never give it final test loss: that would use the test set to configure training.
+
+## Step 4 — Read curves as evidence, not decoration
+
+A **learning curve** records a measure across training progress. Plot training and validation measures against optimiser updates or epochs, and log the learning rate beside them.
+
+- Training and validation losses both fall: the run is improving on these measures so far.
+- Training loss falls while validation loss rises: the run has passed its best validation point, the split is unrepresentative, or evaluation differs from training in another important way.
+- Both curves stay flat: the model may not receive useful gradients, the rate may be too small, targets or masks may be wrong, or the task may not be learnable from these inputs.
+- Loss jumps or becomes `NaN`: inspect data, arithmetic, gradients, and the most recent configuration change before adding a safeguard.
+
+The lab below uses a deterministic one-parameter illustration. Its training and validation sets deliberately prefer slightly different values, so the best validation point can occur before the final update. The exact numbers do not describe a real neural network.
+
+<TrainingLoopVisualizer client:load />
+
+Try three controlled comparisons:
+
+1. Keep the defaults and note the best validation epoch.
+2. Set a high rate and choose **Constant rate**. Observe whether the run becomes unstable.
+3. Return to the default rate. Change only batch size or accumulation count and inspect the update count before interpreting the curves.
+
+The chart uses a solid training line and a dashed validation line, so its meaning does not depend on colour.
+
+## Step 5 — Accumulate gradients when one batch does not fit
+
+A **micro-batch** is the small batch that fits through the model once. <Term id="gradient-accumulation">Gradient accumulation</Term> combines gradients from several micro-batches before one optimiser update.
+
+If a micro-batch contains 16 examples and you accumulate four micro-batches, one update uses an **effective batch size** of 64 examples on one process:
+
+```text
+effective batch = micro-batch size × accumulation steps
+```
+
+When the loss function returns a mean for each micro-batch, divide each loss by the number of accumulation steps before `backward()`. Then the stored gradients approximate the mean over the effective batch instead of a sum four times larger.
+
+```python
+accumulation_steps = 4
+optimizer.zero_grad()
+
+for micro_step, (features, targets) in enumerate(train_loader, start=1):
+    loss = loss_fn(model(features), targets) / accumulation_steps
+    loss.backward()
+
+    if micro_step % accumulation_steps == 0:
+        optimizer.step()
+        optimizer.zero_grad()
+```
+
+Handle an incomplete final accumulation group deliberately. In distributed training, the effective global batch also depends on the number of worker processes. Do not compare two runs only by epoch when their update counts or effective batches differ.
+
+### Try it — break the scaling on purpose
+
+This browser lab uses two simple gradient values. Run it, then set `scale_each_micro_batch = False`. The update gradient doubles from the intended average `3.0` to the sum `6.0`.
+
+<PyRunner
+  client:load
+  id="02-04.B"
+  label="ACCUMULATE AN AVERAGE, NOT AN ACCIDENTAL SUM"
+  code={`micro_gradients = [4.0, 2.0]
+accumulation_steps = 2
+scale_each_micro_batch = True
+
+stored_gradient = 0.0
+for gradient in micro_gradients:
+    if scale_each_micro_batch:
+        gradient = gradient / accumulation_steps
+    stored_gradient += gradient
+
+print('gradient used for one update:', stored_gradient)`}
+  solution={`micro_gradients = [4.0, 2.0]
+accumulation_steps = 2
+
+stored_gradient = 0.0
+for gradient in micro_gradients:
+    stored_gradient += gradient / accumulation_steps
+
+print('gradient used for one update:', stored_gradient)`}
+/>
+
+<ExpectedOutput>
+
+```text
+gradient used for one update: 3.0
+```
+
+</ExpectedOutput>
+
+Accumulation reduces activation-memory pressure because each micro-batch is smaller. It does not reproduce every behaviour of one physically larger batch: batch-dependent layers, randomness, distributed communication, and numerical order can differ.
+
+## Step 6 — Clip gradients, but keep the evidence
+
+A <Term id="gradient-clipping">gradient clip</Term> limits gradient size before the optimiser update. Norm clipping measures all parameter gradients together and rescales them when their combined norm exceeds a threshold.
+
+```python
+loss.backward()
+gradient_norm = torch.nn.utils.clip_grad_norm_(
+    model.parameters(),
+    max_norm=1.0,
+    error_if_nonfinite=True,
+)
+optimizer.step()
+
+print('norm before clipping:', gradient_norm.item())
+```
+
+`clip_grad_norm_` changes gradients in place and returns their total norm before clipping. Log that value. If almost every update clips, the threshold may be hiding a scale, loss, rate, or data problem.
+
+With automatic mixed precision, unscale the gradients before inspecting or clipping them. Otherwise the clipping threshold is applied to temporarily scaled values rather than the gradients the optimiser should use.
+
+Clipping can prevent one unusually large update from dominating a run. It cannot explain why the gradient became large, make a `NaN` finite, or prove the model is learning the intended task.
+
+## Step 7 — Debug the first divergence, not the final wreckage
+
+**Non-finite** means `NaN`, positive infinity, or negative infinity. Find the first value or update that becomes non-finite. Later failures are often consequences.
+
+Use this order:
+
+1. Preserve the failing configuration, code revision, data version, and first failing batch.
+2. Return to the last known-good run and reproduce its result.
+3. Check input features, targets, loss, parameters, and gradients with `torch.isfinite`.
+4. Verify shapes, target ranges, masks, loss reduction, training/evaluation modes, and gradient clearing.
+5. Try to overfit one tiny batch. If loss cannot fall there, debug the training mechanics before adding more data.
+6. Log the learning rate and gradient norm before clipping.
+7. Change one factor and rerun the smallest reproduction.
+
+`torch.autograd.detect_anomaly()` can report the forward operation connected to a failing backward operation and can raise when backward produces `NaN`. It slows execution, so use it on the small debugging reproduction rather than leaving it on for ordinary training.
+
+Different symptoms suggest different first checks:
+
+- **Flat from the start:** confirm parameters require gradients, the optimiser owns them, `step()` runs, and the loss depends on the model output.
+- **Wild but finite:** inspect rate, batch variation, loss scale, gradient norm, and data outliers.
+- **Sudden non-finite value:** inspect the first failing operation, division or logarithm inputs, mixed-precision scaling, and the preceding update.
+- **Training improves, validation worsens:** audit split and evaluation code first; then compare an earlier checkpoint or a controlled generalisation change.
+
+## Step 8 — Stop and save with a declared validation rule
+
+<Term id="early-stopping">Early stopping</Term> stops training after a validation measure has not improved for a chosen **patience**: a number of validation checks you are willing to wait.
+
+Choose before final testing:
+
+- the validation measure;
+- whether lower or higher is better;
+- the minimum change that counts as improvement;
+- the patience;
+- how often validation runs.
+
+Save the best validation <Term id="checkpoint">checkpoint</Term>, not merely the final epoch. A recoverable checkpoint normally contains:
+
+- model state;
+- optimiser state;
+- scheduler state;
+- epoch and optimiser-update number;
+- best validation measure and selection rule;
+- model and preprocessing configuration;
+- data and split versions;
+- code revision and relevant package versions;
+- random seeds where reproducibility requires them.
+
+```python
+if validation_loss < best_validation_loss - minimum_change:
+    best_validation_loss = validation_loss
+    checks_without_improvement = 0
+    torch.save(
+        {
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'scheduler_state': scheduler.state_dict(),
+            'epoch': epoch,
+            'update': update,
+            'best_validation_loss': best_validation_loss,
+            'selection_rule': {
+                'minimum_change': minimum_change,
+                'patience': patience,
+            },
+        },
+        'best-validation.pt',
+    )
+else:
+    checks_without_improvement += 1
+```
+
+Before the one final test evaluation, restore the selected checkpoint. Repeatedly testing different runs on the same test set turns that test set into configuration data.
+
+## Real-world AI engineering example
+
+<RealWorldExample title="A support classifier that can be investigated" steps={['Freeze policy-defined targets, a time-aware split, and a data snapshot before training.', 'Start from a reproducible baseline with a declared optimiser, rate, batch, accumulation count, schedule, and seed policy.', 'Log update count, effective batch, train and validation measures, current rate, gradient norm, and non-finite checks.', 'Save the best validation checkpoint according to a rule declared before the final test.', 'Evaluate relevant error slices, calibration, latency, and the downstream decision policy after restoring that checkpoint.', 'Release through a monitored policy with a safe fallback; keep the run record needed for rollback and investigation.']}>
+  Imagine a model that scores support-ticket urgency. Falling training loss proves
+  only that the optimiser is reducing its chosen training objective. Engineers
+  still need time-aware evidence, error slices for important ticket groups,
+  calibrated decision thresholds, human-review capacity, privacy controls, and a
+  safe response when the model or its inputs drift.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: 'Comparing epochs when batch or accumulation changed.', fix: 'Record optimiser updates, examples processed, and effective batch as well as epochs.' }, { mistake: 'Treating a larger batch as automatically better.', fix: 'Measure memory, throughput, update count, and validation behaviour for the actual task.' }, { mistake: 'Calling warmup and decay a repair.', fix: 'Compare the schedule with a known baseline and log the rate used at each update.' }, { mistake: 'Accumulating mean losses without dividing by the accumulation count.', fix: 'Scale each micro-batch loss so the stored gradient represents the intended effective-batch mean.' }, { mistake: 'Clipping every update without logging the pre-clip norm.', fix: 'Record how often clipping activates and investigate scale, rate, loss, and data.' }, { mistake: 'Changing optimiser, rate, batch, model, and data together.', fix: 'Return to a reproducible baseline and change one controlled factor.' }, { mistake: 'Selecting the final checkpoint by default.', fix: 'Restore the best checkpoint under the declared validation rule.' }, { mistake: 'Using the final test set for schedules or early stopping.', fix: 'Use validation data for configuration; keep the test set protected for the final estimate.' }]} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: 'A loader has 20 batches and uses one optimiser step per batch. How many updates are in three epochs?', options: ['60', '20', '3'], answer: 0, explanation: 'Each epoch contains 20 ordinary updates, so three epochs contain 20 × 3 = 60.' }, { question: 'What does gradient accumulation change?', options: ['Several micro-batches contribute to one optimiser update', 'Validation becomes training data', 'Every gradient becomes finite'], answer: 0, explanation: 'Accumulation delays the optimiser step while gradients from several smaller forward/backward passes are combined.' }, { question: 'What should be logged when gradient clipping is used?', options: ['The gradient norm before clipping', 'Only the clipped value', 'The final test loss after every update'], answer: 0, explanation: 'The pre-clip norm reveals how large the gradient was and how often the safeguard activates.' }, { question: 'Which data may guide early stopping?', options: ['Protected validation data', 'The final test set', 'Future production labels unavailable during training'], answer: 0, explanation: 'Validation supports configuration and checkpoint selection. The final test evidence remains protected.' }, { question: 'What is the first response to a NaN after a rate change?', options: ['Preserve the failure and return to the known-good baseline', 'Change every training setting', 'Delete the failing run'], answer: 0, explanation: 'A preserved, reproducible failure lets you compare one controlled change and find the first non-finite value.' }]} />
+
+## Practice activity
+
+<PracticeActivity title="Make one training run recoverable" time="30–40 minutes" goal="Create a run record that another engineer can select, resume, and investigate." steps={['Choose dataset size, batch size, epoch count, and accumulation count; calculate expected optimiser updates.', 'Declare the validation measure, minimum improvement, patience, and validation frequency.', 'Log epoch, update, training loss, validation loss, learning rate, and gradient norm before clipping.', 'Save model, optimiser, and scheduler state whenever the validation rule improves.', 'Restore the selected checkpoint before one final test evaluation.', 'Write down one controlled response for a flat curve and one for a non-finite loss.']} expected="Your record explains how many updates occurred, which settings produced them, why one checkpoint won, and how to reproduce the first failure." challenge="Add a small assertion that stops immediately when the loss or gradient norm is not finite.">
+  Example: 2,048 training examples with batch size 32 create 64 micro-batches
+  per epoch. With four-way accumulation, that is 16 optimiser updates per
+  epoch and an effective batch of 128 examples on one process. Over ten epochs
+  the run expects 160 updates. A valid selection rule might be: “save when
+  validation loss improves by at least 0.001; stop after five non-improving
+  checks.” The exact values are task-specific. The important part is declaring
+  and recording them before final testing.
+</PracticeActivity>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Key takeaways
+
+<KeyTakeaways points={['Count optimiser updates and effective batch size; epochs alone hide important differences.', 'Treat optimiser, rate, schedule, accumulation, and clipping as logged hypotheses.', 'Use solid training evidence and separate validation evidence to diagnose and select a run.', 'Preserve the first failure, inspect non-finite values, and change one factor from a known baseline.', 'Restore the best validation checkpoint before one protected final test evaluation.']} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: 'What normally creates one optimiser update?', back: 'One batch, unless gradients are intentionally accumulated across several micro-batches.' }, { front: 'What is an epoch?', back: 'One pass through the training loader. Its update count depends on batch and accumulation settings.' }, { front: 'What does learning-rate warmup do?', back: 'It increases the rate from a smaller early value to a chosen peak over declared updates.' }, { front: 'What does decay do?', back: 'It reduces the learning rate later according to a declared schedule.' }, { front: 'What is gradient accumulation?', back: 'Combining gradients from several micro-batches before one optimiser step.' }, { front: 'What does clipping return in clip_grad_norm_?', back: 'The total gradient norm before the in-place clipping, which should be logged.' }, { front: 'What selects early stopping?', back: 'A predefined rule applied to protected validation evidence.' }, { front: 'What makes a checkpoint recoverable?', back: 'Model state plus optimiser and scheduler state, position, configuration, data context, metrics, and selection rule.' }]} />
+
+<RevisionQuestions questions={['Calculate updates and effective batch for 4,096 examples, batch size 16, four accumulation steps, and five epochs.', 'Compare SGD, momentum, Adam, and AdamW without claiming one is universally best.', 'Explain why loss scaling matters during gradient accumulation.', 'Design a controlled investigation for a run that is flat from the first update.', 'State an early-stopping and checkpoint rule that protects final test evidence.']} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="Training mechanics: make the run explain itself" terms={['Batch — one forward/backward group', 'Epoch — one loader pass', 'Update — one optimiser step', 'Schedule — a rate rule', 'Accumulation — micro-batches per update', 'Clipping — a measured gradient cap', 'Checkpoint — recoverable state']} mistakes={['Do not compare epochs alone', 'Do not tune on final test data', 'Do not hide unstable gradients', 'Do not change every setting at once']} takeaways={['Count updates', 'Log the current rate', 'Read both curves', 'Preserve the first failure', 'Save best validation state']} questions={['How large is the effective batch?', 'When does the optimiser step?', 'Which data selects the checkpoint?']}>
+  <p slot="main">A trustworthy training run makes every update countable, every configuration change visible, every failure reproducible, and every selected checkpoint explainable.</p>
+  <div slot="diagram"><OptimiserMemory /></div>
+  <pre slot="code"><code>batch → backward
+accumulate? → clip? → step
+validate → log → save best</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="training-mechanics" items={['I can calculate batches, updates, and effective batch size.', 'I can explain optimiser and learning-rate roles.', 'I can describe warmup and decay without treating them as automatic repairs.', 'I can read a training–validation divergence.', 'I can scale an accumulated loss correctly.', 'I can use clipping as a logged safeguard.', 'I can define a validation checkpoint rule.', 'I completed the curve lab, code lab, quiz, exercises, and flashcards.']} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="regularisation-and-normalisation" title="Regularisation and normalisation" why="You can now measure and diagnose the training process. Next, add deliberate constraints and normalisation choices, then judge them with the validation discipline from this lesson." />

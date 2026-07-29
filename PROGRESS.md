@@ -4,11 +4,11 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 19 / 90 |
+| Chapters published | 21 / 90 |
 | Layers complete | 1 / 11 |
-| Total diagrams | 40 |
-| Total interactive widgets | 4 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist) |
-| Live URL | https://nitesh0007-edith.github.io/ai-engineer-course/ |
+| Total diagrams | 43 |
+| Total interactive widgets | 5 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist, TrainingLoopVisualizer) |
+| Live URL | https://www.learnaiwithnitesh.dev/ |
 
 ## Phase 0 — Foundation (CLAUDE.md §11)
 
@@ -54,3 +54,5 @@ Notes:
 | 01-07 | Bias–variance trade-off & regularisation | 1 | published | 2 | 3 | 2026-07-28 |
 | 02-01 | From neurons to networks | 2 | published | 2 | 3 | 2026-07-28 |
 | 02-02 | Backpropagation from scratch | 2 | published | 2 | 3 | 2026-07-28 |
+| 02-03 | PyTorch: an honest training loop | 2 | published | 1 | 4 | 2026-07-29 |
+| 02-04 | Training mechanics | 2 | published | 2 | 5 | 2026-07-29 |
