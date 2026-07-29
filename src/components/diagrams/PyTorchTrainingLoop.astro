@@ -1,0 +1,66 @@
+---
+/**
+ * A deliberately small view of the PyTorch training loop. The numbered arrows
+ * match the ordered calls in the lesson so the diagram is useful when printed.
+ */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 760 310"
+  role="img"
+  aria-labelledby="pytorch-loop-title pytorch-loop-desc"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title id="pytorch-loop-title">A PyTorch training loop</title>
+  <desc id="pytorch-loop-desc">A dataset feeds a DataLoader, which provides a small batch to a model. The model produces predictions, a loss compares them with targets, backward calculates gradients, and an optimiser step updates the model. A loop arrow returns to the DataLoader for the next batch. A separate evaluation path runs the model in evaluation mode without gradients.</desc>
+
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="var(--blueprint)" />
+    </marker>
+  </defs>
+
+  <path d="M84 156 H158 M282 156 H350 M474 156 H542 M666 156 H706"
+    fill="none" stroke="var(--blueprint)" stroke-width="2" marker-end="url(#arrow)" />
+  <path d="M620 205 C620 274 220 274 220 206" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#arrow)" />
+  <path d="M412 204 V250 H590" fill="none" stroke="var(--ink-muted)" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#arrow)" />
+
+  <g font-family="var(--font-mono)" font-size="11" text-anchor="middle">
+    <text x="121" y="142" fill="var(--blueprint)">1</text>
+    <text x="316" y="142" fill="var(--blueprint)">2</text>
+    <text x="510" y="142" fill="var(--blueprint)">3</text>
+    <text x="686" y="142" fill="var(--blueprint)">4</text>
+    <text x="400" y="290" fill="var(--ink-muted)">repeat for the next batch</text>
+  </g>
+
+  <g stroke="var(--ink)" stroke-width="2" fill="var(--paper-raise)">
+    <rect x="18" y="112" width="66" height="88" rx="5" />
+    <rect x="158" y="112" width="124" height="88" rx="5" />
+    <rect x="350" y="112" width="124" height="88" rx="5" />
+    <rect x="542" y="112" width="124" height="88" rx="5" />
+  </g>
+
+  <g font-family="var(--font-hand)" font-size="20" fill="var(--ink)" text-anchor="middle">
+    <text x="51" y="145">data</text>
+    <text x="51" y="171">set</text>
+    <text x="220" y="144">batch</text>
+    <text x="220" y="170">DataLoader</text>
+    <text x="412" y="144">model</text>
+    <text x="412" y="170">prediction</text>
+    <text x="604" y="144">loss</text>
+    <text x="604" y="170">backward</text>
+  </g>
+
+  <g font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)" text-anchor="middle">
+    <text x="51" y="188">examples + targets</text>
+    <text x="220" y="188">small group</text>
+    <text x="412" y="188">nn.Module</text>
+    <text x="604" y="188">gradients</text>
+    <text x="650" y="246">evaluation: model.eval() + no_grad()</text>
+  </g>
+
+  <rect x="706" y="122" width="42" height="68" rx="5" fill="var(--yellow-pale)" stroke="var(--ink)" stroke-width="2" />
+  <text x="727" y="149" font-family="var(--font-hand)" font-size="18" fill="var(--ink)" text-anchor="middle">step</text>
+  <text x="727" y="172" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)" text-anchor="middle">update</text>
+</svg>

@@ -1,0 +1,385 @@
+---
+layer: 2
+order: 3
+title: 'PyTorch: an honest training loop'
+slug: 'pytorch'
+subtitle: 'Turn tensors, a small model, a loss, and an optimiser into a readable training loop you can inspect and test.'
+depth: build
+difficulty: beginner
+readingTime: 65
+prerequisites:
+  - backpropagation-from-scratch
+skillsGained:
+  - 'Describe what tensors, modules, losses, gradients, and optimisers each do in PyTorch'
+  - 'Trace the five essential calls in a training step in the correct order'
+  - 'Build a small nn.Module and train it on a deliberately tiny regression task'
+  - 'Separate training mode from evaluation mode and explain why gradients are disabled for evaluation'
+  - 'Save the model state and record enough context to make a training result inspectable'
+objectives:
+  - 'Create tensors with an explicit floating-point type and expected shape'
+  - 'Explain why optimizer.zero_grad(), loss.backward(), and optimizer.step() have different jobs'
+  - 'Use a DataLoader to iterate over batches without confusing batch order with a valid data split'
+  - 'Report an evaluation loss without accidentally building gradient-tracking work'
+  - 'Identify a minimum useful checkpoint and the evidence it does not contain'
+concepts:
+  - tensor
+  - module
+  - data-loader
+  - batch
+  - epoch
+  - optimiser
+  - model-state
+diagrams:
+  - PyTorchTrainingLoop
+interactives:
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+  - PyRunner
+codeExamples: 2
+exercises:
+  - prompt: 'Put these calls in the right order inside one training batch: optimizer.step(), optimizer.zero_grad(), loss.backward(), prediction = model(features), loss = loss_fn(prediction, target).'
+    difficulty: warmup
+    solution: 'prediction = model(features); loss = loss_fn(prediction, target); optimizer.zero_grad(); loss.backward(); optimizer.step(). The forward calculation must create loss before backward can differentiate it. Clearing gradients happens before backward because PyTorch accumulates gradients by default. step then uses the new gradients.'
+  - prompt: 'A model has a low training loss but a much worse validation loss. Name two actions that are justified and two actions that are not yet justified.'
+    difficulty: core
+    solution: 'Justified: verify the split, preprocessing, labels, and evaluation code; inspect learning curves and representative error slices; compare a simpler baseline or change one controlled setting. Not yet justified: claiming the model is useful in production; repeatedly using the validation set until a lucky result appears; changing every setting at once.'
+  - prompt: 'Design a checkpoint record for a small training run. What must be stored besides model parameters so another engineer can investigate or resume it?'
+    difficulty: stretch
+    solution: 'Store model state, optimiser state if resuming, architecture and package versions, data version and split definition, preprocessing version, random seeds where applicable, hyperparameters, epoch/step, validation metrics, and the evaluation decision. Protect any sensitive identifiers or data from the artifact. A checkpoint alone does not prove the data was valid or the model is safe to deploy.'
+resources:
+  - title: 'PyTorch — Learn the Basics'
+    url: 'https://docs.pytorch.org/tutorials/beginner/basics/intro.html'
+    type: docs
+    note: 'Official guided path through tensors, data loading, model building, autograd, optimisation, and saving state.'
+  - title: 'PyTorch — Autograd mechanics'
+    url: 'https://docs.pytorch.org/docs/stable/notes/autograd.html'
+    type: docs
+    note: 'Official explanation of the graph that PyTorch records during gradient-enabled forward calculations.'
+  - title: 'PyTorch — Data loading'
+    url: 'https://docs.pytorch.org/docs/stable/data.html'
+    type: docs
+    note: 'Official reference for Dataset and DataLoader behaviour, batching, ordering, and worker processes.'
+status: published
+updated: 2026-07-29
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import PyTorchTrainingLoop from '../../../components/diagrams/PyTorchTrainingLoop.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+The previous lesson traced one error backwards by hand. That is valuable because it tells you what a gradient means. But manually writing derivatives for every parameter stops being practical as soon as the model has more than a few calculations.
+
+PyTorch is a Python library for numerical computation and deep learning. A <Term id="tensor">tensor</Term> stores its numbers; the library can record eligible calculations for automatic differentiation and provides model and optimiser building blocks. It does not choose a valid target, protect a data split, or decide that a model is safe to use.
+
+<LessonIdentity module="Deep learning" lesson="3 · PyTorch: an honest training loop" difficulty="Beginner" duration="65 minutes" prerequisites={['Forward passes, loss, gradients, and one gradient-descent update', 'Basic Python functions, loops, lists, and virtual environments']} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+A training framework makes the repeated arithmetic manageable. It also makes it easy to hide mistakes behind five short method calls. A readable training loop gives every call one job: make a prediction, measure the error, clear old gradients, calculate new gradients, then update parameters.
+
+<MainIdea>
+  A <Term id="tensor">tensor</Term> holds the model’s numeric data. An <Term id="module">nn.Module</Term> holds a model calculation and its parameters. For each <Term id="batch">batch</Term>, PyTorch runs a forward pass, calculates loss, backpropagates gradients, and lets an <Term id="optimiser">optimiser</Term> update parameters. Evaluation uses the same model but avoids gradient tracking and uses evaluation behaviour where the model has it.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="A kitchen pass with a written ticket" limitation="A kitchen follows a recipe chosen by people; a neural model discovers numeric parameters from data and can learn an unwanted shortcut. A well-ordered loop does not make the data, target, or decision policy correct.">
+  Think of one training batch as a small group of meal tickets at a kitchen pass.
+  The model prepares a prediction for each ticket. The loss compares those
+  predictions with the known outcomes. Backpropagation writes how each adjustable
+  setting contributed to the error. The optimiser changes those settings once.
+  Before the next group, you clear the old notes so they do not get counted again.
+</AnalogyCard>
+
+## Step 1 — Tensors are shaped containers for numbers
+
+A tensor is a container whose **shape** says how numbers are arranged. A score for one example might have shape `(1,)`. A batch of four examples, each with three input features, has shape `(4, 3)`: four rows and three values per row.
+
+PyTorch can run the same tensor code on a CPU or a supported accelerator. Start on the CPU, make shapes and types clear, and move only after measurement gives you a reason. Inputs for a neural network are usually floating-point tensors. Classification targets often have a different type, depending on the loss; always read the loss function’s contract rather than guessing.
+
+```python
+import torch
+
+features = torch.tensor(
+    [[0.0], [1.0], [2.0]],
+    dtype=torch.float32,
+)
+targets = torch.tensor([[1.0], [3.0], [5.0]], dtype=torch.float32)
+
+print(features.shape)
+print(features.dtype)
+print(targets.shape)
+```
+
+The expected output is:
+
+```text
+torch.Size([3, 1])
+torch.float32
+torch.Size([3, 1])
+```
+
+The outer dimension is the example or batch dimension. Keeping it—even for one example—helps a model accept one example and many examples consistently.
+
+## Step 2 — Keep the five training jobs separate
+
+<Figure id="02-03.1" label="ONE BATCH, FIVE DISTINCT JOBS" caption="— a DataLoader supplies a batch. The model predicts, loss measures error, backward calculates gradients, and step updates parameters. The loop repeats. Evaluation takes a deliberately separate path without gradients.">
+  <PyTorchTrainingLoop />
+</Figure>
+
+Here is the essential order. It is short enough to memorise, but each line has a distinct responsibility.
+
+```python
+prediction = model(features)               # 1. forward pass
+loss = loss_fn(prediction, targets)        # 2. numeric training signal
+
+optimizer.zero_grad()                      # 3. remove old accumulated gradients
+loss.backward()                            # 4. calculate fresh gradients
+optimizer.step()                           # 5. update parameters
+```
+
+PyTorch adds gradients to a parameter’s `.grad` field by default. That is useful when you intentionally combine several smaller computations before an update. In the ordinary one-batch pattern, forgetting `zero_grad()` means a later update mixes in an earlier batch’s gradient. Clear **before** `backward()`, so the gradient you inspect belongs to the current batch.
+
+## Worked example — learn a line with an explicit model
+
+This intentionally tiny problem has the rule `target = 2 × input + 1`. It is not a realistic product task. It lets us inspect the mechanics without pretending a short example proves generalisation.
+
+`nn.Linear(1, 1)` is a model with one input, one output, a weight, and a bias. We set both parameters to zero so this first update is repeatable and understandable. The mean-squared-error loss averages the squared prediction errors.
+
+<CodeNotebook title="One PyTorch update, with no hidden randomness">
+
+```python
+import torch
+from torch import nn
+
+features = torch.tensor([[0.0], [1.0]])
+targets = torch.tensor([[1.0], [3.0]])  # target = 2 × input + 1
+
+model = nn.Linear(1, 1)
+with torch.no_grad():
+    model.weight.fill_(0.0)
+    model.bias.fill_(0.0)
+
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+
+prediction = model(features)
+loss = loss_fn(prediction, targets)
+optimizer.zero_grad()
+loss.backward()
+optimizer.step()
+
+print('loss before:', round(loss.item(), 3))
+print('weight after:', round(model.weight.item(), 3))
+print('bias after:', round(model.bias.item(), 3))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+loss before: 5.0
+weight after: 0.3
+bias after: 0.4
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: 'with torch.no_grad()', explanation: 'This setup changes parameters intentionally but should not become part of a gradient graph. It is not the usual way to initialise a model; it keeps this worked example deterministic.' }, { line: 'optimizer = torch.optim.SGD(...)', explanation: 'The optimiser receives the parameters it may update and a learning rate. It does nothing until step() is called.' }, { line: 'optimizer.zero_grad()', explanation: 'This clears the gradients stored from a prior backward call. In the normal pattern it comes before calculating the current batch gradient.' }, { line: 'loss.backward()', explanation: 'Autograd follows the operations that produced loss and fills each trainable parameter’s gradient.' }, { line: 'optimizer.step()', explanation: 'The optimiser reads those gradients and changes the model parameters according to its update rule.' }]} />
+
+The result does not jump to weight `2` and bias `1` after one batch. One small update moves in a helpful direction. Training repeats on data that represents the intended task, while validation checks whether progress also appears on protected examples.
+
+## Step 3 — A DataLoader provides batches, not validity
+
+A <Term id="data-loader">DataLoader</Term> turns a dataset into an iterator over batches. It can group examples, shuffle a training order, and use worker processes when reading data becomes a measured bottleneck. It does **not** create a train/validation/test split for you, prevent leakage, make labels correct, or make shuffling appropriate for time-ordered data.
+
+```python
+from torch.utils.data import DataLoader, TensorDataset
+
+dataset = TensorDataset(features, targets)
+train_loader = DataLoader(dataset, batch_size=2, shuffle=True)
+
+for batch_features, batch_targets in train_loader:
+    print(batch_features.shape, batch_targets.shape)
+```
+
+For this two-example dataset, the output shapes are always `torch.Size([2, 1])` and `torch.Size([2, 1])`; only the row order may differ because `shuffle=True` changes it. Set `shuffle=True` only for a training split when the examples may safely be reordered. Do not casually shuffle a time sequence, grouped records, or a validation set merely because the default training pattern did.
+
+An <Term id="epoch">epoch</Term> means one pass through the examples yielded by a loader. It is a convenient counter, not a target by itself. Record both the training loss and a protected validation measure at each epoch so you can see divergence, overfitting, or a plateau rather than relying on a final number alone.
+
+## Step 4 — Train and evaluate deliberately differently
+
+The training step needs gradients. Evaluation does not. During evaluation, use `model.eval()` and `torch.no_grad()`.
+
+`model.eval()` switches certain layers—such as dropout and batch normalisation—to their evaluation behaviour. It does not disable gradients. `torch.no_grad()` stops PyTorch recording gradient-tracking operations for the enclosed block. It does not switch model behaviour. In real code, use both for ordinary validation or inference.
+
+<CodeNotebook title="A small, inspectable training and evaluation loop">
+
+```python
+for epoch in range(20):
+    model.train()
+    for batch_features, batch_targets in train_loader:
+        prediction = model(batch_features)
+        loss = loss_fn(prediction, batch_targets)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    model.eval()
+    with torch.no_grad():
+        validation_prediction = model(validation_features)
+        validation_loss = loss_fn(validation_prediction, validation_targets)
+
+    print(epoch, validation_loss.item())
+```
+
+</CodeNotebook>
+
+Keep validation examples separate before you create the loader. A clean-looking loop cannot repair a contaminated split. For a real project, make preprocessing an explicit, versioned part of the training and evaluation path; fit data-dependent transformations on training data only, then apply the frozen transformation elsewhere.
+
+## Try it — see why accumulated gradients matter
+
+This browser exercise uses plain Python to make the accumulation rule visible. The arithmetic matches a simplified one-parameter update; PyTorch performs the same bookkeeping for tensors. Run it, then change `clear_before_second_batch` to `False` and compare the final weight.
+
+<PyRunner
+  client:load
+  id="02-03.A"
+  label="SEE THE OLD GRADIENT STICK AROUND"
+  code={`learning_rate = 0.1
+weight = 0.0
+gradient = 0.0
+clear_before_second_batch = True
+
+# Batch 1 contributes gradient -4.
+gradient = -4.0
+weight -= learning_rate * gradient
+print('after batch 1:', weight)
+
+# PyTorch accumulates a new gradient into the existing one unless cleared.
+if clear_before_second_batch:
+    gradient = 0.0
+gradient += -2.0
+weight -= learning_rate * gradient
+
+print('gradient used for batch 2:', gradient)
+print('final weight:', weight)`}
+  solution={`learning_rate = 0.1
+weight = 0.0
+gradient = 0.0
+clear_before_second_batch = True
+
+gradient = -4.0
+weight -= learning_rate * gradient
+print('after batch 1:', weight)
+
+if clear_before_second_batch:
+    gradient = 0.0
+gradient += -2.0
+weight -= learning_rate * gradient
+
+print('gradient used for batch 2:', gradient)
+print('final weight:', weight)`}
+/>
+
+With `clear_before_second_batch = True`, the output is:
+
+```text
+after batch 1: 0.4
+gradient used for batch 2: -2.0
+final weight: 0.6000000000000001
+```
+
+If you set it to `False`, the second update uses `-6.0` instead: the old `-4.0` has been added to the new `-2.0`. Gradient accumulation can be intentional, but it must be an explicit design choice with the loss scaling checked carefully.
+
+## Step 5 — Save model state, context, and evidence
+
+A <Term id="model-state">model state</Term> is the learned parameter and persistent-buffer values needed for a module to reproduce its behaviour. In PyTorch, `model.state_dict()` provides that mapping. If you may resume training, store `optimizer.state_dict()` too; optimisers such as Adam keep internal history that affects future updates.
+
+```python
+checkpoint = {
+    'model_state': model.state_dict(),
+    'optimizer_state': optimizer.state_dict(),
+    'epoch': epoch,
+    'validation_loss': validation_loss.item(),
+    'data_version': 'support-labels-2026-07-15',
+}
+torch.save(checkpoint, 'checkpoint.pt')
+```
+
+The filename and one loss value are not enough evidence. Record the code revision, package versions, model configuration, data and split version, preprocessing version, random seeds where applicable, metrics and error slices, and the decision that determined whether this run may proceed. Never place secrets or unnecessary personal data into a checkpoint or its logs.
+
+## Real-world AI engineering example — a classifier that can be investigated
+
+<RealWorldExample title="Make a training loop an observable system" steps={['Freeze a policy-defined target, data snapshot, and train/validation/test split before training.', 'Assert feature shapes, types, label ranges, and missing-value handling at the loader boundary.', 'Log batch and epoch loss, validation metrics, learning rate, run configuration, and gradient or parameter health signals.', 'Evaluate with model.eval() and no_grad(), then report slices that matter for the intended workflow.', 'Store a versioned checkpoint with model state, optimiser state when needed, and enough metadata to reproduce or investigate the run.', 'Release only through the project’s separately evaluated decision policy, with monitoring and a safe fallback.']}>
+  Imagine a support-routing model that predicts an urgency score. The PyTorch loop
+  is only the middle of the system. Before it, policy-reviewed labels and a
+  time-aware split define the question. After it, calibration, a threshold,
+  human-review capacity, privacy constraints, and monitoring determine how—or
+  whether—the score can influence real tickets.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: 'Calling backward() an optimiser update.', fix: 'backward() calculates and stores gradients. step() is the call that changes parameters.' }, { mistake: 'Forgetting zero_grad() because loss fell on a toy run.', fix: 'Use the explicit clear → backward → step pattern unless you are intentionally accumulating gradients and have checked scaling.' }, { mistake: 'Using model.eval() as if it disabled gradients.', fix: 'Use model.eval() for evaluation behaviour and torch.no_grad() to stop gradient tracking. They solve different problems.' }, { mistake: 'Assuming DataLoader shuffle creates a sound train/validation split.', fix: 'Create and audit the split first. A loader only iterates over the data you give it.' }, { mistake: 'Saving only a .pt file with no context.', fix: 'Record data, split, preprocessing, code, configuration, metrics, and optimiser state when resuming matters.' }, { mistake: 'Treating a falling training loss as deployment evidence.', fix: 'Compare protected validation and test evidence, relevant error slices, calibration, latency, cost, and the actual decision policy.' }]} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: 'Which call actually changes a model’s parameters in the usual PyTorch training loop?', options: ['optimizer.step()', 'loss.backward()', 'model.train()'], answer: 0, explanation: 'backward() calculates gradients; step() reads those gradients through the optimiser’s update rule and changes parameters.' }, { question: 'Why is optimizer.zero_grad() normally called before loss.backward()?', options: ['Because PyTorch accumulates gradients by default', 'Because it validates the data split', 'Because it switches the model into evaluation mode'], answer: 0, explanation: 'A parameter’s gradient is added to what was already stored. Clearing first makes the ordinary update use only the current batch gradient.' }, { question: 'What does model.eval() do by itself?', options: ['Switches layers with train/evaluation behaviour, but does not disable gradients', 'Disables all gradient tracking', 'Saves the model state'], answer: 0, explanation: 'Evaluation mode affects layers such as dropout and batch normalisation. Use torch.no_grad() as well when you do not need gradients.' }, { question: 'What is a DataLoader not able to guarantee?', options: ['That a dataset has a valid, leakage-free split', 'That batches can be yielded', 'That examples can be grouped'], answer: 0, explanation: 'A loader handles iteration and batching. The data source, labels, split boundaries, and preprocessing design still need explicit engineering checks.' }]} />
+
+## Practice activity
+
+<PracticeActivity title="Build one transparent training step" time="25–35 minutes" goal="Run a deterministic PyTorch update, then explain the role and order of every line." steps={['Install PyTorch for your platform in a project virtual environment using the current official installation instructions.', 'Run the worked example with its zeroed weight and bias.', 'Print the prediction, loss, weight gradient, and bias gradient immediately after backward() but before step().', 'Confirm that the first gradients are -3.0 for the weight and -4.0 for the bias.', 'Call step(), then calculate the new loss without calling backward().', 'Write one sentence distinguishing model.eval() from torch.no_grad().']} expected="Before the step, the loss is 5.0, the gradients are -3.0 and -4.0, and the first update gives weight 0.3 and bias 0.4. You should be able to say that eval changes layer behaviour while no_grad stops graph recording." challenge="Wrap the two tensors in TensorDataset and DataLoader, then make the update loop work for one batch without changing the learning result.">
+
+**Solution:** for predictions `[0, 0]` and targets `[1, 3]`, mean squared error
+is `(1² + 3²) / 2 = 5`. The loss gradient for the weight is `-3` and for the bias
+is `-4`. With learning rate `0.1`, SGD takes `weight = 0 - 0.1×(-3) = 0.3` and
+`bias = 0 - 0.1×(-4) = 0.4`. Evaluation should use both `model.eval()` and
+`torch.no_grad()`: the first selects evaluation behaviour for relevant modules;
+the second avoids creating a gradient graph.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways points={['Tensors carry numeric data and their shapes make the batch and feature dimensions explicit.', 'A training batch follows a stable order: forward pass, loss, clear gradients, backward, optimiser step.', 'backward() calculates gradients and step() updates parameters; they are not interchangeable.', 'DataLoader makes batching and iteration convenient but cannot validate labels, splits, ordering, or leakage.', 'Evaluation normally needs both model.eval() and torch.no_grad().', 'A checkpoint needs model state plus context and evidence before it can support a trustworthy engineering decision.']} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: 'What is a tensor?', back: 'A shaped container for numbers. PyTorch tensors can also record eligible operations for gradient calculation.' }, { front: 'What does nn.Module provide?', back: 'A reusable model building block that groups calculations and registered parameters.' }, { front: 'What is the ordinary training-call order?', back: 'Forward, loss, zero_grad, backward, step.' }, { front: 'Why call zero_grad?', back: 'PyTorch accumulates gradients by default; clearing prevents an old gradient joining the ordinary next-batch update.' }, { front: 'How do model.eval() and torch.no_grad() differ?', back: 'eval changes layers that have separate training/evaluation behaviour; no_grad stops recording a gradient graph.' }, { front: 'What does a DataLoader not guarantee?', back: 'A valid split, correct labels, safe preprocessing, or representative data.' }, { front: 'What extra state can matter when resuming training?', back: 'The optimiser state, along with run configuration and data/split context.' }]} />
+
+<RevisionQuestions questions={['Draw the PyTorch training loop for one batch. State what exists or changes after forward, loss, zero_grad, backward, and step.', 'Explain with a two-batch example why PyTorch gradient accumulation can be useful but dangerous when accidental.', 'Compare model.train(), model.eval(), torch.no_grad(), and optimizer.zero_grad(). What distinct concern does each address?', 'Design the minimum data, configuration, and model-state record needed to investigate a surprising validation result.']} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="PyTorch: an honest training loop" terms={['Tensor — shaped numeric container', 'Module — model calculation + parameters', 'Batch — small group of examples', 'Epoch — one loader pass', 'Optimiser — applies gradient-based updates', 'Model state — learned values to save']} mistakes={['Do not confuse backward with step', 'Do not forget gradient clearing', 'Do not use eval as a substitute for no_grad', 'Do not confuse batching with a valid split']} takeaways={['Keep five training jobs separate', 'Inspect shapes at boundaries', 'Evaluate deliberately', 'Save context, not just weights', 'Lower training loss is not deployment evidence']} questions={['What does backward calculate?', 'Why clear gradients?', 'What does the loader not know?']}>
+  <p slot="main">PyTorch turns the repeated mechanics of learning into a small, inspectable loop. The framework handles tensor arithmetic and automatic differentiation; engineers remain responsible for the data, objective, evidence, and decision policy around it.</p>
+  <div slot="diagram"><PyTorchTrainingLoop /></div>
+  <pre slot="code"><code>predict → loss
+clear → backward → step
+eval: eval() + no_grad()</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="pytorch" items={['I can read a tensor shape as batch rows and feature columns.', 'I can state the five training calls in order.', 'I can distinguish backward() from step().', 'I can explain why zero_grad() belongs before backward().', 'I can use eval() and no_grad() for evaluation.', 'I can explain what a DataLoader does not validate.', 'I completed the code, quiz, practice, and flashcards.']} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="training-neural-networks-reliably" title="Training neural networks reliably" why="You can now build a transparent framework training loop. Next, learn how batching, optimisation choices, regularisation, checkpoints, and learning curves make a real training run more stable and diagnosable." />

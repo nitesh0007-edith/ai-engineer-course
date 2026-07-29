@@ -56,7 +56,7 @@ test.describe('layout integrity', () => {
   });
 
   test('new deep-learning diagrams fit tablet and mobile canvases', async ({ page }) => {
-    for (const route of ['chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/']) {
+    for (const route of ['chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/']) {
       for (const width of [768, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(route, { waitUntil: 'load' });

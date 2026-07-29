@@ -23,4 +23,5 @@ export const ROUTES = [
   'chapters/bias-variance-and-regularisation/',
   'chapters/from-neurons-to-networks/',
   'chapters/backpropagation-from-scratch/',
+  'chapters/pytorch/',
 ];
