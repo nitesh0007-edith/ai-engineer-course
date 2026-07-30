@@ -1,0 +1,72 @@
+---
+/** AdjacentProblemMap — choose evidence from the question, not one default split. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 490"
+  role="img"
+  aria-label="Three labelled panels distinguish adjacent machine-learning questions. Time series asks what happens after a cutoff and validates by moving forward through time. Recommendation asks which items to retrieve and rank for a user or context and validates on later interactions, including cold-start slices. Causal inference asks what changes because an action is taken; a confounder points to both treatment and outcome, while treatment also points to outcome. It needs randomisation or explicit identification assumptions. A footer says the question determines the split and evidence."
+>
+  <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">same toolbox, three different questions</text>
+
+  <rect x="22" y="58" width="235" height="363" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="139" y="89" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">time series</text>
+  <text x="139" y="111" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">WHAT HAPPENS AFTER THE CUTOFF?</text>
+  <path d="M48 172 H228" stroke="var(--ink)" stroke-width="2" />
+  <circle cx="61" cy="172" r="6" fill="var(--blueprint)" />
+  <circle cx="89" cy="158" r="6" fill="var(--blueprint)" />
+  <circle cx="117" cy="179" r="6" fill="var(--blueprint)" />
+  <circle cx="145" cy="149" r="6" fill="var(--blueprint)" />
+  <line x1="165" y1="132" x2="165" y2="203" stroke="var(--alert)" stroke-width="3" stroke-dasharray="6 4" />
+  <circle cx="190" cy="137" r="6" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <circle cx="218" cy="121" r="6" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="105" y="218" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">past</text>
+  <text x="197" y="218" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">future</text>
+  <text x="139" y="257" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">ARIMA · Prophet</text>
+  <text x="139" y="281" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">lags · rolling features</text>
+  <rect x="45" y="307" width="189" height="79" rx="8" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="1.5" />
+  <text x="139" y="333" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">EVIDENCE</text>
+  <text x="139" y="355" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">walk-forward backtest</text>
+  <text x="139" y="375" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">never random-shuffle time</text>
+
+  <rect x="272" y="58" width="235" height="363" rx="14" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="389" y="89" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">recommendation</text>
+  <text x="389" y="111" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">WHICH ITEMS SHOULD WE RANK?</text>
+  <rect x="294" y="140" width="79" height="70" rx="9" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+  <text x="333" y="167" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">user</text>
+  <text x="333" y="188" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">query tower</text>
+  <rect x="405" y="140" width="79" height="70" rx="9" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+  <text x="444" y="167" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">item</text>
+  <text x="444" y="188" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">item tower</text>
+  <text x="389" y="184" text-anchor="middle" font-family="var(--font-hand)" font-size="25" fill="var(--blueprint)">·</text>
+  <path d="M333 210 C333 239 365 243 389 252" fill="none" stroke="var(--blueprint)" stroke-width="2.5" />
+  <path d="M444 210 C444 239 414 243 389 252" fill="none" stroke="var(--blueprint)" stroke-width="2.5" />
+  <text x="389" y="275" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">retrieve → score → re-rank</text>
+  <rect x="295" y="307" width="189" height="79" rx="8" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="1.5" />
+  <text x="389" y="333" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">EVIDENCE</text>
+  <text x="389" y="355" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">later interactions</text>
+  <text x="389" y="375" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">cold-start + exposure slices</text>
+
+  <rect x="522" y="58" width="235" height="363" rx="14" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="639" y="89" text-anchor="middle" font-family="var(--font-hand)" font-size="23" fill="var(--ink)">causal inference</text>
+  <text x="639" y="111" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">WHAT CHANGES IF WE ACT?</text>
+  <circle cx="639" cy="151" r="34" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+  <text x="639" y="147" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">confounder</text>
+  <text x="639" y="165" text-anchor="middle" font-family="var(--font-mono)" font-size="8" fill="var(--ink-muted)">common cause</text>
+  <rect x="544" y="241" width="81" height="59" rx="9" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="584" y="274" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">treatment</text>
+  <rect x="654" y="241" width="81" height="59" rx="9" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+  <text x="694" y="274" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">outcome</text>
+  <path d="M619 178 L590 229" stroke="var(--alert)" stroke-width="2.5" />
+  <path d="M659 178 L688 229" stroke="var(--alert)" stroke-width="2.5" />
+  <path d="M625 270 H642" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="633" y="260" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--blueprint)">→</text>
+  <rect x="545" y="318" width="189" height="68" rx="8" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="1.5" />
+  <text x="639" y="342" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">EVIDENCE</text>
+  <text x="639" y="363" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--ink)">randomise or state assumptions</text>
+  <text x="639" y="380" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">estimate uplift, not risk</text>
+
+  <path d="M65 453 H715" stroke="var(--ink)" stroke-width="2" stroke-dasharray="3 5" />
+  <text x="390" y="478" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--alert)">the question chooses the split, metric, and evidence—not the other way round</text>
+</svg>

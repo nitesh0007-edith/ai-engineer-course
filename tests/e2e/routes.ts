@@ -21,6 +21,7 @@ export const ROUTES = [
   'chapters/unsupervised-learning/',
   'chapters/evaluation-done-properly/',
   'chapters/bias-variance-and-regularisation/',
+  'chapters/pipelines-interpretability-and-adjacent-problems/',
   'chapters/from-neurons-to-networks/',
   'chapters/backpropagation-from-scratch/',
   'chapters/pytorch/',

@@ -4,10 +4,10 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 21 / 90 |
-| Layers complete | 1 / 11 |
-| Total diagrams | 43 |
-| Total interactive widgets | 5 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist, TrainingLoopVisualizer) |
+| Chapters published | 22 / 90 |
+| Layers complete | 2 / 11 |
+| Total diagrams | 45 |
+| Total interactive widgets | 6 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist, TrainingLoopVisualizer, InterpretabilityWorkbench) |
 | Live URL | https://www.learnaiwithnitesh.dev/ |
 
 ## Phase 0 — Foundation (CLAUDE.md §11)
@@ -31,6 +31,14 @@ Notes:
 - Diagram primitive library is intentionally minimal — built per §9 ("the first time a chapter needs it, then reuse") rather than all of §7 up front.
 - Remaining §13 gates still to add: eslint/prettier, vitest, external link-check.
 
+## Layer milestones
+
+| layer | title | chapters | status |
+|---|---|---:|---|
+| 00 | Foundations | 10 / 10 | ✅ complete |
+| 01 | Classical Machine Learning | 8 / 8 | ✅ complete |
+| 02 | Deep Learning | 4 / 8 | in progress |
+
 ## Chapters
 
 | id | title | layer | status | diagrams | interactives | published |
@@ -52,6 +60,7 @@ Notes:
 | 01-05 | Unsupervised learning | 1 | published | 2 | 4 | 2026-07-28 |
 | 01-06 | Evaluation done properly | 1 | published | 2 | 4 | 2026-07-28 |
 | 01-07 | Bias–variance trade-off & regularisation | 1 | published | 2 | 3 | 2026-07-28 |
+| 01-08 | Pipelines, interpretability & adjacent problems | 1 | published | 2 | 5 | 2026-07-30 |
 | 02-01 | From neurons to networks | 2 | published | 2 | 3 | 2026-07-28 |
 | 02-02 | Backpropagation from scratch | 2 | published | 2 | 3 | 2026-07-28 |
 | 02-03 | PyTorch: an honest training loop | 2 | published | 1 | 4 | 2026-07-29 |

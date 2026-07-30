@@ -24,6 +24,19 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         </a>
       </div>
 
+      <section class="milestone" aria-labelledby="classical-ml-complete">
+        <p class="milestone-label">LAYER MILESTONE · 01 COMPLETE</p>
+        <h2 id="classical-ml-complete">Classical machine learning is complete</h2>
+        <p>
+          Eight published lessons now take you from learning from data through
+          models, honest evaluation, reproducible pipelines, interpretation,
+          forecasting, recommendation, and causal questions.
+        </p>
+        <a href={`${base}/chapters/what-learning-from-data-means/`}>
+          Study the complete Classical ML layer →
+        </a>
+      </section>
+
       <Figure
         id="00.0"
         label="THE COURSE, EXPLODED"
@@ -77,5 +90,35 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     border-radius: 4px;
     padding: 12px 18px;
     text-decoration: none;
+  }
+  .milestone {
+    max-width: var(--measure);
+    border: 1px solid var(--frame);
+    border-left: 4px solid var(--ch1);
+    border-radius: 5px;
+    margin: 42px auto 36px;
+    padding: 18px 20px;
+    background: var(--paper-raise);
+  }
+  .milestone-label {
+    margin: 0 0 7px;
+    color: var(--blueprint);
+    font: 500 10px/1.4 var(--font-mono);
+    letter-spacing: 0.07em;
+  }
+  .milestone h2 {
+    margin: 0;
+    color: var(--ink);
+    font: 600 24px/1.2 var(--font-display);
+  }
+  .milestone p:not(.milestone-label) {
+    margin: 10px 0 12px;
+    color: var(--ink-muted);
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+  .milestone a {
+    color: var(--blueprint);
+    font: 500 12px/1.4 var(--font-mono);
   }
 </style>

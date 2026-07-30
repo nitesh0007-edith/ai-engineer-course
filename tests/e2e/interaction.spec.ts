@@ -55,8 +55,8 @@ test.describe('layout integrity', () => {
     expect(overflows).toBeFalsy();
   });
 
-  test('new deep-learning diagrams fit tablet and mobile canvases', async ({ page }) => {
-    for (const route of ['chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/']) {
+  test('new lesson diagrams fit tablet and mobile canvases', async ({ page }) => {
+    for (const route of ['chapters/pipelines-interpretability-and-adjacent-problems/', 'chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/']) {
       for (const width of [768, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(route, { waitUntil: 'load' });
@@ -182,6 +182,27 @@ test('training curve workbench updates from keyboard-operable controls', async (
 
   await schedule.focus();
   await expect(schedule).toBeFocused();
+});
+
+test('interpretability workbench updates from keyboard-operable controls', async ({ page }) => {
+  await page.goto('chapters/pipelines-interpretability-and-adjacent-problems/', { waitUntil: 'load' });
+
+  const lab = page.locator('.interpretability-lab');
+  await expect(lab.locator('xpath=ancestor::astro-island')).not.toHaveAttribute('ssr', '');
+
+  const score = lab.locator('.interpretability-score strong');
+  const startingScore = await score.textContent();
+  const waitingTime = lab.getByRole('slider', { name: 'Waiting time' });
+  await waitingTime.focus();
+  await page.keyboard.press('End');
+  await expect.poll(() => score.textContent()).not.toBe(startingScore);
+
+  const channel = lab.getByLabel('Support channel');
+  await channel.selectOption('chat');
+  await channel.focus();
+  await expect(channel).toBeFocused();
+  await expect(lab.locator('.contribution-note')).toContainText('not SHAP or LIME');
+  await expect(lab.locator('.dependence-note')).toContainText('average');
 });
 
 test.describe('reduced motion', () => {

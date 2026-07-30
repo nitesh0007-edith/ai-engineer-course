@@ -1,0 +1,613 @@
+---
+layer: 1
+order: 8
+title: 'Pipelines, interpretability & adjacent problems'
+slug: 'pipelines-interpretability-and-adjacent-problems'
+subtitle: 'Keep transformations reproducible, ask explanations precise questions, and recognise when time, ranking, or intervention changes the problem.'
+depth: use
+difficulty: beginner
+readingTime: 85
+prerequisites:
+  - bias-variance-and-regularisation
+skillsGained:
+  - 'Build a leakage-safe scikit-learn pipeline for numeric and categorical columns'
+  - 'Write a small custom transformer with fit and transform'
+  - 'Match feature importance, SHAP, LIME, and partial dependence to the question they answer'
+  - 'Design temporal splits and walk-forward backtests for forecasting'
+  - 'Explain collaborative filtering, matrix factorisation, and two-tower retrieval'
+  - 'Distinguish prediction from causal and uplift questions'
+objectives:
+  - 'Trace one raw row through a fitted preprocessing and model pipeline'
+  - 'Explain why the pipeline must be fitted inside each training fold'
+  - 'Choose a local or global interpretation method and state its limits'
+  - 'Build a small expanding-window temporal backtest'
+  - 'Calculate recommender affinity with a dot product'
+  - 'Identify a confounder and explain what uplift estimates'
+concepts:
+  - pipeline
+  - column-transformer
+  - feature-importance
+  - shap
+  - lime
+  - partial-dependence
+  - time-series
+  - backtesting
+  - collaborative-filtering
+  - matrix-factorisation
+  - two-tower-model
+  - causal-inference
+  - confounder
+  - uplift-modelling
+diagrams:
+  - PipelineBoundary
+  - AdjacentProblemMap
+interactives:
+  - InterpretabilityWorkbench
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 4
+exercises:
+  - prompt: 'A team imputes missing values and one-hot encodes categories before cross-validation. Explain the problem and redesign the workflow.'
+    difficulty: warmup
+    solution: 'The imputer statistics and category vocabulary have already learned from validation-fold rows. Put imputation, encoding, and the estimator in one pipeline. Fit that whole pipeline separately inside each training fold, then call predict on the untouched fold.'
+  - prompt: 'A SHAP chart says account age contributed -0.7 to one rejection score. What can you conclude, and what can you not conclude?'
+    difficulty: core
+    solution: 'For the chosen model, explainer, baseline, and input, account age lowered that model score by an additive contribution of 0.7 in the explainer’s units. It does not prove that changing account age would cause the decision to change by that amount, that the model is correct, or that the feature is fair.'
+  - prompt: 'Design evaluation evidence for (a) next-week demand, (b) article recommendation, and (c) a retention message intended to prevent cancellation.'
+    difficulty: stretch
+    solution: 'For demand, use past-only training and walk-forward forecasts at the real horizon. For recommendation, split interactions through time and measure retrieval/ranking plus cold-start and exposure slices. For the message, prefer a randomised experiment; otherwise state causal identification assumptions and estimate treatment effect or uplift, not cancellation risk alone.'
+resources:
+  - title: 'scikit-learn — pipelines and composite estimators'
+    url: 'https://scikit-learn.org/stable/modules/compose.html'
+    type: docs
+    note: 'Official guide to Pipeline, ColumnTransformer, feature unions, and safe parameter search.'
+  - title: 'scikit-learn — permutation feature importance'
+    url: 'https://scikit-learn.org/stable/modules/permutation_importance.html'
+    type: docs
+    note: 'Official explanation of score-drop importance and its limitations.'
+  - title: 'scikit-learn — partial dependence'
+    url: 'https://scikit-learn.org/stable/modules/partial_dependence.html'
+    type: docs
+    note: 'Official guide to average and individual model-response plots.'
+  - title: 'SHAP documentation'
+    url: 'https://shap.readthedocs.io/en/latest/'
+    type: docs
+    note: 'Official documentation for additive feature-attribution explainers and examples.'
+  - title: 'Prophet — diagnostics'
+    url: 'https://facebook.github.io/prophet/docs/diagnostics.html'
+    type: docs
+    note: 'Official walk-through of historical cutoffs, horizons, and forecast cross-validation.'
+  - title: 'Google — recommendation systems'
+    url: 'https://developers.google.com/machine-learning/recommendation/'
+    type: course
+    note: 'Primary course on candidate generation, matrix factorisation, scoring, and re-ranking.'
+  - title: 'EconML — causal inference user guide'
+    url: 'https://www.pywhy.org/EconML/index.html'
+    type: docs
+    note: 'Official guide to heterogeneous treatment-effect estimation and its assumptions.'
+status: published
+updated: 2026-07-30
+---
+
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import InterpretabilityWorkbench from '../../../components/interactive/InterpretabilityWorkbench.tsx';
+import PipelineBoundary from '../../../components/diagrams/PipelineBoundary.astro';
+import AdjacentProblemMap from '../../../components/diagrams/AdjacentProblemMap.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+A model is only one part of a machine-learning system.
+
+The system must repeat the same preparation on every row, explain its behaviour honestly, and use evidence that matches the question being asked.
+
+<LessonIdentity module="Classical machine learning" lesson="8 · Pipelines, interpretation & adjacent problems" difficulty="Beginner" duration="85 minutes" prerequisites={["Training, validation, and test boundaries", "Tabular preprocessing and feature engineering", "Classification, regression, metrics, and regularisation"]} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+A notebook can look convincing while hiding three production failures:
+
+1. training and serving prepare data differently;
+2. an explanation is treated as proof that the model is right or causal;
+3. an ordinary random split is used for a question about the future, ranking, or intervention.
+
+<MainIdea>
+  A <Term id="pipeline">pipeline</Term> preserves one fitted path from raw row
+  to prediction. Interpretation tools inspect that fitted path, but each answers
+  a particular question. When order, user–item choice, or intervention is
+  central, the evaluation design must change with the problem.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="A sealed workshop jig" limitation="A physical jig does not learn from data, face distribution shift, or make harmful decisions. A pipeline still needs schema checks, monitoring, human review, and protected evaluation evidence.">
+  A workshop jig holds material in the same position for every cut. If one
+  worker measures from the left edge and another measures from the right, the
+  pieces do not fit. A fitted pipeline is the software jig: it stores the
+  imputation, encoding, scaling, and model state that must travel together.
+</AnalogyCard>
+
+## Part 1 — Split first, then fit one pipeline
+
+<Term id="pipeline">Pipeline</Term> has a precise job: chain transformations and an estimator behind one `fit` and `predict` interface.
+
+The order is:
+
+```text
+split rows → fit the entire pipeline on training rows → transform and predict held-out rows
+```
+
+Not:
+
+```text
+fit preprocessing on every row → cross-validate the model
+```
+
+The second version leaks validation information into imputation values, scaling statistics, selected features, and category vocabularies.
+
+<Figure id="01-08.1" label="THE PIPELINE IS THE MODEL BOUNDARY" caption="— split before fitting. Numeric, categorical, and custom branches learn from training rows, then the fitted transformation state and estimator travel as one versioned artifact. Validation, test, and production rows never refit it.">
+  <PipelineBoundary />
+</Figure>
+
+### ColumnTransformer routes columns deliberately
+
+A <Term id="column-transformer">column transformer</Term> sends different columns down different preparation branches, then joins their outputs.
+
+For a support ticket:
+
+- waiting hours and contact count are numeric;
+- channel is categorical;
+- a custom rule may apply `log(1 + x)` to non-negative counts;
+- the estimator receives the joined numeric feature matrix.
+
+Unknown categories need an explicit serving policy. `OneHotEncoder(handle_unknown="ignore")` keeps the feature width stable and encodes an unseen category as zeros for that encoder. It does not mean the new category is harmless: log it, monitor it, and decide whether retraining is needed.
+
+### A custom transformer follows fit and transform
+
+`fit(X, y)` learns any allowed state from training data and returns the transformer.
+
+`transform(X)` applies the learned rule to rows. A stateless rule can return from `fit` without learning values, but it still follows the interface so the pipeline can clone and validate it.
+
+<PyRunner
+  client:idle
+  id="01-08.B"
+  label="FIT A REAL SCIKIT-LEARN PIPELINE"
+  packages={["numpy", "pandas", "scikit-learn"]}
+  code={`import numpy as np
+import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+class NonNegativeLog1p(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        values = np.asarray(X, dtype=float)
+        return np.log1p(np.maximum(values, 0))
+
+rows = pd.DataFrame({
+    "waiting_hours": [1, 2, 4, 6, 9, 12, 3, 14],
+    "previous_contacts": [0, 0, 1, 1, 2, 2, 0, 3],
+    "channel": ["email", "phone", "email", "phone", "email", "phone", "chat", "chat"],
+})
+target = [0, 0, 0, 1, 1, 1]
+train, test = rows.iloc[:6], rows.iloc[6:]
+
+numeric = Pipeline([
+    ("impute", SimpleImputer(strategy="median")),
+    ("log", NonNegativeLog1p()),
+    ("scale", StandardScaler()),
+])
+category = Pipeline([
+    ("impute", SimpleImputer(strategy="most_frequent")),
+    ("onehot", OneHotEncoder(handle_unknown="ignore")),
+])
+prepare = ColumnTransformer([
+    ("number", numeric, ["waiting_hours", "previous_contacts"]),
+    ("category", category, ["channel"]),
+])
+pipeline = Pipeline([
+    ("prepare", prepare),
+    ("model", LogisticRegression(random_state=7)),
+])
+
+pipeline.fit(train, target)
+predictions = pipeline.predict(test)
+known_channels = (
+    pipeline.named_steps["prepare"]
+    .named_transformers_["category"]
+    .named_steps["onehot"]
+    .categories_[0]
+    .tolist()
+)
+
+print("predictions made:", len(predictions))
+print("chat learned during fit:", "chat" in known_channels)
+print("pipeline steps:", list(pipeline.named_steps))`}
+/>
+
+<ExpectedOutput>
+
+```text
+predictions made: 2
+chat learned during fit: False
+pipeline steps: ['prepare', 'model']
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: "train, test = rows.iloc[:6], rows.iloc[6:]", explanation: "The split happens before any transformer is fitted. Chat appears only in the held-out rows." }, { line: "ColumnTransformer([...])", explanation: "Named branches apply numeric and categorical rules to declared columns, then concatenate the results." }, { line: "Pipeline([('prepare', ...), ('model', ...)])", explanation: "Cross-validation can now fit every learned preprocessing step and the estimator together inside a training fold." }, { line: "handle_unknown='ignore'", explanation: "The two chat rows can be transformed without changing feature width, even though chat was absent during fit." }]} />
+
+In cross-validation, pass the whole `pipeline` to the search or validation function. Do not fit `prepare` first.
+
+In production, version:
+
+- the fitted pipeline artifact;
+- input schema and feature order;
+- library and code versions;
+- training-data reference;
+- metric, threshold, and approval notes.
+
+## Part 2 — Ask an explanation a precise question
+
+**Interpretability** means making a model’s behaviour understandable enough for a declared purpose. Different people need different evidence:
+
+- a developer asks, “Which inputs drive this one surprising score?”;
+- a reviewer asks, “Does the model depend on a prohibited shortcut?”;
+- an operator asks, “When should I distrust or override it?”;
+- an affected person may need a faithful, actionable reason under the applicable policy and law.
+
+No single chart answers all four.
+
+### Four common tools
+
+| Tool | Plain question | Mechanics | Important limit |
+|---|---|---|---|
+| <Term id="feature-importance">Feature importance</Term> | Which features does the fitted model rely on overall? | A model-specific score, or the score drop after shuffling one feature | Importance need not show direction; correlated features can share or hide importance |
+| <Term id="shap">SHAP</Term> | How did features add to this prediction relative to a baseline? | SHapley Additive exPlanations allocate additive contributions under a chosen background and masking rule | Baseline and feature dependence matter; attribution is not causation |
+| <Term id="lime">LIME</Term> | What simple rule approximates the model near this row? | Local Interpretable Model-agnostic Explanations perturb nearby inputs and fit a weighted simple surrogate | Results depend on neighbourhood, perturbations, representation, and seed |
+| <Term id="partial-dependence">Partial dependence</Term> | On average, how does model response change as a feature is replaced? | Replace feature values across background rows, predict, then average | Can create implausible combinations and can hide subgroup behaviour |
+
+Permutation importance is often a useful model-agnostic start:
+
+1. measure the fitted model on validation data;
+2. shuffle one feature column;
+3. measure the score again;
+4. repeat and report the distribution of score changes.
+
+If two features carry the same information, shuffling either one may barely hurt because the other remains. That is a property of the fitted model and data, not a contradiction.
+
+### Local and global views answer different questions
+
+<InterpretabilityWorkbench client:load />
+
+The lab uses a transparent formula so every local bar can be checked exactly. The lower chart is only **partial-dependence-like** teaching, not the library implementation.
+
+Try the same waiting time with chat and phone. The average curve rises smoothly, while the channel curves behave differently. An average can conceal an interaction.
+
+### Explanation is a diagnostic, not a verdict
+
+An explanation can reveal:
+
+- reliance on a suspicious identifier;
+- unstable behaviour near a threshold;
+- a subgroup pattern hidden by an average;
+- mismatch between domain expectations and model logic.
+
+It cannot by itself prove:
+
+- the prediction is correct;
+- the feature caused the outcome;
+- the system is fair or lawful;
+- the input was measured accurately;
+- the model will remain reliable after deployment.
+
+Check fidelity, stability, meaningful baselines, data lineage, subgroup metrics, and human consequences alongside the chart.
+
+## Part 3 — Some problems need different evidence
+
+Ordinary tabular prediction often assumes rows can be treated as exchangeable after grouping and time constraints are handled. The following problems make a different structure central.
+
+<Figure id="01-08.2" label="LET THE QUESTION CHOOSE THE EVIDENCE" caption="— forecasting protects time order, recommendation evaluates later user–item choices and cold starts, and causal inference needs randomisation or explicit identification assumptions. One random train/test split cannot answer all three.">
+  <AdjacentProblemMap />
+</Figure>
+
+## Part 4 — Time series predicts after a cutoff
+
+A <Term id="time-series">time series</Term> is a sequence of observations ordered through time. Examples include hourly demand, daily sign-ups, and sensor readings.
+
+Before modelling, declare:
+
+- **forecast origin:** the cutoff when the prediction is made;
+- **horizon:** how far ahead you predict;
+- **frequency:** hourly, daily, weekly, or another interval;
+- **available information:** what is actually known at the origin;
+- **retraining cadence:** when the fitted pipeline may be updated.
+
+Three common model families are:
+
+- **ARIMA:** autoregressive integrated moving average. It combines past values, differencing that can stabilise a changing level, and past forecast errors.
+- **Prophet:** an additive forecasting model with trend, seasonal, and holiday components.
+- **feature-based models:** ordinary estimators using lagged values, rolling summaries, calendar fields, and known future inputs.
+
+These are options, not a quality ranking. Start with a seasonal-naive baseline such as “same hour last week”, then compare at the real horizon.
+
+### Walk forward instead of shuffling
+
+<Term id="backtesting">Backtesting</Term> replays predictions at past cutoffs. Every validation window must occur after its training window.
+
+<PyRunner
+  client:idle
+  id="01-08.C"
+  label="BUILD EXPANDING-WINDOW BACKTESTS"
+  code={`values = list(range(12))
+minimum_train = 6
+horizon = 2
+
+for cutoff in range(minimum_train, len(values), horizon):
+    train = values[:cutoff]
+    validate = values[cutoff:cutoff + horizon]
+    if len(validate) < horizon:
+        continue
+    print(
+        f"train {train[0]}:{train[-1]} "
+        f"-> validate {validate[0]}:{validate[-1]}"
+    )`}
+/>
+
+<ExpectedOutput>
+
+```text
+train 0:5 -> validate 6:7
+train 0:7 -> validate 8:9
+train 0:9 -> validate 10:11
+```
+
+</ExpectedOutput>
+
+This expanding window imitates repeated retraining with all earlier data. A rolling window would keep only the most recent training period. Choose the one that matches production and possible drift.
+
+Avoid:
+
+- random shuffling across time;
+- computing rolling features with future rows;
+- choosing a model on one lucky cutoff;
+- evaluating one-step forecasts when production needs twelve steps;
+- ignoring missing intervals and delayed labels.
+
+## Part 5 — Recommenders retrieve and rank items
+
+A recommender does not merely predict one label. It usually:
+
+1. generates a manageable candidate set from a large catalogue;
+2. scores the candidates for a user or context;
+3. re-ranks for rules such as availability, freshness, safety, and diversity.
+
+<Term id="collaborative-filtering">Collaborative filtering</Term> learns from user–item interaction patterns. Similar preference patterns can connect a user to an item even when no hand-written item feature says they match.
+
+<Term id="matrix-factorisation">Matrix factorisation</Term> approximates a sparse user–item table with smaller user and item vector tables. The dot product between a user vector and item vector becomes an affinity score.
+
+<PyRunner
+  client:idle
+  id="01-08.D"
+  label="RANK ITEMS WITH A DOT PRODUCT"
+  code={`user = [0.8, 0.2, -0.1]
+items = {
+    "pipeline guide": [0.7, 0.3, 0.0],
+    "incident review": [0.4, 0.1, 0.8],
+    "notebook template": [0.6, -0.2, -0.2],
+}
+
+def dot(left, right):
+    return sum(a * b for a, b in zip(left, right))
+
+ranked = sorted(
+    ((dot(user, vector), name) for name, vector in items.items()),
+    reverse=True,
+)
+
+for score, name in ranked:
+    print(f"{name}: {score:.2f}")`}
+/>
+
+<ExpectedOutput>
+
+```text
+pipeline guide: 0.62
+notebook template: 0.46
+incident review: 0.26
+```
+
+</ExpectedOutput>
+
+The vector positions are latent dimensions: useful numerical directions learned to explain interaction patterns. Do not automatically give each position a human label.
+
+A <Term id="two-tower-model">two-tower model</Term> generalises this pattern:
+
+- one network turns a user, query, and context into a vector;
+- another turns item features into a vector;
+- vector similarity retrieves candidates efficiently;
+- a later ranker can use richer cross-features.
+
+Evaluate on later interactions, not randomly mixed clicks. Report retrieval and ranking metrics at realistic list sizes, plus new-user, new-item, sparse-history, popularity, and exposure slices.
+
+An unclicked item may never have been shown. Treating every unobserved interaction as dislike creates biased training evidence. Online experiments measure product consequences but still need guardrails for safety, diversity, latency, and long-term effects.
+
+## Part 6 — Causal questions ask what changes if we act
+
+Prediction asks:
+
+> Who is likely to cancel?
+
+<Term id="causal-inference">Causal inference</Term> asks:
+
+> Whose cancellation probability would change because we send a retention message?
+
+Those are different targets. A person at high risk may cancel whether or not a message is sent. Another person at moderate risk may be persuadable.
+
+A <Term id="confounder">confounder</Term> influences both the treatment and outcome. For example, support severity may make an agent more likely to offer a discount and also make cancellation more likely. Comparing discounted and non-discounted customers directly then mixes treatment effect with severity.
+
+Random assignment breaks that treatment-selection link on average and is the clearest design when ethical and practical. With observational data, causal estimates require explicit assumptions, appropriate adjustment, overlap between treatment groups, and sensitivity checks. A predictive pipeline or SHAP plot does not supply those conditions.
+
+<Term id="uplift-modelling">Uplift modelling</Term> estimates a conditional treatment effect:
+
+```text
+uplift(x) = expected outcome if treated at x
+          - expected outcome if not treated at x
+```
+
+Only one outcome is observed for each person. This missing counterfactual is the central difficulty.
+
+<PyRunner
+  client:idle
+  id="01-08.E"
+  label="RANK SYNTHETIC SEGMENTS BY UPLIFT"
+  code={`segments = [
+    {"name": "A", "if_message": 0.38, "if_no_message": 0.31},
+    {"name": "B", "if_message": 0.55, "if_no_message": 0.50},
+    {"name": "C", "if_message": 0.29, "if_no_message": 0.16},
+]
+
+ranked = sorted(
+    (
+        (row["if_message"] - row["if_no_message"], row["name"])
+        for row in segments
+    ),
+    reverse=True,
+)
+
+for uplift, name in ranked:
+    print(f"segment {name}: {uplift:+.0%}")`}
+/>
+
+<ExpectedOutput>
+
+```text
+segment C: +13%
+segment A: +7%
+segment B: +5%
+```
+
+</ExpectedOutput>
+
+These are invented potential-outcome probabilities for arithmetic practice, not estimates from observational data. Segment B has the highest outcome probability if messaged, but segment C has the largest incremental change. Production uplift needs experimental or defensible causal evidence, uncertainty, costs, harms, and a no-action policy.
+
+## Worked system example — a support operations pipeline
+
+Suppose a team wants to forecast ticket volume, prioritise current tickets, recommend help articles, and test a proactive message.
+
+<RealWorldExample title="Four outputs, four evidence contracts" steps={["Fit ticket preprocessing and the priority classifier as one versioned pipeline inside training folds", "Use local explanations for surprising priority scores and global diagnostics for shortcut checks", "Forecast volume from past-only cutoffs at the staffing horizon", "Evaluate article retrieval on later interactions with cold-start and exposure slices", "Randomise the proactive message where appropriate and estimate uplift with uncertainty", "Monitor schema drift, subgroup outcomes, calibration, latency, and action capacity separately"]}>
+  Sharing source data does not make these one modelling problem. Each output has
+  a different unit, target, split, metric, failure mode, and decision owner.
+</RealWorldExample>
+
+The production interface should log:
+
+- pipeline version and schema result;
+- raw feature lineage and prediction timestamp;
+- model score, threshold, and action taken;
+- explanation method, baseline, and version when one is shown;
+- forecast origin and horizon;
+- recommendation candidates shown, their order, and later interaction;
+- treatment assignment and outcome window for experiments.
+
+Never log sensitive raw data merely because an explanation library can display it.
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: "Fitting an imputer, scaler, encoder, or feature selector before cross-validation.", fix: "Place every learned transformation and the estimator in one pipeline fitted inside each training fold." }, { mistake: "Reimplementing preparation separately in an API.", fix: "Serve the fitted pipeline or generate training and serving features from the same tested definition. Validate schema before prediction." }, { mistake: "Calling feature importance an explanation of cause.", fix: "Say exactly which fitted-model behaviour the method describes. Use experimental or causal evidence for intervention claims." }, { mistake: "Showing one SHAP or LIME chart without its baseline or stability checks.", fix: "Record explainer, background data, masking or perturbation settings, seed, model version, and local fidelity." }, { mistake: "Randomly shuffling time-series rows.", fix: "Backtest at past cutoffs using only information available then and the real forecast horizon." }, { mistake: "Treating every unclicked item as disliked.", fix: "Record exposure, use appropriate sampling and objectives, and report popularity and cold-start slices." }, { mistake: "Targeting the people with highest predicted risk when the goal is behaviour change.", fix: "Estimate incremental treatment effect with randomisation or explicit causal assumptions, costs, uncertainty, and harm constraints." }]} />
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: "Where should a ColumnTransformer be fitted during cross-validation?", options: ["Inside each training fold as part of the whole pipeline", "Once on all rows before folds are created", "On the final test set"], answer: 0, explanation: "Imputation, category vocabularies, scaling, feature selection, and model fitting must learn only from the current training fold." }, { question: "What does a positive SHAP contribution establish?", options: ["A feature raised this model output relative to the chosen baseline under that explainer", "Increasing the feature will cause the real outcome to rise", "The prediction is correct and fair"], answer: 0, explanation: "It is a model-attribution statement. Causality, correctness, and fairness require different evidence." }, { question: "Why use a walk-forward backtest?", options: ["It imitates predicting later periods from information available earlier", "It balances every class", "It hides seasonal changes"], answer: 0, explanation: "Historical cutoffs preserve the information boundary that a real forecast faces." }, { question: "What does matrix factorisation learn?", options: ["User and item vectors whose products approximate interactions", "One causal effect for every user", "A random time-series split"], answer: 0, explanation: "The smaller vector tables capture latent user–item affinity patterns." }, { question: "Which target matches a retention intervention?", options: ["Difference in outcome with versus without the message", "Cancellation probability after receiving the message only", "Global feature importance"], answer: 0, explanation: "The action goal is incremental effect, often called uplift or conditional treatment effect." }]} />
+
+## Retrieval checkpoint
+
+<Checkpoint questions={[{ q: "Why must a fitted pipeline include preprocessing as well as the estimator?", a: "Because learned imputation, encoding, scaling, and model state must be fitted on the same allowed rows and applied identically to validation, test, and production rows." }, { q: "When would you choose LIME rather than partial dependence?", a: "Choose LIME when you need a simple local approximation near one row. Choose partial dependence when you need an averaged response as selected features change. State each method’s fidelity and data assumptions." }, { q: "What makes time-series validation different?", a: "Future rows cannot teach the past. Each validation window follows its training window and matches the production horizon." }, { q: "What are the two towers in a recommender?", a: "One maps a query, user, or context to a vector; the other maps an item to a vector. Similarity between those vectors supports candidate retrieval." }, { q: "Why is risk not the same as uplift?", a: "Risk predicts an outcome under observed conditions. Uplift estimates the difference an action would make compared with no action." }]} />
+
+## Practice activity
+
+<PracticeActivity title="Write four evidence contracts for one support product" time="20–30 minutes" goal="Separate pipeline, explanation, forecasting, recommendation, and intervention claims before choosing models." steps={["Choose a support-product decision and write its unit of prediction.", "List raw columns and assign each to numeric, categorical, custom, or excluded pipeline handling.", "Choose one local and one global interpretation question, method, baseline, and caveat.", "If the system forecasts, recommends, or intervenes, write the split and evidence contract for that subproblem.", "Name the production artifact, schema check, metric, monitoring slice, and fallback."]} expected="A short design with one fitted tabular pipeline and separate evidence contracts. Every explanation names its question and baseline; every time, ranking, or treatment claim uses an appropriate split." challenge="Add a model card paragraph that distinguishes predictive association from causal effect.">
+
+```text
+Decision: route a new ticket to specialist review
+Unit: one ticket at its arrival timestamp
+
+Pipeline:
+  numeric -> train-fold imputation + scaling
+  category -> train-fold imputation + unknown-safe encoding
+  text-derived counts -> shared, versioned custom transformer
+  estimator -> calibrated classifier
+
+Local question:
+  why did this model score this ticket highly?
+  method -> SHAP with documented background
+  limit -> model attribution, not cause
+
+Global question:
+  does the model rely on channel after controlling the review protocol?
+  methods -> permutation importance + subgroup metrics + partial response
+
+Evidence:
+  group by customer, split through time, fit the whole pipeline per fold
+  protect a later final test period
+
+Serving:
+  validate schema -> pipeline.predict_proba -> threshold -> capacity fallback
+  log pipeline version, timestamp, score, action, and monitored slices
+```
+
+This answer keeps transformations inside the evaluation boundary. It also names
+what the explanations do and do not support. If the product later recommends an
+article or tests a message, add a ranking or causal contract rather than
+reusing the classifier’s random split.
+
+</PracticeActivity>
+
+## Key takeaways
+
+<KeyTakeaways points={["Split first, then fit preprocessing and the estimator as one pipeline inside each training fold.", "Feature importance, SHAP, LIME, and partial dependence answer different local or global questions; none proves causality.", "Forecasts need past-to-future backtests at the real horizon.", "Recommenders retrieve and rank user–item candidates, with later-interaction and cold-start evidence.", "Intervention decisions need treatment-effect or uplift evidence, preferably from randomisation, rather than risk prediction alone."]} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: "What belongs in an ML pipeline?", back: "Every learned transformation plus the estimator: imputation, encoding, scaling, feature selection or custom transforms, and the model." }, { front: "What does ColumnTransformer do?", back: "Routes declared column groups through different preparation branches and joins their feature outputs." }, { front: "What is permutation importance?", back: "The change in a validation score after shuffling one feature, repeated to show variation." }, { front: "What does SHAP describe?", back: "Additive contributions to a model output relative to a selected baseline under a particular explainer." }, { front: "What does LIME describe?", back: "A simple surrogate fitted to approximate model behaviour near one input." }, { front: "What does partial dependence show?", back: "Average model response as selected feature values are replaced across background rows." }, { front: "What is backtesting?", back: "Replaying a prediction process at historical cutoffs using only information available at each cutoff." }, { front: "What is collaborative filtering?", back: "Learning recommendations from shared patterns of user–item interactions." }, { front: "What does a two-tower model produce?", back: "A query or user vector and an item vector that can be compared for retrieval." }, { front: "What is a confounder?", back: "A common cause of treatment and outcome that can make their observed association misleading." }, { front: "What is uplift?", back: "The expected outcome difference caused by treatment versus no treatment for a person or group." }]} />
+
+<RevisionQuestions questions={["Design a leakage-safe Pipeline and ColumnTransformer for mixed numeric and categorical data.", "Compare feature importance, SHAP, LIME, and partial dependence by question, mechanics, and limitation.", "Design a walk-forward backtest for a twelve-hour forecast and explain why a random split fails.", "Explain collaborative filtering, matrix factorisation, two-tower retrieval, scoring, and re-ranking.", "Draw a treatment–outcome diagram with a confounder and explain why prediction alone cannot estimate uplift.", "Write the artifact, schema, logging, monitoring, and fallback contract for a production pipeline."]} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="Pipelines, interpretation & adjacent problems" terms={["Pipeline — fitted transforms plus model", "ColumnTransformer — branch by column type", "SHAP/LIME — local model explanations", "Partial dependence — averaged model response", "Backtest — replay past cutoffs", "Two tower — query and item vectors", "Uplift — effect of acting"]} mistakes={["Do not preprocess before splitting", "Do not confuse attribution with cause", "Do not random-shuffle time", "Do not equate no click with dislike", "Do not target on risk when the goal is change"]} takeaways={["Ship one fitted path", "Ask explanations precise questions", "Match horizon in backtests", "Evaluate ranking as ranking", "Randomise interventions when possible"]} questions={["What learned state crosses serving?", "Is this local, global, or causal?", "Which split imitates the decision?"]}>
+  <p slot="main">Keep preparation reproducible, interpretation scoped, and evidence matched to the system’s real question.</p>
+  <div slot="diagram"><PipelineBoundary /></div>
+  <pre slot="code"><code>split → pipeline.fit(train) → predict(held_out) · explain the model ≠ explain the world · time/ranking/treatment need their own evidence</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="pipelines-interpretability-and-adjacent-problems" items={["I can fit preprocessing and a model as one pipeline.", "I can route mixed columns with ColumnTransformer.", "I can write and explain fit/transform for a custom transformer.", "I can compare feature importance, SHAP, LIME, and partial dependence.", "I can state why model explanation is not causal evidence.", "I can build a past-to-future backtest.", "I can explain collaborative filtering, matrix factorisation, and two towers.", "I can distinguish risk prediction from uplift.", "I completed the code labs, quiz, exercises, practice, and flashcards."]} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="from-neurons-to-networks" title="From neurons to networks" why="Classical machine learning is now complete. Next, reuse the same habits—declared inputs, explicit transformations, honest validation, and careful interpretation—while building the smallest neural network." />
