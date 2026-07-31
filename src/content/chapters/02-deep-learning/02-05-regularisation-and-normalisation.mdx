@@ -1,0 +1,592 @@
+---
+layer: 2
+order: 5
+title: 'Regularisation and normalisation'
+slug: 'regularisation-and-normalisation'
+subtitle: 'Reduce brittle memorisation, choose the right statistics, and keep training behaviour honest at evaluation time.'
+depth: build
+difficulty: beginner
+readingTime: 80
+prerequisites:
+  - training-mechanics
+skillsGained:
+  - 'Diagnose overfitting before choosing a regularisation method'
+  - 'Explain dropout scaling and the difference between training and evaluation behaviour'
+  - 'Apply explicit AdamW parameter groups for weight decay'
+  - 'Design label-preserving augmentation for training while keeping evaluation deterministic'
+  - 'Choose between BatchNorm, LayerNorm, and RMSNorm by the axes and statistics they use'
+  - 'Test mode changes and regularisation choices with controlled ablations'
+objectives:
+  - 'Distinguish regularisation from normalisation and state what evidence each choice needs'
+  - 'Calculate a small dropout, weight-decay, LayerNorm, RMSNorm, and BatchNorm example'
+  - 'Explain why BatchNorm output can depend on other examples in a training mini-batch'
+  - 'Use model.train(), model.eval(), and no_grad() for their separate jobs'
+  - 'Build a readable PyTorch block with LayerNorm, dropout, and selective AdamW decay'
+concepts:
+  - regularisation
+  - dropout
+  - weight-decay
+  - data-augmentation
+  - invariance
+  - batch-normalisation
+  - layer-normalisation
+  - rms-normalisation
+diagrams:
+  - RegularisationLevers
+  - NormalisationAxes
+interactives:
+  - NormalisationWorkbench
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 5
+exercises:
+  - prompt: 'A dropout layer has p = 0.25. What fraction of activations is expected to remain during training, what factor scales the survivors, and what does the layer do during evaluation?'
+    difficulty: warmup
+    solution: 'The expected surviving fraction is `1 - p = 0.75`. During training each survivor is scaled by `1 / 0.75`, or about `1.333`. During evaluation the dropout layer is the identity: it passes every activation through without randomly removing or rescaling it.'
+  - prompt: 'A selected example has features [1, 2, 4, 8]. Another example in its training mini-batch is replaced by a large outlier. Which of BatchNorm, LayerNorm, and RMSNorm can change the selected example because of that replacement? Explain why.'
+    difficulty: core
+    solution: 'BatchNorm can change because its training statistics for each feature use all examples in the mini-batch. LayerNorm and RMSNorm calculate statistics from the selected example across its feature dimensions, so replacing a neighbouring example does not affect that selected row. LayerNorm centres and scales the row; RMSNorm scales it without subtracting the row mean.'
+  - prompt: 'A model has improving training loss, worsening validation loss, BatchNorm layers, dropout, and AdamW. Propose a controlled investigation rather than changing every regularisation setting at once.'
+    difficulty: stretch
+    solution: 'First verify the split and deterministic evaluation path, including `model.eval()`, because BatchNorm and dropout change mode-dependent behaviour. Restore a reproducible baseline and confirm the divergence. Then change one factor—such as dropout probability, decay strength, or one domain-valid augmentation—while keeping the optimiser schedule, data split, seed policy, and checkpoint rule recorded. Compare the same protected validation measures and useful error slices. Keep the final test set untouched until the configuration is selected.'
+resources:
+  - title: 'PyTorch — Dropout'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout.html'
+    type: docs
+    note: 'Official contract for training-time masking, survivor scaling, and evaluation behaviour.'
+  - title: 'PyTorch — BatchNorm1d'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html'
+    type: docs
+    note: 'Official reference for per-feature mini-batch statistics, learned affine parameters, and running estimates.'
+  - title: 'PyTorch — LayerNorm'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html'
+    type: docs
+    note: 'Official reference for normalising the final selected dimensions using current-input statistics.'
+  - title: 'PyTorch — RMSNorm'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.RMSNorm.html'
+    type: docs
+    note: 'Official reference for root-mean-square scaling without mean subtraction.'
+  - title: 'PyTorch — AdamW'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.optim.AdamW.html'
+    type: docs
+    note: 'Official optimiser reference for weight decay kept separate from Adam moment estimates.'
+  - title: 'Torchvision — Transforming and augmenting images'
+    url: 'https://docs.pytorch.org/vision/stable/transforms.html'
+    type: docs
+    note: 'Official guide to transform pipelines for images and paired targets such as boxes and masks.'
+status: published
+updated: 2026-07-31
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import NormalisationWorkbench from '../../../components/interactive/NormalisationWorkbench.tsx';
+import RegularisationLevers from '../../../components/diagrams/RegularisationLevers.astro';
+import NormalisationAxes from '../../../components/diagrams/NormalisationAxes.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+Your training loss falls. Your validation loss falls at first, then rises. Adding a larger model makes the training result even better and the validation result worse.
+
+That pattern is often called **overfitting**: the fitted model performs much better on the examples it learned from than on representative held-out examples. The response is not to switch on every available technique. First protect the evidence. Then choose one intervention with a reason.
+
+<LessonIdentity module="Deep learning" lesson="5 · Regularisation and normalisation" difficulty="Beginner" duration="80 minutes" prerequisites={['A measured training and validation loop', 'Activations, gradients, optimiser updates, and model modes']} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+Real training data contains limited coverage, noise, accidental correlations, and repeated patterns. A flexible network can reduce training loss by relying on details that will not remain useful after deployment.
+
+Regularisation gives the learning process a deliberate preference: smaller weights, incomplete activation paths, or task-valid input variation. Normalisation keeps internal numbers on a controlled coordinate system. Both can affect optimisation and validation results, but they do different jobs.
+
+<MainIdea>
+  <Term id="regularisation">Regularisation</Term> constrains what a model can rely on so that it is less sensitive to training-specific detail. Normalisation defines which values share a centre or scale. Diagnose the problem, choose the axis and behaviour deliberately, and judge one controlled change with protected validation evidence.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="Practice under sensible constraints" limitation="A human learner understands meaning and intent. A neural network follows numeric optimisation and may exploit a pattern that a person would immediately recognise as irrelevant.">
+  Imagine preparing a pianist for a recital. Practising only one familiar piano can
+  produce brittle confidence. Sensible variation—another room, another instrument,
+  a missing visual cue—can encourage a performance that transfers. Meanwhile, a
+  tuner gives notes a shared reference. The varied practice is like regularisation;
+  the shared reference is like normalisation. Neither proves the chosen piece,
+  audience, or assessment is fair.
+</AnalogyCard>
+
+## Step 1 — Diagnose before adding a constraint
+
+Overfitting is an evidence pattern, not a feeling. Look for a persistent gap between the training measure and a representative validation measure. Then check easier explanations first:
+
+1. Is the split independent, representative, and free from duplicated entities or future information?
+2. Does validation use the same deterministic preprocessing contract intended for deployment?
+3. Did evaluation call `model.eval()` and disable gradient tracking separately?
+4. Is the chosen measure hiding an important error slice or class?
+5. Does a simpler baseline show the same gap?
+
+If the data or evaluation path is wrong, more regularisation can hide the symptom without fixing the experiment.
+
+A useful comparison changes one important factor from a reproducible baseline. Keep the data split, checkpoint rule, optimiser schedule, and evaluation measures recorded. Select the factor using validation data, not the final test set.
+
+## Step 2 — Three regularisation levers
+
+<Figure id="02-05.1" label="THREE WAYS TO DISCOURAGE BRITTLE RELIANCE" caption="— augmentation varies task-irrelevant input details, dropout removes random activation paths during training, and weight decay nudges selected parameters towards zero. Each lever makes a different assumption and needs its own controlled validation comparison.">
+  <RegularisationLevers />
+</Figure>
+
+These methods do not mean “make the model worse.” They make some training solutions less convenient, hoping that a more transferable solution wins.
+
+### Dropout: make activation paths unreliable during training
+
+<Term id="dropout">Dropout</Term> randomly replaces activations with zero during training. Its setting `p` is the probability of **dropping**, not keeping, an activation.
+
+If `p = 0.5`, each activation has a 50% chance of surviving. PyTorch scales each survivor by `1 / (1 - p)`, which is `2` here. That scaling keeps the expected activation value unchanged across many random masks.
+
+Suppose the activations are `[2, 4, 6, 8]` and one fixed teaching mask is `[1, 0, 0, 1]`:
+
+```text
+training = activation × mask ÷ (1 − p)
+         = [4, 0, 0, 16]
+
+evaluation = [2, 4, 6, 8]
+```
+
+The original mean and this particular training-mask mean both happen to be `5`. The general guarantee is about the expectation over masks; one arbitrary mask need not preserve the mean exactly.
+
+<PyRunner
+  client:load
+  id="02-05.B"
+  label="DROPOUT: MASK IN TRAINING, IDENTITY IN EVALUATION"
+  code={`activations = [2.0, 4.0, 6.0, 8.0]
+mask = [1, 0, 0, 1]
+p = 0.5
+
+training = [
+    value * keep / (1 - p)
+    for value, keep in zip(activations, mask)
+]
+evaluation = activations.copy()
+
+print('training:', training)
+print('evaluation:', evaluation)
+print('means:', sum(training) / 4, sum(evaluation) / 4)`}
+  solution={`activations = [2.0, 4.0, 6.0, 8.0]
+mask = [1, 0, 0, 1]
+p = 0.5
+
+training = [value * keep / (1 - p) for value, keep in zip(activations, mask)]
+evaluation = activations.copy()
+
+print('training:', training)
+print('evaluation:', evaluation)
+print('means:', sum(training) / 4, sum(evaluation) / 4)`}
+/>
+
+<ExpectedOutput>
+
+```text
+training: [4.0, 0.0, 0.0, 16.0]
+evaluation: [2.0, 4.0, 6.0, 8.0]
+means: 5.0 5.0
+```
+
+</ExpectedOutput>
+
+Dropout makes repeated training forward passes random. During evaluation, a PyTorch dropout layer becomes an identity operation. That change is controlled by model mode:
+
+```python
+model.train()  # dropout masks activations
+model.eval()   # dropout passes activations through
+```
+
+`model.eval()` does **not** disable gradient tracking. `torch.no_grad()` does **not** switch dropout or BatchNorm to evaluation behaviour. A correct evaluation path normally needs both:
+
+```python
+model.eval()
+with torch.no_grad():
+    validation_prediction = model(validation_features)
+```
+
+The dropout probability is a hyperparameter. A larger `p` is a stronger disturbance, not an automatic improvement. Record where dropout is applied and compare its validation effect.
+
+### Weight decay: nudge selected parameters towards zero
+
+<Term id="weight-decay">Weight decay</Term> shrinks selected parameters a little on each optimiser update. For a simple decoupled update, the decay part looks like:
+
+```text
+weight after decay = weight × (1 − learning rate × decay strength)
+```
+
+Smaller parameters can reduce reliance on a few extreme numeric weights. Zero decay means no shrinkage. Too much decay can prevent the model fitting a real pattern.
+
+AdamW keeps the decay step separate from the gradient moments used for Adam’s adaptive update. That is different from placing a squared-weight penalty inside the loss and passing its gradient through Adam’s adaptive scaling. The toy calculation below shows only where the decay term enters; it is not a full implementation of either optimiser.
+
+<CodeNotebook title="Coupled penalty and decoupled decay enter at different places">
+
+```python
+weight = 2.0
+data_gradient = 0.5
+adaptive_scale = 0.2
+learning_rate = 0.1
+decay = 0.01
+
+coupled = weight - learning_rate * adaptive_scale * (
+    data_gradient + decay * weight
+)
+decoupled = (
+    weight * (1 - learning_rate * decay)
+    - learning_rate * adaptive_scale * data_gradient
+)
+
+print(f'coupled toy update: {coupled:.4f}')
+print(f'decoupled toy update: {decoupled:.4f}')
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+coupled toy update: 1.9896
+decoupled toy update: 1.9880
+```
+
+</ExpectedOutput>
+
+Decide which parameters receive decay. A common starting policy decays matrix-shaped weights while excluding one-dimensional bias and normalisation scale/shift parameters. That is a policy to test, not a law. Make the parameter groups explicit so a reviewer can see the choice.
+
+### Data augmentation: vary inputs without changing the answer
+
+<Term id="data-augmentation">Data augmentation</Term> creates varied training inputs with transformations that should preserve the target for the intended task.
+
+That last phrase is the contract. A horizontal flip may preserve “contains a cat.” It may reverse a left-versus-right label, make text unreadable, or move an object box unless the box is transformed too.
+
+<Term id="invariance">Invariance</Term> means the relevant output should stay stable under a change that should not alter the task answer. Augmentation teaches a chosen invariance by showing transformed training examples with consistent targets.
+
+This small pure-Python example flips a three-by-three mark. For this deliberately narrow label—“contains a diagonal mark”—the label remains valid:
+
+<CodeNotebook title="A transformation with an explicit label contract">
+
+```python
+image = ['#..', '.#.', '..#']
+label = 'contains a diagonal mark'
+
+flipped = [row[::-1] for row in image]
+
+print('\n'.join(flipped))
+print('label:', label)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+..#
+.#.
+#..
+label: contains a diagonal mark
+```
+
+</ExpectedOutput>
+
+Random augmentation belongs in the training path. Validation and test preprocessing should be deterministic and should match the intended deployment contract. If an input has a paired target—such as a segmentation mask, bounding box, keypoint, or audio timestamp—transform the pair consistently.
+
+An invalid transform is structured label noise. Audit transformed examples visually and by target type before trusting a validation score.
+
+## Step 3 — Normalisation starts with an axis
+
+Normalisation changes a collection of values using a statistic such as a mean, variance, or root mean square. Before naming a layer, ask two questions:
+
+1. Which values share the statistic—examples in a batch, or features inside one example?
+2. Does evaluation use current-input statistics or stored training statistics?
+
+<Figure id="02-05.2" label="THE AXIS IS THE ALGORITHM" caption="— BatchNorm calculates one statistic per feature down the training mini-batch. LayerNorm and RMSNorm calculate across selected features within each example. LayerNorm centres and scales; RMSNorm scales without centring.">
+  <NormalisationAxes />
+</Figure>
+
+In the formulas below, `epsilon` is a tiny positive value that prevents division by zero. Learnable scale and shift parameters let the layer restore or reshape useful magnitudes after normalisation.
+
+### BatchNorm: across examples for each feature
+
+<Term id="batch-normalisation">Batch normalisation</Term>, usually called **BatchNorm**, treats each feature separately. During training it calculates that feature’s mean and variance across examples in the mini-batch:
+
+```text
+normalised value = (value − batch feature mean)
+                   ÷ sqrt(batch feature variance + epsilon)
+
+output = learned scale × normalised value + learned shift
+```
+
+The selected example therefore depends on its batch neighbours during training. Replace one neighbour with a large outlier and the selected example’s output can change.
+
+By default, a PyTorch BatchNorm module also updates running estimates during training and uses those estimates during evaluation. This makes `model.train()` and `model.eval()` semantically important. Tiny or non-representative batches can produce noisy training statistics. Accumulating gradients across micro-batches does not make BatchNorm see one larger activation batch; each forward pass still has its own batch statistics.
+
+For an image tensor, BatchNorm commonly has one learned scale and shift per channel. The exact axes depend on the BatchNorm module and input shape, so read the module’s shape contract.
+
+### LayerNorm: centre and scale within one example
+
+<Term id="layer-normalisation">Layer normalisation</Term>, or **LayerNorm**, calculates its mean and variance over selected feature dimensions inside each example:
+
+```text
+normalised value = (value − example mean)
+                   ÷ sqrt(example variance + epsilon)
+
+output = learned element-wise scale × normalised value
+         + learned element-wise shift
+```
+
+Changing another example in the mini-batch does not change this example’s LayerNorm statistics. PyTorch LayerNorm uses current-input statistics in both training and evaluation. It still has learned parameters, but it does not need BatchNorm-style running estimates.
+
+If every feature in the normalised group is identical, the centred values are zero. Epsilon keeps the division defined, but the layer cannot invent variation that was absent.
+
+### RMSNorm: scale without subtracting the mean
+
+<Term id="rms-normalisation">Root mean square normalisation</Term>, usually called **RMSNorm**, calculates the root mean square across selected feature dimensions:
+
+```text
+root mean square = sqrt(mean(value²) + epsilon)
+output = learned scale × value ÷ root mean square
+```
+
+RMSNorm does not subtract the mean and does not add the LayerNorm-style learned bias in PyTorch’s module. A uniform shift of every feature therefore still changes the normalised direction and values.
+
+Like LayerNorm, its statistics come from the current example rather than other mini-batch examples. Choose it because that behaviour fits the architecture and tested baseline, not because it is newer or has a shorter formula.
+
+## Worked example — one row, three normalisations
+
+Take a selected row `[1, 2, 4, 8]` inside a batch containing the same row shifted upward by one, two, and three. Ignore learnable scale/shift and the tiny epsilon for this teaching calculation.
+
+For LayerNorm, the selected row mean is `3.75` and its population standard deviation is about `2.681`. Centre and divide each value to get approximately:
+
+```text
+LayerNorm: [-1.026, -0.653, +0.093, +1.585]
+```
+
+For RMSNorm, the selected row’s root mean square is about `4.610`. Divide without centring:
+
+```text
+RMSNorm: [+0.217, +0.434, +0.868, +1.735]
+```
+
+For BatchNorm, each feature column is an evenly spaced sequence of four values. The selected row is the lowest value in every column, so every feature becomes approximately `-1.342`:
+
+```text
+BatchNorm selected row: [-1.342, -1.342, -1.342, -1.342]
+```
+
+<CodeNotebook title="Calculate each statistic rather than guessing the axis">
+
+```python
+from math import sqrt
+
+selected = [1.0, 2.0, 4.0, 8.0]
+batch = [[value + shift for value in selected] for shift in range(4)]
+
+def mean(values):
+    return sum(values) / len(values)
+
+def standardise(values):
+    centre = mean(values)
+    spread = sqrt(mean([(value - centre) ** 2 for value in values]))
+    return [(value - centre) / spread for value in values]
+
+layer = standardise(selected)
+rms = sqrt(mean([value ** 2 for value in selected]))
+rms_output = [value / rms for value in selected]
+
+batch_output = []
+for feature in range(len(selected)):
+    column = [row[feature] for row in batch]
+    batch_output.append(standardise(column)[0])
+
+print('batch:', [f'{value:+.3f}' for value in batch_output])
+print('layer:', [f'{value:+.3f}' for value in layer])
+print('rms:  ', [f'{value:+.3f}' for value in rms_output])
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+batch: ['-1.342', '-1.342', '-1.342', '-1.342']
+layer: ['-1.026', '-0.653', '+0.093', '+1.585']
+rms:   ['+0.217', '+0.434', '+0.868', '+1.735']
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: 'standardise(selected)', explanation: 'LayerNorm-style statistics come from the four features of this one example.' }, { line: 'value / rms', explanation: 'RMSNorm-style scaling keeps the row mean; it does not centre first.' }, { line: 'column = [row[feature] for row in batch]', explanation: 'BatchNorm-style training statistics come from one feature across all examples in the mini-batch.' }]} />
+
+Now use the interactive version. Keep **Four nearby examples** selected and change only the uniform shift. LayerNorm output stays fixed because centring removes that shift. RMSNorm changes because it does not centre. Then select the outlier batch: only the BatchNorm result for the selected row changes.
+
+<NormalisationWorkbench client:load />
+
+The lab fixes learned scale and shift to identity so you can see the statistics. A production layer learns those parameters and includes epsilon in the denominator.
+
+## Step 4 — Assemble an explicit PyTorch policy
+
+This small classifier places LayerNorm after the first linear projection, then applies an activation and dropout. The model uses no BatchNorm, so its activation statistics do not depend on other examples in the mini-batch.
+
+The optimiser groups matrix-shaped weights separately from one-dimensional biases and normalisation parameters. This is one visible starting policy; a real architecture may require named exceptions.
+
+<CodeNotebook title="Regularised MLP with selective AdamW decay">
+
+```python
+import torch
+from torch import nn
+
+class RegularisedMLP(nn.Module):
+    def __init__(self, input_features: int, hidden_features: int, classes: int):
+        super().__init__()
+        self.network = nn.Sequential(
+            nn.Linear(input_features, hidden_features),
+            nn.LayerNorm(hidden_features),
+            nn.GELU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(hidden_features, classes),
+        )
+
+    def forward(self, features):
+        return self.network(features)
+
+model = RegularisedMLP(input_features=8, hidden_features=16, classes=3)
+
+decay_parameters = []
+no_decay_parameters = []
+for parameter in model.parameters():
+    group = decay_parameters if parameter.ndim >= 2 else no_decay_parameters
+    group.append(parameter)
+
+optimizer = torch.optim.AdamW(
+    [
+        {'params': decay_parameters, 'weight_decay': 0.01},
+        {'params': no_decay_parameters, 'weight_decay': 0.0},
+    ],
+    lr=3e-4,
+)
+
+print('decayed tensors:', len(decay_parameters))
+print('non-decayed tensors:', len(no_decay_parameters))
+```
+
+</CodeNotebook>
+
+For this exact model, the expected final two lines are:
+
+<ExpectedOutput>
+
+```text
+decayed tensors: 2
+non-decayed tensors: 4
+```
+
+</ExpectedOutput>
+
+There are two linear weight matrices. The two linear biases plus LayerNorm’s learned scale and bias are one-dimensional and enter the no-decay group.
+
+Test mode behaviour directly:
+
+```python
+features = torch.ones(1, 8)
+
+model.train()
+training_a = model(features)
+training_b = model(features)  # usually differs because dropout resamples
+
+model.eval()
+with torch.no_grad():
+    evaluation_a = model(features)
+    evaluation_b = model(features)
+
+assert torch.equal(evaluation_a, evaluation_b)
+```
+
+“Usually differs” is deliberately not an assertion: two random dropout masks can occasionally match. The evaluation equality is the deterministic property this example tests on a fixed device with deterministic model operations.
+
+## Step 5 — Choose with a controlled ablation
+
+An **ablation** is a comparison that removes or changes one component to measure what evidence changes. It does not prove a universal cause, but it is more informative than changing the whole recipe.
+
+Start with these questions:
+
+- **Dropout:** Which activations receive it? What is `p`? Is the validation path definitely in evaluation mode?
+- **Weight decay:** Which parameters are included? What is the decay strength? Is the optimiser AdamW or a different rule?
+- **Augmentation:** Which task invariance does each transform represent? Are paired targets transformed consistently?
+- **Normalisation:** Which axes share statistics? Are those statistics current-input or running? What happens with the deployment batch shape?
+
+Compare training curves, the declared validation measure, relevant error slices, and operational measures such as latency. A smaller training–validation gap caused by much worse performance on both sets is not automatically a success.
+
+## Real-world AI engineering example
+
+<RealWorldExample title="A camera defect detector that respects its transformation contract" steps={['Split by production line and time before creating any transformed examples, so near-duplicates cannot cross partitions.', 'Write the allowed invariances with domain experts: modest brightness variation may preserve a defect label; a flip may not preserve the physical orientation needed for repair.', 'Apply random, target-consistent augmentation only in the training loader; keep validation preprocessing deterministic.', 'Start from one normalisation and regularisation baseline, then ablate dropout probability, AdamW decay, or one augmentation family separately.', 'Call eval mode before validation, restore the best declared checkpoint, and inspect errors by camera, line, material, and defect class.', 'Deploy behind monitoring for input drift, slice performance, abstention volume, and the operational cost of false alarms and missed defects.']}>
+  A strong validation score does not make an augmentation physically valid. The
+  transformation contract comes from the task and acquisition process. Engineers
+  preserve original samples, version transform settings, inspect transformed
+  image–target pairs, and retain a safe human-review path for uncertain cases.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: 'Adding every regulariser when validation worsens.', fix: 'Verify split and evaluation first, then ablate one explicit factor from a reproducible baseline.' }, { mistake: 'Reading dropout p as the keep probability.', fix: 'In PyTorch Dropout, p is the probability of replacing an activation with zero.' }, { mistake: 'Leaving the model in training mode during validation.', fix: 'Call model.eval() for dropout and BatchNorm behaviour, and use no_grad() separately to stop gradient tracking.' }, { mistake: 'Applying weight decay to every parameter invisibly.', fix: 'Create named or shape-based parameter groups and document the policy and exceptions.' }, { mistake: 'Calling an augmentation label-preserving without checking the task.', fix: 'State the intended invariance and inspect transformed inputs with every paired target.' }, { mistake: 'Randomly augmenting validation or test examples.', fix: 'Use deterministic evaluation preprocessing that matches the deployment contract.' }, { mistake: 'Saying BatchNorm normalises each example independently.', fix: 'During training, it uses a feature’s values across mini-batch examples; the module normally uses running estimates at evaluation.' }, { mistake: 'Treating LayerNorm and RMSNorm as identical.', fix: 'LayerNorm subtracts the mean and scales; RMSNorm scales by root mean square without centring.' }, { mistake: 'Assuming gradient accumulation gives BatchNorm larger-batch statistics.', fix: 'Each micro-batch forward pass calculates its own training BatchNorm statistics.' }]} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: 'What should happen before choosing a stronger regulariser?', options: ['Verify the split and evaluation path', 'Use the final test set for tuning', 'Change optimiser, model, and data together'], answer: 0, explanation: 'A broken split or evaluation path can imitate overfitting. Protect the evidence before changing the learning policy.' }, { question: 'In PyTorch Dropout(p=0.2), what does 0.2 mean?', options: ['Training probability of setting an activation to zero', 'Evaluation probability of keeping an activation', 'Weight-decay strength'], answer: 0, explanation: 'p is the training-time drop probability. Surviving activations are scaled, and evaluation dropout is an identity operation.' }, { question: 'Which change can alter a selected example’s training BatchNorm output?', options: ['Replacing another mini-batch example with an outlier', 'Only renaming the selected example', 'Calling no_grad without eval mode'], answer: 0, explanation: 'BatchNorm training statistics are calculated per feature across mini-batch examples, so batch composition matters.' }, { question: 'What is the key difference between LayerNorm and RMSNorm here?', options: ['LayerNorm subtracts the mean; RMSNorm does not', 'RMSNorm uses other batch examples', 'LayerNorm works only during training'], answer: 0, explanation: 'Both use current-example feature statistics. LayerNorm centres and scales, while RMSNorm scales by root mean square without centring.' }, { question: 'What makes an augmentation valid?', options: ['It preserves the target for the intended task and transforms paired targets consistently', 'It makes the input look more unusual', 'It always improves training accuracy'], answer: 0, explanation: 'Augmentation encodes a task-specific invariance. A transform that changes the answer or misaligns a paired target creates incorrect supervision.' }, { question: 'What does model.eval() do that torch.no_grad() does not?', options: ['Switches modules such as dropout and BatchNorm to evaluation behaviour', 'Deletes optimiser state', 'Guarantees generalisation'], answer: 0, explanation: 'eval changes mode-dependent module behaviour. no_grad independently prevents autograd from recording calculations.' }]} />
+
+## Practice activity
+
+<PracticeActivity title="Write a one-change regularisation experiment" time="35–45 minutes" goal="Produce an experiment card another engineer can review and reproduce." steps={['Describe the observed training–validation pattern and the checks that ruled out split or evaluation mistakes.', 'Choose exactly one of dropout, selective AdamW decay, or a task-valid augmentation.', 'State the mechanism, setting, parameter/input scope, and expected effect before running.', 'Keep split, seed policy, schedule, checkpoint rule, and evaluation measures fixed.', 'Record training and validation curves plus at least one relevant error slice.', 'Decide in advance what result would keep, reject, or motivate a narrower follow-up.']} expected="A short experiment record makes the assumption visible, isolates one change, and protects final test evidence." challenge="Add a mode test that confirms two fixed-input evaluation forwards match, then document which stochastic operations could still prevent equality in your full system.">
+  Example: “The baseline improves training loss after epoch 8 while validation
+  loss rises. The split, duplicates, preprocessing, and evaluation mode passed
+  review. Add `Dropout(p=0.2)` after the hidden activation only. Keep all other
+  settings fixed. Retain it only if the best validation loss improves without
+  harming the safety-critical error slice.” This is a testable hypothesis, not
+  a promise that dropout will help.
+</PracticeActivity>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Key takeaways
+
+<KeyTakeaways points={['Regularisation constrains reliance; normalisation chooses the values that share a centre or scale.', 'Dropout masks and rescales during training, then becomes an identity operation during evaluation.', 'Make weight-decay parameter groups and augmentation invariances explicit rather than hiding policy in defaults.', 'BatchNorm uses batch neighbours during training; LayerNorm and RMSNorm use each example’s selected features.', 'Protect validation evidence, test mode behaviour, and change one important factor at a time.']} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: 'What is regularisation?', back: 'A deliberate constraint or variation intended to reduce reliance on training-specific detail and improve generalisation.' }, { front: 'What does dropout p mean?', back: 'The training-time probability that an activation is replaced with zero.' }, { front: 'Why are dropout survivors scaled?', back: 'Scaling by 1 / (1 − p) preserves the expected activation value across random masks.' }, { front: 'What does AdamW separate?', back: 'The weight-decay step from the adaptive gradient moment update.' }, { front: 'What contract must an augmentation satisfy?', back: 'It must preserve the intended task target and transform any paired target consistently.' }, { front: 'Which axis does BatchNorm use during training?', back: 'For each feature or channel, it uses values across examples in the current mini-batch.' }, { front: 'Which statistics does LayerNorm use?', back: 'Current-input statistics across selected feature dimensions within each example.' }, { front: 'What does RMSNorm omit?', back: 'Mean subtraction; it scales by root mean square and applies a learned scale.' }, { front: 'Why are eval() and no_grad() both needed?', back: 'eval changes mode-dependent layers; no_grad independently disables gradient recording.' }]} />
+
+<RevisionQuestions questions={['Explain why regularisation and normalisation are not synonyms.', 'Calculate survivor scaling for dropout probabilities 0.1, 0.25, and 0.5.', 'Design a weight-decay parameter grouping policy and name one reason to review its exceptions.', 'Give one valid and one invalid augmentation for a task you know, including its target contract.', 'Draw the axis used by BatchNorm, LayerNorm, and RMSNorm for a batch-by-feature matrix.', 'Explain the train/eval behaviour of dropout and BatchNorm.', 'Design a single-factor ablation that keeps final test data protected.']} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="Regularise reliance; normalise an axis" terms={['Regularisation — constrain reliance', 'Dropout — mask activations in training', 'Weight decay — shrink selected parameters', 'Augmentation — teach a valid invariance', 'BatchNorm — down the batch', 'LayerNorm — centre across features', 'RMSNorm — scale without centring']} mistakes={['Do not tune on final test data', 'Do not confuse p with keep probability', 'Do not randomise evaluation transforms', 'Do not forget eval mode', 'Do not hide decay scope']} takeaways={['Diagnose first', 'Name the axis', 'State the mode behaviour', 'Ablate one factor', 'Inspect task-relevant slices']} questions={['What values share statistics?', 'What changes at evaluation?', 'Which assumption does this method encode?']}>
+  <p slot="main">A trustworthy choice states what values are constrained or normalised, when behaviour changes, which task assumption it encodes, and what held-out evidence would reject it.</p>
+  <div slot="diagram"><NormalisationAxes /></div>
+  <pre slot="code"><code>train: augment → model.train()
+validate: deterministic → model.eval()
+compare one declared change</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="regularisation-and-normalisation" items={['I can diagnose an overfitting pattern before adding regularisation.', 'I can calculate and explain dropout masking and survivor scaling.', 'I can describe selective AdamW weight decay.', 'I can state an augmentation’s task-specific invariance.', 'I can draw the statistic axis for BatchNorm, LayerNorm, and RMSNorm.', 'I can explain which normalisation uses running evaluation statistics.', 'I can separate eval mode from disabled gradient tracking.', 'I completed the axis lab, code lab, quiz, exercises, and flashcards.']} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="cnns-and-computer-vision-basics" title="CNNs and computer vision basics" why="You can now control activation scale and task-valid input variation. Next, learn how convolution uses local, shared filters to turn image structure into useful feature maps." />

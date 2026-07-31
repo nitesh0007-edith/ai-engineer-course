@@ -4,10 +4,10 @@
 
 | Metric | Value |
 |---|---|
-| Chapters published | 22 / 90 |
+| Chapters published | 23 / 90 |
 | Layers complete | 2 / 11 |
-| Total diagrams | 45 |
-| Total interactive widgets | 6 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist, TrainingLoopVisualizer, InterpretabilityWorkbench) |
+| Total diagrams | 47 |
+| Total interactive widgets | 7 (PyRunner, QuizCard, FlashcardDeck, LessonChecklist, TrainingLoopVisualizer, InterpretabilityWorkbench, NormalisationWorkbench) |
 | Live URL | https://www.learnaiwithnitesh.dev/ |
 
 ## Phase 0 — Foundation (CLAUDE.md §11)
@@ -37,7 +37,7 @@ Notes:
 |---|---|---:|---|
 | 00 | Foundations | 10 / 10 | ✅ complete |
 | 01 | Classical Machine Learning | 8 / 8 | ✅ complete |
-| 02 | Deep Learning | 4 / 8 | in progress |
+| 02 | Deep Learning | 5 / 8 | in progress |
 
 ## Chapters
 
@@ -65,3 +65,4 @@ Notes:
 | 02-02 | Backpropagation from scratch | 2 | published | 2 | 3 | 2026-07-28 |
 | 02-03 | PyTorch: an honest training loop | 2 | published | 1 | 4 | 2026-07-29 |
 | 02-04 | Training mechanics | 2 | published | 2 | 5 | 2026-07-29 |
+| 02-05 | Regularisation and normalisation | 2 | published | 2 | 5 | 2026-07-31 |

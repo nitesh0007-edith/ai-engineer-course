@@ -26,4 +26,5 @@ export const ROUTES = [
   'chapters/backpropagation-from-scratch/',
   'chapters/pytorch/',
   'chapters/training-mechanics/',
+  'chapters/regularisation-and-normalisation/',
 ];

@@ -2520,3 +2520,186 @@
     font-size: 11px;
   }
 }
+
+/* ═══ NormalisationWorkbench — compare statistic axes ═══════════════════ */
+.normalisation-lab {
+  max-width: min(980px, 100%);
+}
+.normalisation-controls {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.85fr) minmax(250px, 1.4fr);
+  gap: 16px;
+  border: 1px dashed var(--frame);
+  border-radius: 8px;
+  background: var(--paper-sink);
+  padding: 14px;
+}
+.normalisation-controls label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.normalisation-controls select {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--frame);
+  border-radius: 4px;
+  background: var(--paper-raise);
+  padding: 6px 8px;
+  color: var(--ink);
+  font: 12px/1.35 var(--font-mono);
+}
+.normalisation-controls output {
+  color: var(--blueprint);
+  font: 12px/1 var(--font-mono);
+}
+.normalisation-controls input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 28px;
+  accent-color: var(--blueprint);
+}
+.normalisation-matrix-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 18px;
+}
+.normalisation-matrix {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: separate;
+  border-spacing: 4px;
+  font: 11px/1.3 var(--font-mono);
+}
+.normalisation-matrix caption {
+  padding: 0 0 6px;
+  text-align: left;
+  color: var(--blueprint);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.normalisation-matrix th,
+.normalisation-matrix td {
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  padding: 7px 9px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--paper-raise);
+}
+.normalisation-matrix thead th,
+.normalisation-matrix tbody th {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.normalisation-matrix tr.selected th,
+.normalisation-matrix tr.selected td {
+  border-color: var(--blueprint);
+  background: var(--highlight);
+}
+.normalisation-results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.normalisation-method {
+  min-width: 0;
+  border: 1px solid var(--frame);
+  border-top: 3px solid var(--blueprint);
+  border-radius: 6px;
+  background: var(--paper-raise);
+  padding: 12px;
+}
+.normalisation-method[data-method="layer"] {
+  border-top-color: var(--alert);
+}
+.normalisation-method[data-method="rms"] {
+  border-top-color: var(--ch1);
+}
+.normalisation-method h3 {
+  margin: 2px 0 12px;
+  color: var(--ink);
+  font: 600 17px/1.2 var(--font-display);
+}
+.normalisation-method > p:last-child {
+  margin: 12px 0 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.normalisation-values {
+  display: grid;
+  gap: 8px;
+}
+.normalisation-value {
+  display: grid;
+  grid-template-columns: 20px minmax(54px, 1fr) 42px;
+  align-items: center;
+  gap: 6px;
+}
+.normalisation-feature,
+.normalisation-value output {
+  color: var(--ink-muted);
+  font: 9.5px/1 var(--font-mono);
+}
+.normalisation-value output {
+  text-align: right;
+  color: var(--ink);
+}
+.normalisation-track {
+  position: relative;
+  display: block;
+  height: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+  background:
+    linear-gradient(to right, transparent calc(50% - 0.5px), var(--ink-muted) 50%, transparent calc(50% + 0.5px)),
+    var(--paper-sink);
+  overflow: hidden;
+}
+.normalisation-track > span {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  min-width: 2px;
+}
+.normalisation-track .positive {
+  left: 50%;
+  background: var(--blueprint);
+}
+.normalisation-track .negative {
+  right: 50%;
+  background: var(--alert);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    color-mix(in oklch, var(--paper-raise) 65%, transparent) 4px 6px
+  );
+}
+.normalisation-warning {
+  border-left: 3px solid var(--alert);
+  margin: 16px 0 0;
+  padding: 5px 10px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .normalisation-controls,
+  .normalisation-results {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 430px) {
+  .normalisation-lab .frame {
+    padding-inline: 10px;
+  }
+}

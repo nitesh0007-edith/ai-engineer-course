@@ -27,7 +27,8 @@
         "http://localhost:4321/chapters/from-neurons-to-networks/",
         "http://localhost:4321/chapters/backpropagation-from-scratch/",
         "http://localhost:4321/chapters/pytorch/",
-        "http://localhost:4321/chapters/training-mechanics/"
+        "http://localhost:4321/chapters/training-mechanics/",
+        "http://localhost:4321/chapters/regularisation-and-normalisation/"
       ],
       "numberOfRuns": 3,
       "settings": {

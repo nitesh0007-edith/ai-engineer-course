@@ -1,0 +1,61 @@
+---
+/** NormalisationAxes — BatchNorm columns versus LayerNorm/RMSNorm rows. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 430"
+  role="img"
+  aria-label="A four-by-four matrix has examples as rows and features as columns. Vertical brackets show BatchNorm measuring each feature across examples in a mini-batch. Horizontal brackets show LayerNorm and RMSNorm measuring features within each example. A comparison table says BatchNorm centres and scales using batch statistics during training and running statistics by default during evaluation; LayerNorm centres and scales each example in both modes; RMSNorm scales each example by root mean square without centring in both modes."
+>
+  <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">normalisation begins by choosing an axis</text>
+
+  <text x="166" y="68" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">FEATURES →</text>
+  <text x="36" y="204" transform="rotate(-90 36 204)" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">EXAMPLES →</text>
+  {Array.from({ length: 4 }).map((_, row) =>
+    Array.from({ length: 4 }).map((__, column) => (
+      <rect
+        x={76 + column * 60}
+        y={91 + row * 60}
+        width="46"
+        height="46"
+        rx="6"
+        fill={row === 1 ? 'var(--highlight)' : 'var(--paper-raise)'}
+        stroke={column === 2 ? 'var(--blueprint)' : 'var(--ink)'}
+        stroke-width={column === 2 ? '2.5' : '1.5'}
+      />
+    )),
+  )}
+  <text x="46" y="120" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">e1</text><text x="46" y="180" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">e2</text><text x="46" y="240" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">e3</text><text x="46" y="300" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">e4</text>
+  <text x="99" y="82" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">f1</text><text x="159" y="82" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">f2</text><text x="219" y="82" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--blueprint)">f3</text><text x="279" y="82" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">f4</text>
+
+  <path d="M331 95 H346 V317 H331" fill="none" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="355" y="190" font-family="var(--font-hand)" font-size="20" fill="var(--blueprint)">BatchNorm</text>
+  <text x="355" y="212" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">down each feature</text>
+  <text x="355" y="229" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">across examples</text>
+
+  <path d="M78 343 V358 H305 V343" fill="none" stroke="var(--alert)" stroke-width="3" />
+  <text x="191" y="386" text-anchor="middle" font-family="var(--font-hand)" font-size="19" fill="var(--alert)">LayerNorm / RMSNorm across one row</text>
+  <text x="191" y="405" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">neighbouring examples do not set the statistics</text>
+
+  <rect x="470" y="68" width="285" height="317" rx="14" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+  <text x="612" y="99" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">what each method measures</text>
+  <line x1="490" y1="119" x2="735" y2="119" stroke="var(--hairline)" />
+
+  <text x="492" y="148" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">BATCH</text>
+  <text x="492" y="170" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">centre + scale per feature</text>
+  <text x="492" y="190" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">train: current mini-batch</text>
+  <text x="492" y="207" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">eval: running statistics by default</text>
+  <line x1="490" y1="225" x2="735" y2="225" stroke="var(--hairline)" />
+
+  <text x="492" y="251" font-family="var(--font-mono)" font-size="10" fill="var(--alert)">LAYER</text>
+  <text x="492" y="273" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">centre + scale per example</text>
+  <text x="492" y="293" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">train + eval: current input</text>
+  <line x1="490" y1="311" x2="735" y2="311" stroke="var(--hairline)" />
+
+  <text x="492" y="338" font-family="var(--font-mono)" font-size="10" fill="var(--ch1)">RMS</text>
+  <text x="492" y="360" font-family="var(--font-hand)" font-size="17" fill="var(--ink)">scale per example · no centring</text>
+  <text x="492" y="378" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">train + eval: current input</text>
+
+  <text x="390" y="426" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">same output shape does not mean same dependency or behaviour</text>
+</svg>

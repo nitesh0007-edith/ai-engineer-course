@@ -7,7 +7,7 @@ Live course: <https://www.learnaiwithnitesh.dev/>
 
 ## Published progress
 
-- 22 of 90 lessons published
+- 23 of 90 lessons published
 - Layer 00 — Foundations: complete
 - Layer 01 — Classical Machine Learning: complete
 - Layer 02 — Deep Learning: in progress

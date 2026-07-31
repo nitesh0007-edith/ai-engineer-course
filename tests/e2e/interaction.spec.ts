@@ -56,7 +56,7 @@ test.describe('layout integrity', () => {
   });
 
   test('new lesson diagrams fit tablet and mobile canvases', async ({ page }) => {
-    for (const route of ['chapters/pipelines-interpretability-and-adjacent-problems/', 'chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/']) {
+    for (const route of ['chapters/pipelines-interpretability-and-adjacent-problems/', 'chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/', 'chapters/regularisation-and-normalisation/']) {
       for (const width of [768, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(route, { waitUntil: 'load' });
@@ -182,6 +182,33 @@ test('training curve workbench updates from keyboard-operable controls', async (
 
   await schedule.focus();
   await expect(schedule).toBeFocused();
+});
+
+test('normalisation workbench exposes axes and batch dependence', async ({ page }) => {
+  await page.goto('chapters/regularisation-and-normalisation/', { waitUntil: 'load' });
+
+  const lab = page.locator('.normalisation-lab');
+  await expect(lab.locator('xpath=ancestor::astro-island')).not.toHaveAttribute('ssr', '');
+
+  const batchValues = lab.locator('[data-method="batch"] .normalisation-values');
+  const layerValues = lab.locator('[data-method="layer"] .normalisation-values');
+  const rmsValues = lab.locator('[data-method="rms"] .normalisation-values');
+  const originalBatch = await batchValues.textContent();
+  const originalLayer = await layerValues.textContent();
+  const originalRms = await rmsValues.textContent();
+
+  const composition = lab.getByLabel('Batch composition');
+  await composition.selectOption('outlier');
+  await expect.poll(() => batchValues.textContent()).not.toBe(originalBatch);
+  await expect(layerValues).toHaveText(originalLayer ?? '');
+
+  const shift = lab.getByRole('slider', { name: 'Uniform shift added to selected example' });
+  await shift.focus();
+  await page.keyboard.press('End');
+  await expect(shift).toBeFocused();
+  await expect(layerValues).toHaveText(originalLayer ?? '');
+  await expect.poll(() => rmsValues.textContent()).not.toBe(originalRms);
+  await expect(lab.locator('.normalisation-warning')).toContainText('learnable scale and bias');
 });
 
 test('interpretability workbench updates from keyboard-operable controls', async ({ page }) => {

@@ -1,0 +1,61 @@
+---
+/** RegularisationLevers — data, activation, and parameter constraints. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 440"
+  role="img"
+  aria-label="Three labelled lanes show regularisation at different system boundaries. The data lane creates valid augmented training variants that keep the same label, while validation remains unchanged. The activation lane shows dropout masking different hidden units on two training passes and using every unit during evaluation. The parameter lane shows weight decay making a small direct move toward zero before the data-gradient update. A footer says to change one lever, preserve the baseline, and judge unseen validation evidence."
+>
+  <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">three levers, three different boundaries</text>
+
+  <rect x="22" y="58" width="235" height="316" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="139" y="88" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">DATA LEVER</text>
+  <text x="139" y="114" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">augmentation</text>
+  <rect x="48" y="142" width="58" height="58" rx="7" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+  <path d="M59 188 L76 153 L94 188" fill="none" stroke="var(--blueprint)" stroke-width="4" />
+  <text x="122" y="177" font-family="var(--font-hand)" font-size="25" fill="var(--blueprint)">→</text>
+  <rect x="157" y="132" width="73" height="39" rx="6" fill="var(--highlight)" stroke="var(--ink)" stroke-width="1.5" />
+  <path d="M166 161 L180 139 L193 161" fill="none" stroke="var(--blueprint)" stroke-width="3" />
+  <rect x="157" y="181" width="73" height="39" rx="6" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="1.5" />
+  <path d="M220 210 L206 188 L193 210" fill="none" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="139" y="254" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">same valid label</text>
+  <text x="139" y="279" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">random in training</text>
+  <text x="139" y="296" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">deterministic validation</text>
+  <rect x="48" y="320" width="182" height="32" rx="5" fill="var(--paper-sink)" stroke="var(--alert)" stroke-width="1.5" />
+  <text x="139" y="341" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--alert)">invalid transform = label noise</text>
+
+  <rect x="272" y="58" width="235" height="316" rx="14" fill="var(--paper-raise)" stroke="var(--ch2)" stroke-width="3" />
+  <text x="389" y="88" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">ACTIVATION LEVER</text>
+  <text x="389" y="114" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">dropout</text>
+  <text x="298" y="149" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">TRAIN PASS A</text>
+  <circle cx="327" cy="181" r="12" fill="var(--blueprint)" /><circle cx="367" cy="181" r="12" fill="var(--paper-sink)" stroke="var(--alert)" stroke-width="2" /><line x1="357" y1="171" x2="377" y2="191" stroke="var(--alert)" stroke-width="3" /><circle cx="407" cy="181" r="12" fill="var(--blueprint)" /><circle cx="447" cy="181" r="12" fill="var(--paper-sink)" stroke="var(--alert)" stroke-width="2" /><line x1="437" y1="171" x2="457" y2="191" stroke="var(--alert)" stroke-width="3" />
+  <text x="298" y="224" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">TRAIN PASS B</text>
+  <circle cx="327" cy="256" r="12" fill="var(--paper-sink)" stroke="var(--alert)" stroke-width="2" /><line x1="317" y1="246" x2="337" y2="266" stroke="var(--alert)" stroke-width="3" /><circle cx="367" cy="256" r="12" fill="var(--blueprint)" /><circle cx="407" cy="256" r="12" fill="var(--paper-sink)" stroke="var(--alert)" stroke-width="2" /><line x1="397" y1="246" x2="417" y2="266" stroke="var(--alert)" stroke-width="3" /><circle cx="447" cy="256" r="12" fill="var(--blueprint)" />
+  <text x="298" y="301" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">EVALUATION</text>
+  <path d="M327 326 H447" stroke="var(--ink)" stroke-width="2" />
+  <circle cx="327" cy="326" r="10" fill="var(--highlight)" stroke="var(--ink)" /><circle cx="367" cy="326" r="10" fill="var(--highlight)" stroke="var(--ink)" /><circle cx="407" cy="326" r="10" fill="var(--highlight)" stroke="var(--ink)" /><circle cx="447" cy="326" r="10" fill="var(--highlight)" stroke="var(--ink)" />
+  <text x="389" y="356" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">all units · identity path</text>
+
+  <rect x="522" y="58" width="235" height="316" rx="14" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="639" y="88" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">PARAMETER LEVER</text>
+  <text x="639" y="114" text-anchor="middle" font-family="var(--font-hand)" font-size="22" fill="var(--ink)">weight decay</text>
+  <line x1="554" y1="180" x2="724" y2="180" stroke="var(--ink)" stroke-width="2" />
+  <line x1="639" y1="164" x2="639" y2="196" stroke="var(--ink)" stroke-width="2" />
+  <text x="639" y="213" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">zero</text>
+  <circle cx="706" cy="180" r="10" fill="var(--alert)" />
+  <text x="706" y="151" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--alert)">before</text>
+  <path d="M694 180 H666" stroke="var(--blueprint)" stroke-width="4" />
+  <text x="680" y="169" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--blueprint)">decay</text>
+  <circle cx="656" cy="180" r="10" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <path d="M650 246 C625 266 612 285 603 309" fill="none" stroke="var(--ink)" stroke-width="2" />
+  <path d="M662 246 C686 266 700 285 710 309" fill="none" stroke="var(--ink)" stroke-width="2" />
+  <text x="639" y="236" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">then data-gradient update</text>
+  <text x="585" y="331" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">small weights</text>
+  <text x="710" y="331" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--ink-muted)">useful fit</text>
+  <text x="639" y="355" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--alert)">strength is a validation choice</text>
+
+  <path d="M70 406 H710" stroke="var(--ink)" stroke-width="2" stroke-dasharray="3 5" />
+  <text x="390" y="432" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--alert)">preserve the baseline · change one lever · judge unseen evidence</text>
+</svg>
