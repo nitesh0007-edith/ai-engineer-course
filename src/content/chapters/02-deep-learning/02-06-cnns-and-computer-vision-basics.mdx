@@ -1,0 +1,682 @@
+---
+layer: 2
+order: 6
+title: 'CNNs and computer vision basics'
+slug: 'cnns-and-computer-vision-basics'
+subtitle: 'Turn local image patches into reusable feature maps, grow visual context, and adapt a pretrained model without hiding the data contract.'
+depth: use
+difficulty: beginner
+readingTime: 85
+prerequisites:
+  - regularisation-and-normalisation
+skillsGained:
+  - 'Read channel-first image and feature-map shapes without losing the batch dimension'
+  - 'Calculate a small convolution by sliding, multiplying, and summing'
+  - 'Predict spatial output size from kernel, stride, and padding settings'
+  - 'Explain parameter sharing, pooling, receptive fields, and residual connections'
+  - 'Build a small shape-safe CNN in PyTorch'
+  - 'Configure a pretrained Torchvision model as a fixed feature extractor or fine-tuning baseline'
+objectives:
+  - 'Explain why a convolution uses local connectivity and shared weights'
+  - 'Calculate convolution, pooling, output shape, and parameter-count examples'
+  - 'Trace how channels and spatial dimensions change through a small CNN'
+  - 'Distinguish a theoretical receptive field from evidence that a model used relevant context'
+  - 'Replace a pretrained classifier head while preserving its preprocessing and evaluation contract'
+concepts:
+  - computer-vision
+  - convolution
+  - convolutional-kernel
+  - feature-map
+  - stride
+  - padding
+  - pooling
+  - receptive-field
+  - residual-connection
+  - transfer-learning
+  - fine-tuning
+diagrams:
+  - ConvolutionPipeline
+  - ReceptiveResidual
+interactives:
+  - ConvolutionWorkbench
+  - PyRunner
+  - QuizCard
+  - FlashcardDeck
+  - LessonChecklist
+codeExamples: 6
+exercises:
+  - prompt: 'A 7 × 7 input receives a 3 × 3 convolution with stride 2 and padding 1. What is the spatial output size?'
+    difficulty: warmup
+    solution: 'For each spatial axis, `floor((7 + 2×1 − 3) / 2) + 1 = floor(6 / 2) + 1 = 4`. The output is 4 × 4. This assumes dilation 1, which is the default used throughout the lesson.'
+  - prompt: 'A Conv2d layer has 3 input channels, 12 output channels, 5 × 5 kernels, and one bias per output channel. How many learned parameters does it have, and why does the answer not depend on image width?'
+    difficulty: core
+    solution: 'Each output filter has `3 × 5 × 5 = 75` weights plus one bias. Twelve filters therefore have `12 × (75 + 1) = 912` learned parameters. The same filter weights are reused at every spatial position, so a wider image creates more filter applications but not more convolution parameters.'
+  - prompt: 'You have a pretrained ResNet with a new classifier head and a small domain-specific dataset. Design a controlled fixed-feature baseline and a fine-tuning follow-up, including preprocessing, BatchNorm behaviour, validation, and what remains frozen.'
+    difficulty: stretch
+    solution: 'Load a named weights version and use its bundled transforms. For the fixed-feature baseline, freeze backbone parameters, replace the final head, optimise only that head, and deliberately keep the frozen backbone—including BatchNorm running statistics—in evaluation mode while the head trains. Select the checkpoint using protected validation evidence and inspect task-relevant error slices. For a follow-up, unfreeze a declared late block or the full backbone, use a smaller controlled learning rate for pretrained parameters, preserve the split and evaluation rule, and compare one change. Do not tune on the final test set, and audit whether the pretraining data, labels, licence, and image domain fit the deployment use.'
+resources:
+  - title: 'PyTorch — Conv2d'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html'
+    type: docs
+    note: 'Official reference for channel-first shapes, kernel, stride, padding, dilation, groups, and output dimensions.'
+  - title: 'PyTorch — MaxPool2d'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html'
+    type: docs
+    note: 'Official contract for two-dimensional maximum pooling and its shape calculation.'
+  - title: 'PyTorch — AdaptiveAvgPool2d'
+    url: 'https://docs.pytorch.org/docs/stable/generated/torch.nn.AdaptiveAvgPool2d.html'
+    type: docs
+    note: 'Official reference for requesting a fixed spatial output size from variable input sizes.'
+  - title: 'Torchvision — Models and pretrained weights'
+    url: 'https://docs.pytorch.org/vision/stable/models.html'
+    type: docs
+    note: 'Official model and weights API, including bundled preprocessing transforms and weight metadata.'
+  - title: 'PyTorch — Transfer learning for computer vision tutorial'
+    url: 'https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html'
+    type: docs
+    note: 'Official examples of fine-tuning and using a pretrained convolutional network as a fixed feature extractor.'
+  - title: 'Deep Residual Learning for Image Recognition'
+    url: 'https://arxiv.org/abs/1512.03385'
+    type: paper
+    note: 'The original ResNet paper introducing residual functions referenced to the block input.'
+status: published
+updated: 2026-08-01
+---
+
+import QuizCard from '../../../components/interactive/QuizCard.tsx';
+import FlashcardDeck from '../../../components/interactive/FlashcardDeck.tsx';
+import LessonChecklist from '../../../components/interactive/LessonChecklist.tsx';
+import PyRunner from '../../../components/interactive/PyRunner.tsx';
+import ConvolutionWorkbench from '../../../components/interactive/ConvolutionWorkbench.tsx';
+import ConvolutionPipeline from '../../../components/diagrams/ConvolutionPipeline.astro';
+import ReceptiveResidual from '../../../components/diagrams/ReceptiveResidual.astro';
+import LessonIdentity from '../../../components/lesson/LessonIdentity.astro';
+import MainIdea from '../../../components/lesson/MainIdea.astro';
+import AnalogyCard from '../../../components/lesson/AnalogyCard.astro';
+import CodeNotebook from '../../../components/lesson/CodeNotebook.astro';
+import ExpectedOutput from '../../../components/lesson/ExpectedOutput.astro';
+import LineExplanation from '../../../components/lesson/LineExplanation.astro';
+import RealWorldExample from '../../../components/lesson/RealWorldExample.astro';
+import PracticeActivity from '../../../components/lesson/PracticeActivity.astro';
+import RevisionQuestions from '../../../components/lesson/RevisionQuestions.astro';
+import SketchnoteSummary from '../../../components/lesson/SketchnoteSummary.astro';
+
+A 32 × 32 colour image contains 3,072 numbers. A fully connected layer can read all of them, but it begins with no built-in reason to treat neighbouring pixels as related or to reuse an edge detector in the top-left and bottom-right corners.
+
+A convolutional neural network starts with those two useful assumptions: nearby values form local patterns, and the same local pattern may matter at many positions.
+
+<LessonIdentity module="Deep learning" lesson="6 · CNNs and computer vision basics" difficulty="Beginner" duration="85 minutes" prerequisites={['Image augmentation and normalisation contracts', 'PyTorch modules, activations, training modes, and validation checkpoints']} skills={frontmatter.skillsGained} />
+
+## Why this matters
+
+<Term id="computer-vision">Computer vision</Term> is the area of computing concerned with extracting useful information from images or video. Classification assigns a label to an image. Detection locates objects. Segmentation assigns labels to pixels or regions. Other tasks estimate depth, motion, keypoints, similarity, or generated content.
+
+The model does not receive “a cat” or “a cracked component.” It receives an array of measured values. A useful vision system must connect those values to a precisely defined target, then survive changes in cameras, lighting, position, background, and deployment policy.
+
+<MainIdea>
+  A <Term id="convolution">convolution</Term> reuses a small learned pattern detector across local image patches. Stacking those local detectors builds wider context. Pooling or stride can reduce resolution, residual connections preserve an easy identity path, and transfer learning reuses earlier visual features—but none of these removes the need for representative data and task-specific validation.
+</MainIdea>
+
+<Objectives data={frontmatter} />
+
+## Plain-English mental model
+
+<AnalogyCard title="One stencil, moved across a large drawing" limitation="A person chooses a stencil because they already understand the desired shape. A CNN learns numeric filter weights from examples and may respond to an unintended texture, border, watermark, or background.">
+  Imagine placing a small transparent stencil over one part of a drawing. You
+  compare the values under the stencil, write down one response, then move the
+  same stencil to the next position. The response sheet shows where that local
+  pattern appeared. Use several stencils and you get several response sheets.
+  Later layers combine those local responses into larger parts and wider context.
+</AnalogyCard>
+
+## Step 1 — An image is a tensor with spatial structure
+
+A greyscale image can be represented as one grid of intensities. A colour image often has three channels: red, green, and blue. A channel is one aligned grid of measurements.
+
+PyTorch convolution layers normally use **channel-first** order:
+
+```text
+one image:  (channels, height, width)
+one batch:  (batch, channels, height, width)
+```
+
+A batch of sixteen 32 × 32 RGB images has shape `(16, 3, 32, 32)`. The first `3` is not the number of examples; it is the number of aligned input channels.
+
+Pixel values also need a declared scale and preprocessing contract. A pretrained model may expect a particular resize, crop, value range, and per-channel normalisation. Correct tensor shape does not compensate for incorrect preprocessing.
+
+Image coordinates and labels deserve the same care. If an augmentation flips or crops the image, any bounding boxes, masks, or keypoints must follow the same geometry.
+
+## Step 2 — Slide, multiply, and sum
+
+A <Term id="convolutional-kernel">convolutional kernel</Term>, also called a **filter**, is a small grid of weights. At one position:
+
+1. Take the local input patch under the filter.
+2. Multiply corresponding patch values and filter weights.
+3. Add all the products.
+4. Optionally add one learned bias.
+
+The result is one output value. Move the same filter and repeat.
+
+Deep-learning libraries commonly perform **cross-correlation**: they use the learned filter in its stored orientation rather than mathematically flipping it first. The operation is still conventionally called convolution. Because the weights are learned, this naming difference does not change the basic learning story, but it matters when reproducing a hand calculation.
+
+<Figure id="02-06.1" label="ONE LOCAL RULE, REUSED EVERYWHERE" caption="— a filter spans all input channels but only a small spatial patch. Reusing it across positions creates one feature map. A bank of eight filters creates eight output channels, each recording a different learned local response.">
+  <ConvolutionPipeline />
+</Figure>
+
+A <Term id="feature-map">feature map</Term> is one spatial output channel. Its positions record where one learned filter responded and by how much. Eight output filters create eight feature maps.
+
+### Worked example — detect a vertical boundary
+
+Use this 5 × 5 input, where `0` changes to `1` across a vertical boundary:
+
+```text
+0 0 1 1 1
+0 0 1 1 1
+0 0 1 1 1
+0 0 1 1 1
+0 0 1 1 1
+```
+
+Slide this 3 × 3 vertical-edge filter with stride 1 and no padding:
+
+```text
+-1  0  1
+-1  0  1
+-1  0  1
+```
+
+At the top-left position, each row contributes `0×−1 + 0×0 + 1×1 = 1`. Three rows sum to `3`. Once the filter lies entirely inside a constant region of ones, its negative and positive sides cancel to `0`.
+
+<PyRunner
+  client:load
+  id="02-06.B"
+  label="A CONVOLUTION WITHOUT A LIBRARY"
+  code={`image = [
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+]
+kernel = [
+    [-1, 0, 1],
+    [-1, 0, 1],
+    [-1, 0, 1],
+]
+
+def cross_correlate_2d(values, weights):
+    output_size = len(values) - len(weights) + 1
+    output = []
+    for top in range(output_size):
+        row = []
+        for left in range(output_size):
+            total = 0
+            for dy in range(len(weights)):
+                for dx in range(len(weights)):
+                    total += values[top + dy][left + dx] * weights[dy][dx]
+            row.append(total)
+        output.append(row)
+    return output
+
+for row in cross_correlate_2d(image, kernel):
+    print(row)`}
+  solution={`image = [
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+    [0, 0, 1, 1, 1],
+]
+kernel = [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]]
+
+def cross_correlate_2d(values, weights):
+    output = []
+    for top in range(len(values) - 2):
+        row = []
+        for left in range(len(values) - 2):
+            patch_sum = sum(
+                values[top + dy][left + dx] * weights[dy][dx]
+                for dy in range(3)
+                for dx in range(3)
+            )
+            row.append(patch_sum)
+        output.append(row)
+    return output
+
+for row in cross_correlate_2d(image, kernel):
+    print(row)`}
+/>
+
+<ExpectedOutput>
+
+```text
+[3, 3, 0]
+[3, 3, 0]
+[3, 3, 0]
+```
+
+</ExpectedOutput>
+
+The hand-written weights make the example interpretable. In an ordinary CNN, backpropagation learns the filter values that reduce the training loss.
+
+Now inspect every product interactively. Change to a horizontal input while keeping the vertical-edge filter, then change only the filter. The matching orientation should respond differently. Select any output cell to expose its patch arithmetic.
+
+<ConvolutionWorkbench client:load />
+
+## Step 3 — Stride and padding control the map size
+
+<Term id="stride">Stride</Term> is how far the filter moves between neighbouring outputs. Stride 1 visits every position. Stride 2 skips alternate positions and usually makes a smaller output.
+
+<Term id="padding">Padding</Term> adds values around the input before the local operation. Zero padding adds an explicit border of zeros. It lets a filter be centred near the original edge and can preserve spatial size for suitable settings.
+
+For one spatial axis, dilation 1, and a square or rectangular operation applied independently to height and width:
+
+```text
+output = floor((input + 2 × padding − kernel) ÷ stride) + 1
+```
+
+The floor matters when the filter does not land evenly at the final position.
+
+<CodeNotebook title="Make every spatial shape explicit">
+
+```python
+def output_size(input_size, kernel, stride=1, padding=0):
+    return (input_size + 2 * padding - kernel) // stride + 1
+
+settings = [
+    ('valid', 5, 3, 1, 0),
+    ('padded', 5, 3, 1, 1),
+    ('strided', 5, 3, 2, 1),
+    ('image conv', 32, 3, 1, 1),
+    ('then pool', 32, 2, 2, 0),
+]
+
+for name, size, kernel, stride, padding in settings:
+    result = output_size(size, kernel, stride, padding)
+    print(f'{name}: {size} -> {result}')
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+valid: 5 -> 3
+padded: 5 -> 5
+strided: 5 -> 3
+image conv: 32 -> 32
+then pool: 32 -> 16
+```
+
+</ExpectedOutput>
+
+Padding is a numeric boundary assumption. A zero outside the image is not a measured black pixel, empty road, healthy tissue, or absence of an object. Border-sensitive tasks may need careful padding and explicit error analysis near image edges.
+
+**Dilation** spaces filter taps apart, allowing a filter to cover a wider region without adding weights. It belongs in the full output-size formula, but this beginner calculation keeps dilation at its default value of 1.
+
+## Step 4 — Channels, filters, and parameter sharing
+
+For RGB input, one ordinary filter has a separate 2D weight grid for each of the three input channels. Those three grids are multiplied with the aligned local RGB patch and summed into one output position.
+
+PyTorch stores ordinary `Conv2d` weights with shape:
+
+```text
+(output channels, input channels, kernel height, kernel width)
+```
+
+A layer with 3 input channels, 8 output channels, 3 × 3 kernels, and a bias has:
+
+```text
+weights = 8 × 3 × 3 × 3 = 216
+biases  = 8
+total   = 224 learned parameters
+```
+
+<CodeNotebook title="Count convolution parameters from the weight shape">
+
+```python
+input_channels = 3
+output_channels = 8
+kernel_height = 3
+kernel_width = 3
+uses_bias = True
+
+per_filter = input_channels * kernel_height * kernel_width
+total = output_channels * per_filter
+if uses_bias:
+    total += output_channels
+
+print('weight shape:', (output_channels, input_channels, kernel_height, kernel_width))
+print('learned parameters:', total)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+weight shape: (8, 3, 3, 3)
+learned parameters: 224
+```
+
+</ExpectedOutput>
+
+The parameter count does not depend on image width or height because the same weights are reused. A larger image creates more arithmetic and a larger feature map, but not more filter parameters.
+
+This **parameter sharing** gives a convolution a useful position-related behaviour: if a pattern moves, the corresponding response often moves too. Padding, stride, pooling, borders, and later global aggregation complicate that relationship. A CNN is not automatically invariant to every translation, rotation, scale, or viewpoint.
+
+## Step 5 — Pooling summarises local regions
+
+<Term id="pooling">Pooling</Term> is a fixed local summary operation. It has no learned filter weights.
+
+**Max pooling** keeps the largest value in each window. **Average pooling** keeps the mean. With a 2 × 2 window and stride 2, this 4 × 4 map becomes 2 × 2:
+
+<CodeNotebook title="Compare maximum and average pooling">
+
+```python
+feature_map = [
+    [1, 3, 2, 0],
+    [4, 6, 1, 2],
+    [0, 2, 5, 3],
+    [1, 1, 2, 4],
+]
+
+def pool(values, reducer):
+    output = []
+    for top in range(0, len(values), 2):
+        row = []
+        for left in range(0, len(values[0]), 2):
+            window = [
+                values[top + dy][left + dx]
+                for dy in range(2)
+                for dx in range(2)
+            ]
+            row.append(reducer(window))
+        output.append(row)
+    return output
+
+maximum = pool(feature_map, max)
+average = pool(feature_map, lambda values: sum(values) / len(values))
+
+print('max:', maximum)
+print('average:', average)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+max: [[6, 2], [2, 5]]
+average: [[3.5, 1.25], [1.0, 3.5]]
+```
+
+</ExpectedOutput>
+
+Pooling reduces spatial resolution and discards detail. That can reduce computation and make a later prediction less sensitive to tiny movements, but it can harm tasks that need exact boundaries or small objects. Strided convolutions are another learned way to reduce resolution.
+
+**Adaptive average pooling** requests an output size rather than a fixed window. `AdaptiveAvgPool2d((1, 1))` reduces each channel to one number, allowing a classifier head to accept more than one input height and width. It still discards spatial layout.
+
+## Step 6 — Deeper layers can use wider context
+
+The <Term id="receptive-field">receptive field</Term> of an activation is the region of the original input that can influence it. One 3 × 3 convolution sees a local 3 × 3 patch. A later 3 × 3 convolution reads earlier activations that already summarise neighbouring patches, so its input influence is wider.
+
+<Figure id="02-06.2" label="LOCAL LAYERS BUILD CONTEXT; SHORTCUTS PRESERVE A PATH" caption="— stacking local operations grows the theoretical input region that may influence a deeper activation. A residual block also carries its input around the learned branch and adds the two paths when their shapes are compatible.">
+  <ReceptiveResidual />
+</Figure>
+
+Track two quantities:
+
+- **Receptive field:** how many original input positions can influence the current activation.
+- **Jump:** how far apart neighbouring current activations are in original input coordinates.
+
+For each layer with kernel `k` and stride `s`:
+
+```text
+new receptive field = old receptive field + (k − 1) × old jump
+new jump            = old jump × s
+```
+
+<CodeNotebook title="Trace theoretical receptive field layer by layer">
+
+```python
+layers = [
+    ('conv 3x3', 3, 1),
+    ('pool 2x2', 2, 2),
+    ('conv 3x3', 3, 1),
+]
+
+receptive_field = 1
+jump = 1
+
+for name, kernel, stride in layers:
+    receptive_field += (kernel - 1) * jump
+    jump *= stride
+    print(f'{name}: receptive field {receptive_field}, jump {jump}')
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+conv 3x3: receptive field 3, jump 1
+pool 2x2: receptive field 4, jump 2
+conv 3x3: receptive field 8, jump 2
+```
+
+</ExpectedOutput>
+
+<LineExplanation items={[{ line: '(kernel - 1) * jump', explanation: 'A local window extends the reachable input region by its extra taps, measured at the spacing created by earlier strides.' }, { line: 'jump *= stride', explanation: 'Stride makes neighbouring later activations farther apart in original-image coordinates.' }, { line: 'theoretical receptive field', explanation: 'This is the region that can influence an activation. It does not prove every pixel contributed equally or meaningfully.' }]} />
+
+A wide theoretical receptive field does not prove the model used the right evidence. Occlusion tests, error slices, saliency methods used cautiously, and targeted counterexamples can help investigate reliance, but none provides a complete causal explanation by itself.
+
+## Step 7 — Residual connections preserve an identity route
+
+A <Term id="residual-connection">residual connection</Term>, also called a skip connection, adds a block’s input to the block’s learned transformation:
+
+```text
+output = x + F(x)
+```
+
+Instead of requiring the learned branch to recreate an entire useful representation, it can learn a change `F(x)` while the original `x` has a direct route. This supports optimisation of deeper networks; it does not guarantee that an arbitrarily deep model will generalise.
+
+Addition requires compatible shapes. If channel count or spatial size changes, the shortcut must be transformed deliberately—often with a learned projection—or the values cannot be added element by element.
+
+The arithmetic is ordinary:
+
+```python
+x = [1.0, -2.0, 0.5]
+residual = [0.2, 0.5, -0.1]
+output = [original + change for original, change in zip(x, residual)]
+
+print(output)
+```
+
+Expected output:
+
+```text
+[1.2, -1.5, 0.4]
+```
+
+In a real residual block, `F` is a learned sequence such as normalisation, activation, and convolutions. Exact ordering varies by architecture.
+
+## Step 8 — Build a shape-readable CNN in PyTorch
+
+This small classifier preserves 32 × 32 size in each convolution, halves it once with max pooling, then uses adaptive average pooling to produce one value per final channel.
+
+<CodeNotebook title="A small convolutional classifier with visible shapes">
+
+```python
+import torch
+from torch import nn
+
+class SmallCNN(nn.Module):
+    def __init__(self, classes: int):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 8, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(8, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((1, 1)),
+        )
+        self.classifier = nn.Linear(16, classes)
+
+    def forward(self, images):
+        maps = self.features(images)
+        features = torch.flatten(maps, start_dim=1)
+        return self.classifier(features)
+
+model = SmallCNN(classes=4)
+images = torch.zeros(2, 3, 32, 32)
+
+with torch.no_grad():
+    feature_maps = model.features(images)
+    logits = model(images)
+
+print('feature maps:', tuple(feature_maps.shape))
+print('logits:', tuple(logits.shape))
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+feature maps: (2, 16, 1, 1)
+logits: (2, 4)
+```
+
+</ExpectedOutput>
+
+`logits` contains four unnormalised class scores per image. It is not a probability and does not include the true label. During training, a classification loss compares those scores with targets. During evaluation, restore the selected checkpoint, call `model.eval()`, disable gradient tracking, and report protected measures beyond aggregate accuracy when the task requires them.
+
+Assert shapes at important boundaries. A silent height/width or channel swap can produce plausible-looking numbers while teaching the wrong contract.
+
+## Step 9 — Transfer learning reuses a visual starting point
+
+<Term id="transfer-learning">Transfer learning</Term> starts a new task from parameters learned on an earlier task. A pretrained backbone may already contain useful local and compositional visual features.
+
+Two common baselines are:
+
+1. **Fixed feature extractor:** freeze the pretrained backbone and train only a new task-specific head.
+2. <Term id="fine-tuning">Fine-tuning</Term>: continue training some or all pretrained parameters on the new task.
+
+Start with a named weights version. Torchvision weight objects bundle the preprocessing associated with that version. `DEFAULT` can point to a different weights version in a future library release, so record the resolved enum and package versions for reproducibility.
+
+<CodeNotebook title="Create an explicit fixed-feature ResNet baseline">
+
+```python
+from torch import nn
+from torch.optim import AdamW
+from torchvision.models import resnet18, ResNet18_Weights
+
+weights = ResNet18_Weights.IMAGENET1K_V1
+preprocess = weights.transforms()
+model = resnet18(weights=weights)
+
+for parameter in model.parameters():
+    parameter.requires_grad = False
+
+input_features = model.fc.in_features
+model.fc = nn.Linear(input_features, 4)
+
+optimizer = AdamW(model.fc.parameters(), lr=1e-3, weight_decay=1e-2)
+
+trainable = [name for name, parameter in model.named_parameters()
+             if parameter.requires_grad]
+print('trainable tensors:', trainable)
+print('output classes:', model.fc.out_features)
+```
+
+</CodeNotebook>
+
+<ExpectedOutput>
+
+```text
+trainable tensors: ['fc.weight', 'fc.bias']
+output classes: 4
+```
+
+</ExpectedOutput>
+
+`requires_grad = False` freezes parameter gradients. It does not freeze mutable buffers such as BatchNorm running statistics. For a truly fixed feature extractor, keep the frozen backbone in evaluation mode while training the new head. A generic loop that calls `model.train()` on the entire object can otherwise keep updating those running statistics.
+
+If fine-tuning later layers, declare exactly which blocks are unfrozen. A smaller learning rate for pretrained parameters is a hypothesis to validate, not a universal constant. Compare the fixed baseline and fine-tuned run under the same split, transform contract, checkpoint rule, and error slices.
+
+Pretraining is not neutral. Review source labels, likely data overlap, licences, demographic and geographic coverage, imaging equipment, and harmful shortcuts. Reused features can transfer useful structure and unwanted bias.
+
+## Step 10 — Evaluate the vision system, not only the network
+
+An image classifier’s score can collapse when deployment changes the camera, crop, compression, lighting, background, resolution, or class prevalence. Protect the entire input and decision contract:
+
+- version image decoding, channel order, colour space, resize, crop, and normalisation;
+- split by the real unit of generalisation, such as patient, device, site, video, product batch, or time—not random near-duplicate frames;
+- inspect corrupted files, duplicates, label ambiguity, and metadata leakage;
+- measure important classes, sites, devices, lighting conditions, object sizes, and border positions;
+- calibrate thresholds and abstention policy for the downstream cost;
+- monitor input drift, failure slices, latency, and human-review load after release.
+
+Image models can learn backgrounds, rulers, scanner marks, watermarks, text overlays, or capture workflows instead of the intended object. Counterexamples that preserve the target while changing these shortcuts are powerful tests.
+
+## Real-world AI engineering example
+
+<RealWorldExample title="A surface-defect classifier with a traceable image contract" steps={['Define the decision: classify a cropped component image into four defect states, including an uncertain route for human inspection.', 'Split by manufacturing batch and capture time before augmentation so near-duplicate frames cannot cross partitions.', 'Version camera decoding, colour space, crop, resize, and the exact pretrained weights transform.', 'Start with a frozen ResNet backbone and a new four-class head; keep frozen BatchNorm statistics fixed and save the best validation checkpoint.', 'Compare one controlled fine-tuning scope, then inspect errors by line, camera, material, defect size, edge position, and lighting.', 'Deploy behind monitoring and retain original-image references, model version, threshold policy, and a rollback path consistent with privacy rules.']}>
+  Convolution can detect local texture and boundary changes, but the operational
+  label still comes from a human process. Ambiguous defects, camera maintenance,
+  new materials, and changing inspection policy can all move the target. The
+  system needs escalation and monitoring, not only a stronger backbone.
+</RealWorldExample>
+
+## Common mistakes
+
+<CommonMistakes items={[{ mistake: 'Reading (N, C, H, W) as height-first.', fix: 'Name and assert every boundary shape; PyTorch Conv2d normally expects batch, channels, height, width.' }, { mistake: 'Calling a filter one 2D grid for RGB input.', fix: 'An ordinary filter spans every input channel and produces one output feature map.' }, { mistake: 'Forgetting the floor in the output-size rule.', fix: 'Use integer floor after applying padding, kernel, and stride for each spatial axis.' }, { mistake: 'Saying padding recovers missing image evidence.', fix: 'Padding supplies a declared boundary value such as zero; it is not an observed pixel.' }, { mistake: 'Treating max pooling as a learned convolution.', fix: 'Pooling applies a fixed local reducer and has no learned kernel weights.' }, { mistake: 'Equating a theoretical receptive field with explanation.', fix: 'It states what could influence an activation, not which pixels actually drove the decision.' }, { mistake: 'Adding a residual branch with a different shape.', fix: 'Match shapes or use a deliberate projection before element-wise addition.' }, { mistake: 'Using pretrained weights with arbitrary preprocessing.', fix: 'Use and version the transforms associated with the exact weights enum.' }, { mistake: 'Assuming requires_grad=False freezes BatchNorm state.', fix: 'Frozen parameters can coexist with changing running buffers; manage backbone mode deliberately.' }, { mistake: 'Randomly splitting adjacent video frames or repeated captures.', fix: 'Split by the real independent entity, device, batch, site, or time before augmentation.' }]} />
+
+## Knowledge check
+
+<QuizCard client:load questions={[{ question: 'What creates one output value in a basic convolution?', options: ['The sum of element-wise products between one local patch and a shared filter', 'The average of the entire dataset', 'A new set of weights unique to that image position'], answer: 0, explanation: 'A local patch and filter are multiplied element by element and summed. The same filter weights are reused across positions.' }, { question: 'What does an output channel represent in an ordinary Conv2d?', options: ['One feature map produced by one learned filter', 'One input image in the batch', 'Always one colour channel'], answer: 0, explanation: 'Each output filter spans all relevant input channels and produces one spatial feature map.' }, { question: 'A 5 × 5 input uses a 3 × 3 kernel, stride 1, and padding 0. What is the output size?', options: ['3 × 3', '5 × 5', '2 × 2'], answer: 0, explanation: 'floor((5 − 3) / 1) + 1 = 3 for both height and width.' }, { question: 'What does 2 × 2 max pooling with stride 2 do?', options: ['Keeps one maximum per non-overlapping window and reduces spatial size', 'Learns four new filter weights', 'Adds a zero border'], answer: 0, explanation: 'Max pooling is a fixed local reducer. With these settings it usually halves each even spatial dimension.' }, { question: 'What does a theoretical receptive field tell you?', options: ['Which input region can influence an activation', 'Which pixels definitely caused the prediction', 'How many classes the model has'], answer: 0, explanation: 'It gives possible input reach. It does not prove equal influence or causal reliance.' }, { question: 'Why can x + F(x) fail inside a residual block?', options: ['The two paths may have incompatible shapes', 'Addition always disables gradients', 'F(x) must contain only zeros'], answer: 0, explanation: 'Element-wise addition needs compatible shapes; a changed resolution or channel count needs a deliberate shortcut projection.' }, { question: 'What must accompany named pretrained weights?', options: ['Their matching preprocessing and a recorded weights version', 'Random validation augmentation', 'A guarantee that source and target domains match'], answer: 0, explanation: 'Preprocessing is part of the weights contract, and the source domain still needs auditing against the new task.' }]} />
+
+## Practice activity
+
+<PracticeActivity title="Design and audit a tiny vision pipeline" time="40–55 minutes" goal="Produce a shape-traced CNN or transfer-learning plan whose data and evaluation contract another engineer can review." steps={['Choose a small image task and state the input, target, unit of generalisation, and costly error.', 'Write the tensor shape and deterministic evaluation transform at every boundary.', 'Calculate output sizes and parameter counts for two convolution layers and one resolution reduction.', 'Trace the theoretical receptive field through those layers.', 'Choose either a small CNN baseline or a named pretrained weights version with its bundled transforms.', 'Declare trainable parameters, BatchNorm mode, validation rule, and at least three deployment-relevant error slices.', 'Add one assertion or test for shape, preprocessing, or fixed-backbone state.']} expected="A reviewer can reproduce the input contract, verify every shape, identify what is learned or frozen, and understand which evidence selects the model." challenge="Create a counterexample test that preserves the label while changing a suspected shortcut such as background, border, text overlay, or lighting.">
+  Example: 64 × 64 RGB component crops enter as `(N, 3, 64, 64)`.
+  A padded 3 × 3 convolution preserves 64 × 64, 2 × 2 pooling reduces it
+  to 32 × 32, and a second padded convolution preserves that size. The split
+  is by manufacturing batch, not image. Validation uses deterministic transforms,
+  and the fixed-feature baseline records its exact weights enum and keeps the
+  frozen backbone in evaluation mode.
+</PracticeActivity>
+
+## Exercises
+
+<Exercises data={frontmatter} />
+
+## Key takeaways
+
+<KeyTakeaways points={['A convolution applies one small learned filter locally and reuses its weights across spatial positions.', 'Track batch, channel, height, and width separately; kernel, stride, and padding determine spatial output size.', 'Pooling or stride reduces resolution, while stacked layers grow the theoretical receptive field.', 'Residual blocks add x to a learned change F(x), requiring compatible path shapes.', 'Transfer learning includes weights, preprocessing, parameter and buffer state, source-domain risks, and protected validation evidence.']} />
+
+## Flashcards
+
+<FlashcardDeck client:load cards={[{ front: 'What is a convolutional filter?', back: 'A small learned set of weights reused over local input patches.' }, { front: 'What is a feature map?', back: 'One spatial output channel showing where and how strongly one filter responded.' }, { front: 'What is PyTorch image-batch order?', back: 'Normally (batch, channels, height, width) for Conv2d.' }, { front: 'What does stride control?', back: 'How many input positions the local window moves between neighbouring outputs.' }, { front: 'What does padding do?', back: 'Adds declared boundary values before a local operation; zeros are not observed pixels.' }, { front: 'Does pooling learn filter weights?', back: 'No. Max and average pooling use fixed local summary rules.' }, { front: 'What is a receptive field?', back: 'The original input region that can influence one activation.' }, { front: 'What is a residual connection?', back: 'A shortcut that produces x + F(x), with compatible shapes or a deliberate projection.' }, { front: 'What is a fixed feature extractor?', back: 'A pretrained backbone kept fixed while a new task-specific head is trained.' }, { front: 'What does requires_grad=False not freeze?', back: 'Mutable buffers such as BatchNorm running statistics; model mode still matters.' }]} />
+
+<RevisionQuestions questions={['Trace the nine products that create one output in the vertical-edge example.', 'Calculate spatial output for three combinations of input, kernel, stride, and padding.', 'Explain why convolution parameter count does not depend on image width.', 'Compare max pooling, average pooling, and a strided convolution.', 'Trace receptive field and jump through a three-layer network.', 'Draw a residual block whose shortcut must change channel count.', 'Design a fixed-feature baseline that keeps BatchNorm state fixed.', 'Name three vision shortcuts or distribution changes that aggregate accuracy could hide.']} />
+
+## One-page sketchnote summary
+
+<SketchnoteSummary title="CNNs: local rules become wider visual evidence" terms={['Image tensor — N × C × H × W', 'Filter — shared local weights', 'Feature map — one filter response sheet', 'Stride — movement step', 'Padding — declared border values', 'Pooling — fixed local summary', 'Receptive field — possible input reach', 'Residual — x + F(x)', 'Transfer — reuse a measured starting point']} mistakes={['Do not swap channels and height', 'Do not call padding evidence', 'Do not hide shape changes', 'Do not confuse reach with explanation', 'Do not detach weights from transforms']} takeaways={['Slide, multiply, sum', 'Count filters and shapes', 'Preserve an identity path', 'Freeze parameters and buffers deliberately', 'Validate the deployment domain']} questions={['What patch creates this output?', 'Which axis changed?', 'What remains trainable?']}>
+  <p slot="main">A convolution sees one local patch, reuses the same learned rule across space, and writes one feature map. Deeper and residual blocks combine those maps; transfer learning reuses them only under an explicit preprocessing and evaluation contract.</p>
+  <div slot="diagram"><ConvolutionPipeline /></div>
+  <pre slot="code"><code>patch × shared filter → sum
+maps → pool/stride → wider context
+x + F(x) → classifier</code></pre>
+</SketchnoteSummary>
+
+<LessonChecklist client:load lessonId="cnns-and-computer-vision-basics" items={['I can read an N × C × H × W image-batch shape.', 'I can calculate one convolution output from a patch and filter.', 'I can calculate output size and convolution parameter count.', 'I can compare convolution, pooling, stride, and padding.', 'I can trace a theoretical receptive field.', 'I can explain a residual connection and its shape requirement.', 'I can create a transfer-learning baseline with matching preprocessing.', 'I completed the convolution lab, code lab, quiz, exercises, and flashcards.']} />
+
+## Resources
+
+<Resources data={frontmatter} />
+
+<NextUp slug="sequences-before-transformers" title="Sequences before transformers" why="Images have useful local spatial structure. Next, study models built for ordered data, the memory bottlenecks they faced, and the motivation for attention." />

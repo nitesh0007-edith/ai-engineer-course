@@ -1,0 +1,54 @@
+---
+/** ReceptiveResidual — growing context and an identity shortcut. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 430"
+  role="img"
+  aria-label="On the left, three stacked local layers show a unit seeing a three-by-three region, then a larger five-by-five region, then a still larger input region, illustrating a growing receptive field. On the right, an input x follows both a learned two-convolution residual branch and a direct identity shortcut. The branches meet at an addition node to produce x plus F of x. A note says shapes must match for addition, or the shortcut needs a projection."
+>
+  <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">see farther without erasing the original path</text>
+
+  <rect x="24" y="59" width="352" height="326" rx="14" fill="var(--paper-raise)" stroke="var(--ch1)" stroke-width="3" />
+  <text x="200" y="91" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">GROWING RECEPTIVE FIELD</text>
+  <g transform="translate(50 116)">
+    {Array.from({ length: 7 }).map((_, row) =>
+      Array.from({ length: 7 }).map((__, column) => (
+        <rect x={column * 24} y={row * 24} width="19" height="19" rx="2" fill={row >= 2 && row <= 4 && column >= 2 && column <= 4 ? 'var(--highlight)' : 'var(--paper-sink)'} stroke="var(--hairline)" />
+      )),
+    )}
+    <rect x="46" y="46" width="67" height="67" rx="4" fill="none" stroke="var(--blueprint)" stroke-width="3" />
+  </g>
+  <path d="M235 139 H267 M235 199 H267 M235 259 H267" stroke="var(--ink-muted)" stroke-width="2" />
+  <circle cx="224" cy="139" r="9" fill="var(--blueprint)" />
+  <circle cx="224" cy="199" r="9" fill="var(--alert)" />
+  <circle cx="224" cy="259" r="9" fill="var(--ch1)" />
+  <text x="275" y="135" font-family="var(--font-hand)" font-size="16" fill="var(--ink)">local edge</text>
+  <text x="275" y="195" font-family="var(--font-hand)" font-size="16" fill="var(--ink)">combined parts</text>
+  <text x="275" y="255" font-family="var(--font-hand)" font-size="16" fill="var(--ink)">wider context</text>
+  <text x="200" y="339" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">each local layer composes earlier local evidence</text>
+  <text x="200" y="358" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">theoretical reach</text>
+  <text x="200" y="376" text-anchor="middle" font-family="var(--font-hand)" font-size="16" fill="var(--alert)">≠ proof of useful attention</text>
+
+  <rect x="398" y="59" width="358" height="326" rx="14" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+  <text x="577" y="91" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">RESIDUAL BLOCK</text>
+  <circle cx="438" cy="211" r="24" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2" />
+  <text x="438" y="218" text-anchor="middle" font-family="var(--font-hand)" font-size="24" fill="var(--ink)">x</text>
+  <path d="M462 211 H491" stroke="var(--blueprint)" stroke-width="3" />
+  <rect x="491" y="169" width="79" height="84" rx="7" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+  <text x="530" y="199" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">conv</text>
+  <text x="530" y="221" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">activation</text>
+  <text x="530" y="243" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--ink)">conv</text>
+  <path d="M570 211 H612" stroke="var(--blueprint)" stroke-width="3" />
+  <circle cx="636" cy="211" r="24" fill="var(--highlight)" stroke="var(--alert)" stroke-width="3" />
+  <text x="636" y="219" text-anchor="middle" font-family="var(--font-hand)" font-size="25" fill="var(--ink)">+</text>
+  <path d="M438 187 V125 H636 V187" fill="none" stroke="var(--alert)" stroke-width="4" />
+  <text x="537" y="115" text-anchor="middle" font-family="var(--font-hand)" font-size="17" fill="var(--alert)">shortcut carries x</text>
+  <path d="M660 211 H717" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="689" y="198" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--blueprint)">x + F(x)</text>
+  <text x="577" y="293" text-anchor="middle" font-family="var(--font-hand)" font-size="20" fill="var(--ink)">learn the useful change F(x)</text>
+  <rect x="428" y="318" width="298" height="43" rx="6" fill="var(--paper-sink)" stroke="var(--frame)" />
+  <text x="577" y="336" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">addition needs matching shapes</text>
+  <text x="577" y="351" text-anchor="middle" font-family="var(--font-mono)" font-size="9.5" fill="var(--ink-muted)">otherwise project the shortcut deliberately</text>
+</svg>

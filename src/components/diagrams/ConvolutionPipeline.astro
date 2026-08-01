@@ -1,0 +1,61 @@
+---
+/** ConvolutionPipeline — local connectivity, shared filters, feature maps. */
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 780 430"
+  role="img"
+  aria-label="A channel-first image tensor with red, green, and blue planes enters a bank of learned three-by-three filters. One filter is shown touching a small local patch and the same filter is reused at several positions. Each filter creates one feature map, so eight filters create eight output channels. A shape rule shows output width equals floor of input plus twice padding minus kernel size, divided by stride, plus one."
+>
+  <text x="390" y="31" text-anchor="middle" font-family="var(--font-hand)" font-size="27" fill="var(--ink)">local view · shared weights · many maps</text>
+
+  <g transform="translate(28 78)">
+    <rect x="28" y="0" width="154" height="154" rx="8" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+    <rect x="14" y="14" width="154" height="154" rx="8" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+    <rect x="0" y="28" width="154" height="154" rx="8" fill="var(--highlight)" stroke="var(--blueprint)" stroke-width="3" />
+    {Array.from({ length: 5 }).map((_, row) =>
+      Array.from({ length: 5 }).map((__, column) => (
+        <rect x={10 + column * 27} y={38 + row * 27} width="20" height="20" rx="3" fill={(row + column) % 3 === 0 ? 'var(--ch1)' : 'var(--paper-raise)'} stroke="var(--hairline)" />
+      )),
+    )}
+    <rect x="64" y="92" width="74" height="74" rx="5" fill="none" stroke="var(--alert)" stroke-width="4" />
+    <text x="77" y="212" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">image tensor</text>
+    <text x="77" y="234" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">channels × height × width</text>
+  </g>
+
+  <path d="M224 168 H294" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="259" y="153" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--blueprint)">slide</text>
+
+  <g transform="translate(302 86)">
+    <rect x="0" y="0" width="152" height="210" rx="12" fill="var(--paper-raise)" stroke="var(--alert)" stroke-width="3" />
+    <text x="76" y="31" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--alert)">FILTER BANK</text>
+    <g stroke="var(--ink)" stroke-width="1.5" fill="var(--paper-sink)">
+      <rect x="22" y="51" width="54" height="54" rx="5" /><rect x="38" y="67" width="54" height="54" rx="5" /><rect x="54" y="83" width="54" height="54" rx="5" />
+      <rect x="22" y="127" width="54" height="54" rx="5" /><rect x="38" y="143" width="54" height="54" rx="5" /><rect x="54" y="159" width="54" height="54" rx="5" />
+    </g>
+    <text x="121" y="91" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">filter 1</text>
+    <text x="121" y="169" font-family="var(--font-hand)" font-size="19" fill="var(--ink)">filter 8</text>
+    <text x="76" y="232" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">each spans all input channels</text>
+  </g>
+
+  <path d="M466 168 H525" stroke="var(--blueprint)" stroke-width="3" />
+  <text x="495" y="153" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--blueprint)">one map each</text>
+
+  <g transform="translate(538 78)">
+    <rect x="28" y="0" width="154" height="154" rx="8" fill="var(--paper-sink)" stroke="var(--ink)" stroke-width="2" />
+    <rect x="14" y="14" width="154" height="154" rx="8" fill="var(--paper-raise)" stroke="var(--ink)" stroke-width="2" />
+    <rect x="0" y="28" width="154" height="154" rx="8" fill="var(--highlight)" stroke="var(--blueprint)" stroke-width="3" />
+    {Array.from({ length: 4 }).map((_, row) =>
+      Array.from({ length: 4 }).map((__, column) => (
+        <rect x={11 + column * 33} y={39 + row * 33} width="25" height="25" rx="3" fill={(row === column || row + column === 3) ? 'var(--alert)' : 'var(--paper-raise)'} stroke="var(--hairline)" />
+      )),
+    )}
+    <text x="77" y="212" text-anchor="middle" font-family="var(--font-hand)" font-size="21" fill="var(--ink)">feature maps</text>
+    <text x="77" y="234" text-anchor="middle" font-family="var(--font-mono)" font-size="10" fill="var(--ink-muted)">8 filters → 8 output channels</text>
+  </g>
+
+  <rect x="72" y="345" width="636" height="55" rx="8" fill="var(--paper-sink)" stroke="var(--frame)" stroke-width="2" />
+  <text x="390" y="369" text-anchor="middle" font-family="var(--font-mono)" font-size="11" fill="var(--ink)">output size = floor((input + 2 × padding − kernel) ÷ stride) + 1</text>
+  <text x="390" y="389" text-anchor="middle" font-family="var(--font-hand)" font-size="18" fill="var(--alert)">a location sees a patch; a filter is reused; a map records where it responded</text>
+</svg>

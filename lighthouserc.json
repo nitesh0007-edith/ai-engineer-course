@@ -28,7 +28,8 @@
         "http://localhost:4321/chapters/backpropagation-from-scratch/",
         "http://localhost:4321/chapters/pytorch/",
         "http://localhost:4321/chapters/training-mechanics/",
-        "http://localhost:4321/chapters/regularisation-and-normalisation/"
+        "http://localhost:4321/chapters/regularisation-and-normalisation/",
+        "http://localhost:4321/chapters/cnns-and-computer-vision-basics/"
       ],
       "numberOfRuns": 3,
       "settings": {

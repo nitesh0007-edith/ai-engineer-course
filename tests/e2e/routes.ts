@@ -27,4 +27,5 @@ export const ROUTES = [
   'chapters/pytorch/',
   'chapters/training-mechanics/',
   'chapters/regularisation-and-normalisation/',
+  'chapters/cnns-and-computer-vision-basics/',
 ];

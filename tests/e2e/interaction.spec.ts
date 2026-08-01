@@ -56,7 +56,7 @@ test.describe('layout integrity', () => {
   });
 
   test('new lesson diagrams fit tablet and mobile canvases', async ({ page }) => {
-    for (const route of ['chapters/pipelines-interpretability-and-adjacent-problems/', 'chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/', 'chapters/regularisation-and-normalisation/']) {
+    for (const route of ['chapters/pipelines-interpretability-and-adjacent-problems/', 'chapters/from-neurons-to-networks/', 'chapters/backpropagation-from-scratch/', 'chapters/pytorch/', 'chapters/training-mechanics/', 'chapters/regularisation-and-normalisation/', 'chapters/cnns-and-computer-vision-basics/']) {
       for (const width of [768, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(route, { waitUntil: 'load' });
@@ -209,6 +209,38 @@ test('normalisation workbench exposes axes and batch dependence', async ({ page 
   await expect(layerValues).toHaveText(originalLayer ?? '');
   await expect.poll(() => rmsValues.textContent()).not.toBe(originalRms);
   await expect(lab.locator('.normalisation-warning')).toContainText('learnable scale and bias');
+});
+
+test('convolution workbench exposes patch arithmetic and shape controls', async ({ page }) => {
+  await page.goto('chapters/cnns-and-computer-vision-basics/', { waitUntil: 'load' });
+
+  const lab = page.locator('.convolution-lab');
+  await expect(lab.locator('xpath=ancestor::astro-island')).not.toHaveAttribute('ssr', '');
+  await expect(lab.locator('[data-map="output"] caption')).toHaveText('3 × 3 feature map');
+
+  const centre = lab.getByRole('button', {
+    name: 'Inspect output row 2, column 2, value 3',
+  });
+  await centre.click();
+  await expect(centre).toHaveAttribute('aria-pressed', 'true');
+  await expect(lab.locator('.convolution-sum')).toHaveAttribute('data-selected-value', '3');
+
+  const filter = lab.getByLabel('Shared filter');
+  await filter.selectOption('horizontal');
+  await expect(lab.locator('.convolution-sum')).toHaveAttribute('data-selected-value', '0');
+
+  const padding = lab.getByLabel('Zero padding');
+  await padding.selectOption('1');
+  await expect(lab.locator('[data-map="output"] caption')).toHaveText('5 × 5 feature map');
+  await lab.getByRole('button', { name: /Inspect output row 5, column 5/ }).click();
+
+  const stride = lab.getByLabel('Stride');
+  await stride.selectOption('2');
+  await stride.focus();
+  await expect(stride).toBeFocused();
+  await expect(lab.locator('[data-map="output"] caption')).toHaveText('3 × 3 feature map');
+  await expect(lab.locator('.convolution-sum')).toBeVisible();
+  await expect(lab.getByRole('button', { name: /Inspect output/ })).toHaveCount(9);
 });
 
 test('interpretability workbench updates from keyboard-operable controls', async ({ page }) => {
